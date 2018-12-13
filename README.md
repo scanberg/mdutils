@@ -1,2 +1,2 @@
 # mdutils
-Core utils for reading, analysis and visualization of MD data.
+Core utils for reading, analysing and visualizing MD data.
