@@ -227,11 +227,43 @@ void initialize() {
         return true;
     };
 
+    auto filter_atom_name = [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+        if (args.count == 0) return false;
+
+        for (int i = 0; i < dyn.molecule.atom.count; i++) {
+            mask[i] = false;
+            for (const auto& arg : args) {
+                if (compare(dyn.molecule.atom.labels[i], arg)) {
+                    mask[i] = true;
+                    break;
+                }
+            }
+        }
+        return true;
+    };
+
     filter_commands.push_back({"all", [](Array<bool> mask, const MoleculeDynamic&, Array<const CString>) {
-                                   memset(mask.data, 1, mask.count);
+                                   memset(mask.data, 1, mask.size_in_bytes());
                                    return true;
                                }});
-    filter_commands.push_back({"water", [](Array<bool>, const MoleculeDynamic&, Array<const CString>) { return true; }});  // NOT DONE
+    filter_commands.push_back({"water", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
+                                   memset(mask.data, 0, mask.size_in_bytes());
+                                   for (const auto& res : dyn.molecule.residues) {
+                                       const auto res_size = res.atom_idx.end - res.atom_idx.beg;
+                                       if (res_size != 3) {
+                                           int32 h_count = 0;
+                                           int32 o_count = 0;
+                                           for (auto e : get_elements(dyn.molecule, res)) {
+                                               if (e == Element::H) h_count++;
+                                               if (e == Element::O) o_count++;
+                                           }
+                                           if (h_count == 2 && o_count == 1) {
+                                               memset(mask.data + res.atom_idx.beg, 1, res_size);
+                                           }
+                                       }
+                                   }
+                                   return true;
+                               }});
     filter_commands.push_back({"aminoacid", filter_amino_acid});
     filter_commands.push_back({"backbone", [](Array<bool>, const MoleculeDynamic&, Array<const CString>) { return true; }});  // NOT DONE
     filter_commands.push_back({"protein", filter_amino_acid});
@@ -245,27 +277,13 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"name", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   if (args.count == 0) return false;
-
-                                   for (int i = 0; i < dyn.molecule.atom.count; i++) {
-                                       mask[i] = false;
-                                       for (const auto& arg : args) {
-                                           if (compare(dyn.molecule.atom.labels[i], arg)) {
-                                               mask[i] = true;
-                                               break;
-                                           }
-                                       }
-                                   }
-                                   return true;
-                               }});
-
-    filter_commands.push_back({"label", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   return find_filter_command("label")->func(mask, dyn, args);
-                               }});
+    filter_commands.push_back({"name", filter_atom_name});
+    filter_commands.push_back({"label", filter_atom_name});
+    filter_commands.push_back({"type", filter_atom_name});
 
     filter_commands.push_back({"element", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    Array<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
+                                   defer { TMP_FREE(elements.data); };
                                    for (int i = 0; i < elements.count; i++) {
                                        elements[i] = element::get_from_string(args[i]);
                                        if (elements[i] == Element::Unknown) return false;
@@ -280,7 +298,6 @@ void initialize() {
                                            }
                                        }
                                    }
-                                   TMP_FREE(elements.data);
                                    return true;
                                }});
 

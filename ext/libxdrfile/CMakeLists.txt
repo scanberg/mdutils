@@ -1,7 +1,6 @@
 ### LIBXDRFILE ###
 
-project(libxdrfile)
-#enable_language (C)
+project(libxdrfile LANGUAGES C)
 
 set(HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/xdrfile.h
@@ -15,5 +14,14 @@ set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/xdrfile_xtc.c
 )
 
-#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-add_library(libxdrfile STATIC ${HEADERS} ${SOURCES})
+if(MSVC)
+add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+endif()
+
+add_library(libxdrfile ${HEADERS} ${SOURCES})
+
+target_include_directories(libxdrfile
+	PUBLIC
+		$<INSTALL_INTERFACE:/src>
+		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+)

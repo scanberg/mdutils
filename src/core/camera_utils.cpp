@@ -119,22 +119,24 @@ bool camera_controller_trackball(vec3* position, quat* orientation, TrackballCon
     ASSERT(state);
 
     const vec2 half_res = state->input.screen_size * 0.5f;
-    vec2 ndc_prev = (vec2(state->input.mouse_coord_prev.x, state->input.screen_size.y - state->input.mouse_coord_prev.y) - half_res) / half_res;
-    vec2 ndc_curr = (vec2(state->input.mouse_coord_curr.x, state->input.screen_size.y - state->input.mouse_coord_curr.y) - half_res) / half_res;
+    const vec2 ndc_prev = (vec2(state->input.mouse_coord_prev.x, state->input.screen_size.y - state->input.mouse_coord_prev.y) - half_res) / half_res;
+    const vec2 ndc_curr = (vec2(state->input.mouse_coord_curr.x, state->input.screen_size.y - state->input.mouse_coord_curr.y) - half_res) / half_res;
+    const vec2 mouse_coord_delta = state->input.mouse_coord_curr - state->input.mouse_coord_prev;
+    const bool mouse_move = mouse_coord_delta != vec2(0, 0);
 
-    if (state->input.rotate_button) {
+    if (state->input.rotate_button && mouse_move) {
         const quat q = trackball(ndc_prev, ndc_curr);
         const vec3 look_at = *position - *orientation * vec3(0, 0, state->distance);
         *orientation = glm::normalize(*orientation * q);
         *position = look_at + *orientation * vec3(0, 0, state->distance);
         return true;
-    } else if (state->input.pan_button) {
+    } else if (state->input.pan_button && mouse_move) {
         const vec2 delta = (ndc_curr - ndc_prev) * vec2(1, -1);
         const vec3 move =
             *orientation * vec3(-delta.x, delta.y, 0) * math::pow(state->distance * state->params.pan_scale, state->params.pan_exponent);
         *position += move;
         return true;
-    } else if (state->input.dolly_button || state->input.dolly_delta != 0.f) {
+    } else if (state->input.dolly_button && mouse_move || state->input.dolly_delta != 0.f) {
         float delta = -(state->input.mouse_coord_curr.y - state->input.mouse_coord_prev.y) *
                       math::pow(state->distance * state->params.dolly_drag_scale, state->params.dolly_drag_exponent);
         delta -= state->input.dolly_delta * math::pow(state->distance * state->params.dolly_delta_scale, state->params.dolly_delta_exponent);
