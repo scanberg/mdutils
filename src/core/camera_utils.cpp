@@ -34,9 +34,10 @@ void look_at(vec3* position, quat* orientation, vec3 look_at, vec3 look_up) {
 
     vec3 look = *position - look_at;
     float len2 = dot(look, look);
-    if (len2 > 0.f) {
+    if (len2 > 0.0001f) {
         look /= sqrtf(len2);
         vec3 right = normalize(cross(look_up, look));
+
         // @TODO: Make sure look and look_up dont coincide
         look_up = cross(look, right);
 
@@ -115,7 +116,8 @@ void camera_move(Camera* camera, vec3 vec) {
 static inline vec3 transform_vec(quat q, vec3 v) { return q * v; }
 
 bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* state) {
-    ASSERT(camera);
+    ASSERT(position);
+    ASSERT(orientation);
     ASSERT(state);
 
     const vec2 half_res = state->input.screen_size * 0.5f;

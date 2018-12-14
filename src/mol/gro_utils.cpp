@@ -93,7 +93,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     DynamicArray<BackboneSegment> backbone_segments = compute_backbone_segments(residues, labels);
     DynamicArray<Bond> covalent_bonds = compute_covalent_bonds(residues, residue_indices, positions, elements);
     DynamicArray<Chain> chains = compute_chains(residues, covalent_bonds, residue_indices);
-    DynamicArray<HydrogenBondDonor> donors = hydrogen_bond::compute_donors(labels);
+    DynamicArray<HydrogenBondDonor> donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
     DynamicArray<HydrogenBondAcceptor> acceptors = hydrogen_bond::compute_acceptors(elements);
 
     for (ChainIdx c = 0; c < chains.count; c++) {

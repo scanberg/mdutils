@@ -316,9 +316,19 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
 
     // @NOTE: The assumtion is that a bond is either within a single residue or between concecutive residues.
 
-    for (auto& res : residues) {
-        // Find internal bonds within residues first
-        res.bond_idx.beg = res.bond_idx.end = bonds.count;
+    for (int32 i = 0; i < residues.size(); i++) {
+        auto& res = residues[i];
+
+        if (i > 0) {
+            // Include potential shared bonds from previous residue
+            res.bond_idx.beg = residues[i - 1].bond_idx.end_internal;
+            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = residues[i - 1].bond_idx.end;
+        } else {
+            res.bond_idx.beg = res.bond_idx.end = bonds.size();
+            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = bonds.size();
+        }
+
+        // Internal bonds
         for (AtomIdx atom_i = res.atom_idx.beg; atom_i < res.atom_idx.end; atom_i++) {
             spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length,
                                          [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
@@ -331,7 +341,8 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
                                          });
         }
         res.bond_idx.end_internal = res.bond_idx.end;
-        // Now locate external bonds
+
+        // Now locate external bonds to next residue
         for (AtomIdx atom_i = res.atom_idx.beg; atom_i < res.atom_idx.end; atom_i++) {
             spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length,
                                          [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {

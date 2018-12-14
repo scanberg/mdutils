@@ -185,7 +185,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
         auto mol_pos = positions.sub_array(0, num_atoms);
         auto covalent_bonds = compute_covalent_bonds(residues, residue_indices, mol_pos, elements);
         auto backbone_segments = compute_backbone_segments(residues, labels);
-        auto donors = hydrogen_bond::compute_donors(labels);
+        auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
         auto acceptors = hydrogen_bond::compute_acceptors(elements);
 
         init_molecule_structure(&md->molecule, num_atoms, (int32)covalent_bonds.count, (int32)residues.count, (int32)chains.count,

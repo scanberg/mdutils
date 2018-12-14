@@ -8,26 +8,50 @@ namespace hydrogen_bond {
 
 // Computes the potential donors given a set of atom labels.
 // OH and NH atoms are assumed to be donors if the concecutive atom is marked with 'H' for Hydrogen.
-int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, Array<const Label> labels) {
+int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, Array<const Element> elements, Array<const ResIdx> residue_indices,
+                     Array<const Residue> residues, Array<const Bond> covalent_bonds) {
     ASSERT(donors);
     int32 pre_count = (int32)donors->count;
-    const int32 num_labels = (int32)labels.count;
-    for (int32 i = 0; i < num_labels; i++) {
-        if (compare_n(labels[i], "OH", 2) || compare_n(labels[i], "NH", 2)) {
-            if (i + 1 < num_labels && compare_n(labels[i + 1], "H", 1)) {
-                donors->push_back({i, i + 1});
-            }
-            if (i + 2 < num_labels && compare_n(labels[i + 2], "H", 1)) {
-                donors->push_back({i, i + 2});
+    for (int32 i = 0; i < (int32)elements.size(); i++) {
+        if (elements[i] == Element::H) {
+            // get all bonds with atom i
+            const auto& res = residues[residue_indices[i]];
+            for (const auto& bond : covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg)) {
+                if (i == bond.idx[0] || i == bond.idx[1]) {
+                    const int32 j = bond.idx[0] != i ? bond.idx[0] : bond.idx[1];
+                    const auto elem = elements[j];
+                    if (elem == Element::O || elem == Element::N || elem == Element::F) {
+                        donors->push_back({j, i});
+                        break;
+                    }
+                }
             }
         }
     }
+
+    /*
+ASSERT(donors);
+int32 pre_count = (int32)donors->count;
+const int32 num_labels = (int32)labels.count;
+for (int32 i = 0; i < num_labels; i++) {
+    if (compare_n(labels[i], "OH", 2) || compare_n(labels[i], "NH", 2)) {
+        if (i + 1 < num_labels && compare_n(labels[i + 1], "H", 1)) {
+            donors->push_back({i, i + 1});
+        }
+        if (i + 2 < num_labels && compare_n(labels[i + 2], "H", 1)) {
+            donors->push_back({i, i + 2});
+        }
+    }
+}
+    */
+
     return (int32)donors->count - pre_count;
 }
 
-DynamicArray<HydrogenBondDonor> compute_donors(Array<const Label> labels) {
+DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues,
+                                               Array<const Bond> covalent_bonds) {
     DynamicArray<HydrogenBondDonor> donors;
-    compute_donors(&donors, labels);
+    compute_donors(&donors, elements, residue_indices, residues, covalent_bonds);
     return donors;
 }
 
@@ -37,7 +61,7 @@ int32 compute_acceptors(DynamicArray<HydrogenBondAcceptor>* acceptors, Array<con
     ASSERT(acceptors);
     const int32 pre_count = (int32)acceptors->count;
     for (int32 i = 0; i < (int32)elements.count; i++) {
-        if (elements[i] == Element::O || elements[i] == Element::N) {
+        if (elements[i] == Element::O || elements[i] == Element::N || elements[i] == Element::F) {
             acceptors->push_back(i);
         }
     }
