@@ -133,7 +133,7 @@ static inline void append_draw_command(Index offset, Index count, GLenum primiti
     } else {
         ASSERT(curr_view_matrix_idx > -1, "Immediate Mode View Matrix not set!");
         ASSERT(curr_proj_matrix_idx > -1, "Immediate Mode Proj Matrix not set!");
-        ASSERT(curr_material_idx > -1, "Material not set!");
+        //ASSERT(curr_material_idx > -1, "Material not set!");
 
         DrawCommand cmd{offset, count, primitive_type, program, curr_view_matrix_idx, curr_proj_matrix_idx, curr_material_idx};
         commands.push_back(cmd);
