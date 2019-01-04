@@ -23,6 +23,11 @@ struct BackboneSegment {
     AtomIdx o_idx = -1;
 };
 
+struct BackboneSequence {
+    ResIdx beg = 0;
+    ResIdx end = 0;
+};
+
 struct HydrogenBondDonor {
     AtomIdx donor_idx = 0;
     AtomIdx hydro_idx = 0;
@@ -77,6 +82,7 @@ struct MoleculeStructure {
 
     // If this is not zero in length it should have the same length as residues
     Array<BackboneSegment> backbone_segments{};
+    Array<BackboneSequence> backbone_sequences{};
 
     struct {
         Array<HydrogenBondDonor> donors{};
@@ -96,6 +102,17 @@ inline Array<const Label> get_labels(const MoleculeStructure& mol) { return Arra
 inline Array<ResIdx> get_residue_indices(MoleculeStructure& mol) { return Array<ResIdx>(mol.atom.residue_indices, mol.atom.count); }
 inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return Array<const ResIdx>(mol.atom.residue_indices, mol.atom.count); }
 
+// Backbone accessors
+inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, BackboneSequence seq) {
+    ASSERT(0 <= seq.beg && seq.end <= mol.backbone_segments.count);
+    return mol.backbone_segments.sub_array(seq.beg, seq.end - seq.beg);
+}
+
+inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, BackboneSequence seq) {
+    ASSERT(0 <= seq.beg && seq.end <= mol.backbone_segments.count);
+    return mol.backbone_segments.sub_array(seq.beg, seq.end - seq.beg);
+}
+
 // Chain accessors
 inline Chain get_chain(MoleculeStructure& mol, ChainIdx idx) {
     ASSERT(0 <= idx && idx < mol.chains.count);
@@ -110,13 +127,13 @@ inline Chain get_chain(const MoleculeStructure& mol, ChainIdx idx) {
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, Chain chain) {
     ASSERT(0 <= chain.res_idx.beg && chain.res_idx.end <= mol.residues.count);
     if (mol.backbone_segments.count == 0) return {};
-    return {mol.backbone_segments.beg() + chain.res_idx.beg, mol.backbone_segments.beg() + chain.res_idx.end};
+    return mol.backbone_segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
 }
 
 inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, Chain chain) {
     ASSERT(0 <= chain.res_idx.beg && chain.res_idx.end <= mol.residues.count);
     if (mol.backbone_segments.count == 0) return {};
-    return {mol.backbone_segments.beg() + chain.res_idx.beg, mol.backbone_segments.beg() + chain.res_idx.end};
+    return mol.backbone_segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
 }
 
 inline Array<Residue> get_residues(MoleculeStructure& mol, Chain chain) {
@@ -225,5 +242,5 @@ inline Array<const Bond> get_internal_bonds(const MoleculeStructure& mol, const 
 }
 
 bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains,
-                             int32 num_backbone_segments = 0, int32 num_hydrogen_bond_donors = 0, int32 num_hydrogen_bond_acceptors = 0);
+                             int32 num_backbone_segments = 0, int32 num_backbone_sequences = 0, int32 num_hydrogen_bond_donors = 0, int32 num_hydrogen_bond_acceptors = 0);
 void free_molecule_structure(MoleculeStructure* mol);

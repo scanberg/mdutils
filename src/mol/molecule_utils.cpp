@@ -192,29 +192,6 @@ void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev
         const glm_vec4 res = glm_vec4_mix(prev, next, t_vec);
 
         positions[i] = *reinterpret_cast<const vec3*>(&res);
-
-        /*
-vec4 next = vec4(next_pos[i], 0);
-vec4 prev = vec4(prev_pos[i], 0);
-
-const vec4 delta = next - prev;
-const vec4 sign_delta = math::sign(delta);
-const vec4 abs_delta = math::abs(delta);
-const vec4 signed_mask = sign_delta * math::step(half_box_ext, abs_delta);
-next = next - full_box_ext * signed_mask;
-*/
-
-        // if (abs_delta.x > half_box_ext.x) next.x = next.x - sign_delta.x * full_box_ext.x;
-        // if (abs_delta.y > half_box_ext.y) next.y = next.y - sign_delta.y * full_box_ext.y;
-        // if (abs_delta.z > half_box_ext.z) next.z = next.z - sign_delta.z * full_box_ext.z;
-
-        // vec3 signed_mask = math::sign(delta) * math::step(half_box_ext, math::abs(delta));
-        // next = next - full_box_ext * signed_mask;
-
-        // Make sure we do not violate periodic bounds
-        // vec3 periodic_pos = math::fract(vec3(1, 1, 1) + math::mix(prev, next, t) * inv_full_box_ext);
-        // positions[i] = periodic_pos * full_box_ext;
-        // positions[i] = math::mix(prev, next, t);
     }
 }
 
@@ -225,18 +202,21 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
     ASSERT(pos2.count == positions.count);
     ASSERT(pos3.count == positions.count);
 
-    /*
-        const vec3 full_box_ext = sim_box * vec3(1);
-        // const vec3 inv_full_box_ext = 1.f / full_box_ext;
-        const vec3 half_box_ext = full_box_ext * 0.5f;
-    */
     const glm_vec4 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
+    glm_vec4 p0, p1, p2, p3;
 
     for (int i = 0; i < positions.count; i++) {
-        glm_vec4 p0 = _mm_set_ps(0, pos0[i].z, pos0[i].y, pos0[i].x);
-        glm_vec4 p1 = _mm_set_ps(0, pos1[i].z, pos1[i].y, pos1[i].x);
-        glm_vec4 p2 = _mm_set_ps(0, pos2[i].z, pos2[i].y, pos2[i].x);
-        glm_vec4 p3 = _mm_set_ps(0, pos3[i].z, pos3[i].y, pos3[i].x);
+        if constexpr (sizeof(vec3) == 16) { // @NOTE: If this is true, we can assume that it is 16 byte aligned
+            p0 = *reinterpret_cast<const glm_vec4*>(&pos0[i]);
+            p1 = *reinterpret_cast<const glm_vec4*>(&pos1[i]);
+            p2 = *reinterpret_cast<const glm_vec4*>(&pos2[i]);
+            p3 = *reinterpret_cast<const glm_vec4*>(&pos3[i]);
+        } else {
+            p0 = _mm_set_ps(0, pos0[i].z, pos0[i].y, pos0[i].x);
+			p1 = _mm_set_ps(0, pos1[i].z, pos1[i].y, pos1[i].x);
+			p2 = _mm_set_ps(0, pos2[i].z, pos2[i].y, pos2[i].x);
+			p3 = _mm_set_ps(0, pos3[i].z, pos3[i].y, pos3[i].x);
+		}
 
         p0 = de_periodize(p1, p0, full_box_ext);
         p2 = de_periodize(p1, p2, full_box_ext);
@@ -244,31 +224,6 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
 
         const glm_vec4 res = math::spline(p0, p1, p2, p3, t);
         positions[i] = *reinterpret_cast<const vec3*>(&res);
-
-        /*
-        vec3 p0 = pos0[i];
-        vec3 p1 = pos1[i];
-        vec3 p2 = pos2[i];
-        vec3 p3 = pos3[i];
-
-        // p1 is our reference which we want to 'de-periodize' the other positions to in order to interpolate correctly
-        vec3 d0 = p0 - p1;
-        vec3 s0 = math::sign(d0) * math::step(half_box_ext, math::abs(d0));
-        p0 = p0 - full_box_ext * s0;
-
-        vec3 d2 = p2 - p1;
-        vec3 s2 = math::sign(d2) * math::step(half_box_ext, math::abs(d2));
-        p2 = p2 - full_box_ext * s2;
-
-        vec3 d3 = p3 - p1;
-        vec3 s3 = math::sign(d3) * math::step(half_box_ext, math::abs(d3));
-        p3 = p3 - full_box_ext * s3;
-
-        // Make sure we do not violate periodic bounds
-        // vec3 periodic_pos = math::fract(vec3(1, 1, 1) + math::spline(p0, p1, p2, p3, t) * inv_full_box_ext);
-        // positions[i] = periodic_pos * full_box_ext;
-        positions[i] = math::spline(p0, p1, p2, p3, t);
-        */
     }
 }
 
@@ -394,21 +349,25 @@ DynamicArray<Bond> compute_covalent_bonds(Array<const vec3> atom_pos, Array<cons
     return bonds;
 }
 
+bool has_covalent_bond(Array<const Bond> bonds, const Residue& res_a, const Residue& res_b) {
+	return (res_a.bond_idx.beg < res_b.bond_idx.end && res_b.bond_idx.beg < res_a.bond_idx.end);
+}
+
+bool valid_segment(const BackboneSegment& segment) {
+    return segment.ca_idx != -1 && segment.c_idx != -1 && segment.n_idx != -1 && segment.o_idx != -1;
+}
+
 // @NOTE this method is sub-optimal and can surely be improved...
 // Residues should have no more than 2 potential connections to other residues.
-DynamicArray<Chain> compute_chains(Array<const Residue> residues, Array<const Bond> bonds, Array<const ResIdx> atom_residue_indices) {
+DynamicArray<Chain> compute_chains(Array<const Residue> residues, Array<const Bond> bonds) {
+
     DynamicArray<Bond> residue_bonds;
-
-    if (atom_residue_indices) {
-        for (const auto& bond : bonds) {
-            if (atom_residue_indices[bond.idx[0]] != atom_residue_indices[bond.idx[1]]) {
-                residue_bonds.push_back({atom_residue_indices[bond.idx[0]], atom_residue_indices[bond.idx[1]]});
-            }
-        }
-    } else {
-        ASSERT(false, "Not implemented Yeti");
-    }
-
+	for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
+        if (has_covalent_bond(bonds, residues[i], residues[i + 1])) {
+			residue_bonds.push_back({i, i + 1});
+		}
+	}
+	
     if (residue_bonds.count == 0) {
         // No residue bonds, No chains.
         return {};
@@ -433,17 +392,38 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues, Array<const Bo
 
     DynamicArray<Chain> chains;
     int curr_chain_idx = -1;
-    for (int i = 0; i < residue_chains.count; i++) {
+    for (int i = 0; i < residue_chains.size(); i++) {
         if (residue_chains[i] != curr_chain_idx) {
             curr_chain_idx = residue_chains[i];
             Label lbl;
             snprintf(lbl.beg(), Label::MAX_LENGTH, "C%i", curr_chain_idx);
             chains.push_back({lbl, (ResIdx)i, (ResIdx)i});
         }
-        chains.back().res_idx.end++;
+        if (chains.size() > 0) {
+			chains.back().res_idx.end++;
+        }
     }
 
     return chains;
+}
+
+DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues,
+																Array<const Bond> bonds) {
+    if (segments.count == 0) return {};
+	ASSERT(segments.count == residues.count);
+
+	DynamicArray<IntRange> bb_sequences;
+    for (ResIdx i = 0; i < (ResIdx)residues.size(); i++) {
+        if (valid_segment(segments[i])) {
+            bb_sequences.push_back({i, i + 1});
+			while (i < (ResIdx)residues.size() - 1 && has_covalent_bond(bonds, residues[i], residues[i + 1])) {
+                bb_sequences.back().y++;
+                i++;
+			}
+		}
+	}
+
+	return bb_sequences;
 }
 
 template <int64 N>
@@ -458,38 +438,34 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
     DynamicArray<BackboneSegment> segments;
     int64 invalid_segments = 0;
     for (auto& res : residues) {
-        int32 ca_idx = -1;
-        int32 n_idx = -1;
-        int32 c_idx = -1;
-        int32 o_idx = -1;
+        BackboneSegment seg{};
         if (is_amino_acid(res)) {
             // find atoms
             for (int32 i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
                 const auto& lbl = atom_labels[i];
-                if (ca_idx == -1 && match(lbl, "CA")) ca_idx = i;
-                if (n_idx == -1 && match(lbl, "N")) n_idx = i;
-                if (c_idx == -1 && match(lbl, "C")) c_idx = i;
-                if (o_idx == -1 && match(lbl, "O")) o_idx = i;
+                if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
+                if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
+                if (seg.c_idx == -1 && match(lbl, "C")) seg.c_idx = i;
+                if (seg.o_idx == -1 && match(lbl, "O")) seg.o_idx = i;
             }
 
             // Could not match "O"
-            if (o_idx == -1) {
+            if (seg.o_idx == -1) {
                 // Pick first atom containing O after C atom
-                for (int32 i = c_idx; i < res.atom_idx.end; i++) {
+                for (int32 i = seg.c_idx; i < res.atom_idx.end; i++) {
                     const auto& lbl = atom_labels[i];
-                    if (lbl[0] == 'o' || lbl[0] == 'O') o_idx = i;
+                    if (lbl[0] == 'o' || lbl[0] == 'O') seg.o_idx = i;
                 }
             }
 
-            if (ca_idx == -1 || n_idx == -1 || c_idx == -1 || o_idx == -1) {
+            if (!valid_segment(seg)) {
                 LOG_ERROR("Could not identify all backbone indices for residue %s.\n", res.name.beg());
                 invalid_segments++;
             }
-            segments.push_back({ca_idx, n_idx, c_idx, o_idx});
         } else {
-            segments.push_back({-1, -1, -1, -1});
             invalid_segments++;
         }
+        segments.push_back(seg);
     }
 
     if (invalid_segments == segments.count) return {};
@@ -543,7 +519,7 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
     ca_idx.push_back(backbone[size - 1].ca_idx);
     ca_idx.push_back(backbone[size - 1].ca_idx);
 
-    // @NOTE: Flip direction of support vector (O-C) if pointing the 'wrong way' as seen from previous segment
+    // @NOTE: Flip direction of support vector (O <- C) if pointing the 'wrong way' as seen from previous segment
     for (int64 i = 1; i < o_tmp.size(); i++) {
         vec3 v0 = o_tmp[i - 1] - c_tmp[i - 1];
         vec3 v1 = o_tmp[i] - c_tmp[i];
@@ -673,7 +649,12 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
         for (const Chain& c : dynamic.molecule.chains) {
             auto bb_segments = get_backbone(dynamic.molecule, c);
             auto bb_angles = frame_angles.sub_array(c.res_idx.beg, c.res_idx.end - c.res_idx.beg);
-            compute_backbone_angles(bb_angles, frame_pos, bb_segments);
+
+            if (bb_segments < 2) {
+                memset(bb_angles.data, 0, bb_angles.size_in_bytes());
+            } else {
+				compute_backbone_angles(bb_angles, frame_pos, bb_segments);
+			}
         }
     }
 }

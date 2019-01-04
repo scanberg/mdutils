@@ -28,21 +28,21 @@ Element get_from_string(CString cstr) {
 
     // Two or more (Try to match first two)
     if (cstr.length() > 1) {
-        for (int32 i = 0; i < 119; i++) {
+        for (int32 i = 0; i < num_elements; i++) {
             auto elem = symbol((Element)i);
             if (strlen(elem) == 2 && cstr[0] == elem[0] && cstr[1] == elem[1]) return (Element)i;
         }
     }
 
     // Try to match against first character
-    for (int32 i = 0; i < 119; i++) {
+    for (int32 i = 0; i < num_elements; i++) {
         auto elem = symbol((Element)i);
         if (strlen(elem) == 1 && cstr[0] == elem[0]) return (Element)i;
     }
 
     // Try to match against two characters again with the latter in lower case
     if (cstr.length() > 1) {
-        for (int32 i = 0; i < 119; i++) {
+        for (int32 i = 0; i < num_elements; i++) {
             auto elem = symbol((Element)i);
             if (strlen(elem) == 2 && cstr[0] == elem[0] && tolower(cstr[1]) == elem[1]) return (Element)i;
         }

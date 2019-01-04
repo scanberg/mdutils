@@ -308,6 +308,8 @@ void initialize() {
                                        int atomnr = (int)dyn.molecule.atom.elements[i];
                                        mask[i] = false;
                                        for (auto range : ranges) {
+                                           if (range.x == -1) range.x = 0;
+                                           if (range.y == -1) range.y = element::num_elements;
                                            if (range.x <= atomnr && atomnr <= range.y) {
                                                mask[i] = true;
                                                break;
@@ -318,25 +320,31 @@ void initialize() {
                                }});
 
     filter_commands.push_back({"atom", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+                                   memset(mask.data, 0, mask.size_in_bytes());
+                                   if (dyn.molecule.atom.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   memset(mask.data, 0, mask.size_in_bytes());
                                    for (auto range : ranges) {
+                                       if (range.x == -1) range.x = 0;
+                                       if (range.y == -1) range.y = (int32)dyn.molecule.atom.count - 1;
                                        range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.atom.count - 1);
                                        range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.atom.count - 1);
                                        if (range.x == range.y)
                                            mask[range.x] = true;
                                        else
-                                           memset(mask.data + range.x, 1, range.y - range.x + 1);
+                                           memset(mask.data + range.x, 1, range.y - range.x);
                                    }
                                    return true;
                                }});
 
     filter_commands.push_back({"residue", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+                                   memset(mask.data, 0, mask.size_in_bytes());
+                                   if (dyn.molecule.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   memset(mask.data, 0, mask.size_in_bytes());
                                    for (auto range : ranges) {
+                                       if (range.x == -1) range.x = 0;
+                                       if (range.y == -1) range.y = (int32)dyn.molecule.atom.count - 1;
                                        range.x = math::clamp(range.x, 0, (int32)dyn.molecule.residues.count - 1);
                                        range.y = math::clamp(range.y, 0, (int32)dyn.molecule.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
@@ -363,10 +371,13 @@ void initialize() {
                                }});
 
     filter_commands.push_back({"resid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+                                   memset(mask.data, 0, mask.size_in_bytes());
+                                   if (dyn.molecule.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   memset(mask.data, 0, mask.size_in_bytes());
                                    for (auto range : ranges) {
+                                       if (range.x == -1) range.x = 0;
+                                       if (range.y == -1) range.y = (int32)dyn.molecule.residues.count - 1;
                                        range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.residues.count - 1);
                                        range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
@@ -379,12 +390,15 @@ void initialize() {
                                }});
 
     filter_commands.push_back({"chain", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+                                   memset(mask.data, 0, mask.size_in_bytes());
+                                   if (dyn.molecule.chains.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   memset(mask.data, 0, mask.size_in_bytes());
                                    for (auto range : ranges) {
-                                       range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.residues.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.residues.count - 1);
+                                       if (range.x == -1) range.x = 0;
+                                       if (range.y == -1) range.y = (int32)dyn.molecule.atom.count - 1;
+                                       range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.chains.count - 1);
+                                       range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.chains.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
                                            Chain chain = get_chain(dyn.molecule, (ChainIdx)i);
                                            const auto beg = get_atom_beg_idx(dyn.molecule, chain);

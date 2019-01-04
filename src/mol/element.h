@@ -128,9 +128,10 @@ enum class Element : unsigned char {
 };
 
 namespace element {
+constexpr int32 num_elements = 119;
 namespace detail {
 
-static constexpr const char* names[119] = {
+static constexpr const char* names[num_elements] = {
     "Unknown",     "Hydrogen",     "Helium",       "Lithium",     "Beryllium",   "Boron",         "Carbon",     "Nitrogen",   "Oxygen",
     "Fluorine",    "Neon",         "Sodium",       "Magnesium",   "Aluminium",   "Silicon",       "Phosphorus", "Sulfur",     "Chlorine",
     "Argon",       "Potassium",    "Calcium",      "Scandium",    "Titanium",    "Vanadium",      "Chromium",   "Manganese",  "Iron",
@@ -146,7 +147,7 @@ static constexpr const char* names[119] = {
     "Hassium",     "Meitnerium",   "Darmstadtium", "Roentgenium", "Copernicium", "Nihonium",      "Flerovium",  "Moscovium",  "Livermorium",
     "Tennessine",  "Oganesson"};
 
-static constexpr const char* symbols[119] = {
+static constexpr const char* symbols[num_elements] = {
     "Xx", "H",  "He", "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne", "Na", "Mg", "Al", "Si", "P",  "S",  "Cl", "Ar", "K",  "Ca", "Sc", "Ti", "V",
     "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag",
     "Cd", "In", "Sn", "Sb", "Te", "I",  "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu",
@@ -154,7 +155,7 @@ static constexpr const char* symbols[119] = {
     "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og"};
 
 // http://dx.doi.org/10.1039/b801115j
-static constexpr float covalent_radii[119] = {
+static constexpr float covalent_radii[num_elements] = {
     0.00, 0.31, 0.28, 1.28, 0.96, 0.84, 0.76, 0.71, 0.66, 0.57, 0.58, 1.66, 1.41, 1.21, 1.11, 1.07, 1.05, 1.02, 1.06, 2.03, 1.76, 1.70, 1.60, 1.53,
     1.39, 1.39, 1.32, 1.26, 1.24, 1.32, 1.22, 1.22, 1.20, 1.19, 1.20, 1.20, 1.16, 2.20, 1.95, 1.90, 1.75, 1.64, 1.54, 1.47, 1.46, 1.42, 1.39, 1.45,
     1.44, 1.42, 1.39, 1.39, 1.38, 1.39, 1.40, 2.44, 2.15, 2.07, 2.04, 2.03, 2.01, 1.99, 1.98, 1.98, 1.96, 1.94, 1.92, 1.92, 1.89, 1.90, 1.87, 1.87,
@@ -162,7 +163,7 @@ static constexpr float covalent_radii[119] = {
     1.69, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60, 1.60};
 
 // https://dx.doi.org/10.1021/jp8111556
-static constexpr float vdw_radii[119] = {
+static constexpr float vdw_radii[num_elements] = {
     1.00, 1.10, 1.40, 1.81, 1.53, 1.92, 1.70, 1.55, 1.52, 1.47, 1.54, 2.27, 1.73, 1.84, 2.10, 1.80, 1.80, 1.75, 1.88, 2.75, 2.31, 2.30, 2.15, 2.05,
     2.05, 2.05, 2.05, 2.00, 2.00, 2.00, 2.10, 1.87, 2.11, 1.85, 1.90, 1.83, 2.02, 3.03, 2.49, 2.40, 2.30, 2.15, 2.10, 2.05, 2.05, 2.00, 2.05, 2.10,
     2.20, 2.20, 1.93, 2.17, 2.06, 1.98, 2.16, 3.43, 2.68, 2.50, 2.48, 2.47, 2.45, 2.43, 2.42, 2.40, 2.38, 2.37, 2.35, 2.33, 2.32, 2.30, 2.28, 2.27,
@@ -171,7 +172,7 @@ static constexpr float vdw_radii[119] = {
 
 // http://chemistry.wikia.com/wiki/List_of_elements_by_atomic_mass
 // last element padded with 295
-static constexpr float atomic_mass[119] = {
+static constexpr float atomic_mass[num_elements] = {
     0,       1.00794,    4.002602, 6.941,     9.012182, 10.811,    12.0107,   14.0067,     15.9994, 18.9984032, 20.1797, 22.98976928,
     24.3050, 26.9815386, 28.0855,  30.973762, 32.065,   35.453,    39.0983,   39.948,      40.078,  44.955912,  47.867,  50.9415,
     51.9961, 54.938045,  55.845,   58.933195, 58.6934,  63.546,    65.409,    69.723,      72.64,   74.92160,   78.96,   79.904,
@@ -184,7 +185,7 @@ static constexpr float atomic_mass[119] = {
     277,     268,        271,      272,       285,      284,       289,       288,         292,     294,        295};
 
 // http://jmol.sourceforge.net/jscolors/
-static constexpr unsigned int colors[119] = {
+static constexpr unsigned int colors[num_elements] = {
     0xFFFF00FF, 0xFFFFFFFF, 0xFFFFFFD9, 0xFF2222B2, 0xFF00FFC2, 0xFFB5B5FF, 0xFFB0B0B0, 0xFFFF8F8F, 0xFF0000F0, 0xFF50E090, 0xFFF5E3B3, 0xFFF25CAB,
     0xFF00FF8A, 0xFF908080, 0xFFA0C8F0, 0xFF00A5FF, 0xFF32C8FF, 0xFF1FF01F, 0xFFE3D180, 0xFFD4408F, 0xFF908080, 0xFFE6E6E6, 0xFF908080, 0xFFABA6A6,
     0xFF908080, 0xFF908080, 0xFF00A5FF, 0xFFA090F0, 0xFF2A2AA5, 0xFF2A2AA5, 0xFF2A2AA5, 0xFF8F8FC2, 0xFF8F8F66, 0xFFE380BD, 0xFF00A1FF, 0xFF2A2AA5,

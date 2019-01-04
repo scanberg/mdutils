@@ -47,17 +47,35 @@ struct Array {
     T* beg() { return data; }
     T* end() { return data + count; }
 
-    const T& front() const { return data[0]; }
-    const T& back() const { return data[count - 1]; }
-    T& front() { return data[0]; }
-    T& back() { return data[count - 1]; }
+    const T& front() const {
+        ASSERT(count > 0);
+		return data[0];
+	}
+    const T& back() const {
+        ASSERT(count > 0);
+		return data[count - 1];
+	}
+    T& front() {
+        ASSERT(count > 0);
+		return data[0];
+	}
+    T& back() {
+        ASSERT(count > 0);
+		return data[count - 1];
+	}
 
     int64 size() const { return count; }
     int64 size_in_bytes() const { return count * sizeof(T); }
 
     operator bool() const { return data != nullptr && count > 0; }
-    const T& operator[](int64 i) const { return data[i]; }
-    T& operator[](int64 i) { return data[i]; }
+    const T& operator[](int64 i) const {
+        ASSERT(i < count);
+		return data[i];
+	}
+    T& operator[](int64 i) {
+        ASSERT(i < count);
+		return data[i];
+	}
 
     operator Array<const T>() const { return {data, count}; }
 
@@ -117,11 +135,12 @@ struct DynamicArray : Array<T> {
         }
     }
 
-    DynamicArray(DynamicArray&& other) : capacity(other.capacity) {
+    DynamicArray(DynamicArray&& other) {
         this->data = other.data;
+        this->capacity = other.capacity;
+        this->count = other.count;
         other.data = nullptr;
         other.capacity = 0;
-        this->count = other.count;
         other.count = 0;
     }
 
@@ -161,11 +180,11 @@ struct DynamicArray : Array<T> {
             if (this->data) {
                 FREE(this->data);
             }
-            capacity = other.capacity;
-            other.capacity = 0;
             this->data = other.data;
-            other.data = nullptr;
+            this->capacity = other.capacity;
             this->count = other.count;
+            other.data = nullptr;
+            other.capacity = 0;
             other.count = 0;
         }
         return *this;

@@ -11,21 +11,8 @@ namespace draw {
 
 static GLuint vao = 0;
 
-/*
-static GLuint instanced_quad_vao = 0;
-static GLuint instanced_quad_ibo = 0;
-*/
-
 static GLuint vbo = 0;
 static GLsizeiptr vbo_size = MEGABYTES(4);
-
-/*
-void draw_instanced_quads(int num_instances) {
-    glBindVertexArray(instanced_quad_vao);
-    glDrawElementsInstanced(GL_TRIANGLE_STRIP, 4, GL_UNSIGNED_BYTE, 0, num_instances);
-    glBindVertexArray(0);
-}
-*/
 
 inline void set_vbo_data(const void* data, GLsizeiptr size_in_bytes) {
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -969,22 +956,6 @@ void shutdown() {
 }  // namespace ribbons
 
 void initialize() {
-    /*
-if (!instanced_quad_ibo) {
-    const unsigned char data[4] = {0, 1, 2, 3};
-    glGenBuffers(1, &instanced_quad_ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, instanced_quad_ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4, data, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-}
-
-if (!instanced_quad_vao) {
-    glGenVertexArrays(1, &instanced_quad_vao);
-    glBindVertexArray(instanced_quad_vao);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, instanced_quad_ibo);
-    glBindVertexArray(0);
-}
-    */
     if (!vao) glGenVertexArrays(1, &vao);
 
     glGenBuffers(1, &vbo);
@@ -999,8 +970,6 @@ if (!instanced_quad_vao) {
 
 void shutdown() {
     if (vao) glDeleteVertexArrays(1, &vao);
-    // if (instanced_quad_vao) glDeleteVertexArrays(1, &instanced_quad_vao);
-    // if (instanced_quad_ibo) glDeleteBuffers(1, &instanced_quad_ibo);
     if (vbo) glDeleteBuffers(1, &vbo);
 
     vdw::shutdown();
@@ -1060,6 +1029,283 @@ void draw_licorice(GLuint atom_position_buffer, GLuint atom_color_buffer, GLuint
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buffer, GLuint backbone_index_buffer,
+                            int num_backbone_indices) {
+    static GLuint program = 0;
+
+    if (!program) {
+        constexpr const char* v_shader_src = R"(
+		#version 330 core
+		layout (location = 0) in vec3 v_position;
+
+		void main() {
+			gl_Position = vec4(v_position, 1);
+		} 
+		)";
+
+        constexpr const char* g_shader_src = R"(
+		#version 330 core
+
+		layout (triangles_adjacency) in;
+		layout (points, max_vertices = 1) out;
+
+		layout (location = 0) out vec3 out_control_point;
+		layout (location = 1) out vec3 out_support_vector;
+		layout (location = 2) out vec3 out_tangent_vector;
+
+		void main() {
+			vec3 ca_p = gl_in[0].gl_Position.xyz; // Ca[i-1]
+			vec3 ca   = gl_in[1].gl_Position.xyz; // Ca[i]
+			vec3 ca_n = gl_in[2].gl_Position.xyz; // Ca[i+1]
+			vec3 o    = gl_in[3].gl_Position.xyz; //  O[i]
+			vec3 c	  = gl_in[4].gl_Position.xyz; //  C[i]
+			vec3 n	  = gl_in[5].gl_Position.xyz; //  N[i]
+
+			vec3 p = ca;
+			vec3 t = normalize((ca_n - ca_p) * 0.5); // Estimate tangent via central difference
+			vec3 v = normalize(o - c);
+			
+			out_control_point = p;
+			out_support_vector = v;
+			out_tangent_vector = t;
+			EmitVertex();
+			EndPrimitive();
+		}
+		)";
+
+        constexpr int BUFFER_SIZE = 1024;
+        char buffer[BUFFER_SIZE];
+
+        GLuint v_shader = glCreateShader(GL_VERTEX_SHADER);
+        GLuint g_shader = glCreateShader(GL_GEOMETRY_SHADER);
+
+        defer {
+            glDeleteShader(v_shader);
+            glDeleteShader(g_shader);
+        };
+
+        glShaderSource(v_shader, 1, &v_shader_src, 0);
+        glShaderSource(g_shader, 1, &g_shader_src, 0);
+
+        glCompileShader(v_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, v_shader)) {
+            LOG_ERROR("Compiling extract control point vertex shader:\n%s\n", buffer);
+        }
+        glCompileShader(g_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, g_shader)) {
+            LOG_ERROR("Compiling extract control point geometry shader:\n%s\n", buffer);
+        }
+
+        program = glCreateProgram();
+        glAttachShader(program, v_shader);
+        glAttachShader(program, g_shader);
+
+        const GLchar* feedback_varyings[] = {"out_control_point", "out_support_vector", "out_tangent_vector"};
+        glTransformFeedbackVaryings(program, 3, feedback_varyings, GL_INTERLEAVED_ATTRIBS);
+
+        glLinkProgram(program);
+        if (gl::get_program_link_error(buffer, BUFFER_SIZE, program)) {
+            LOG_ERROR("Linking extract control point program:\n%s\n", buffer);
+        }
+
+        glDetachShader(program, v_shader);
+        glDetachShader(program, g_shader);
+    }
+
+    glEnable(GL_RASTERIZER_DISCARD);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec4), (const GLvoid*)0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backbone_index_buffer);
+
+    glUseProgram(program);
+
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, dst_buffer);
+    glBeginTransformFeedback(GL_POINTS);
+    glDrawElements(GL_TRIANGLES_ADJACENCY, num_backbone_indices, GL_UNSIGNED_INT, 0);
+    glEndTransformFeedback();
+
+    glUseProgram(0);
+
+    glDisable(GL_RASTERIZER_DISCARD);
+}
+
+void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices,
+                             int num_subdivisions, float tension) {
+    static GLuint program = 0;
+    static GLint uniform_loc_num_subdivisions = 0;
+    static GLint uniform_loc_tension = 0;
+
+    if (!program) {
+        constexpr const char* v_shader_src = R"(
+		#version 330 core
+		layout (location = 0) in vec3 v_control_point;
+		layout (location = 1) in vec3 v_support_vector;
+
+		out Vertex {
+			vec3 control_point;
+			vec3 support_vector;
+		} out_vert;
+
+		void main() {
+			out_vert.control_point = v_control_point;
+			out_vert.support_vector = v_support_vector;
+		} 
+		)";
+
+        constexpr const char* g_shader_src = R"(
+		#version 330 core
+
+		uniform int u_num_subdivisions = 8;
+		uniform float u_tension = 0.5;
+
+		layout(lines_adjacency) in;
+		layout(points, max_vertices = 8) out;
+
+		layout (location = 0) out vec3 out_control_point;
+		layout (location = 1) out vec3 out_support_vector;
+		layout (location = 3) out vec3 out_tangent_vector;
+
+		in Vertex {
+			vec3 control_point;
+			vec3 support_vector;
+		} in_vert[];
+
+		vec3 catmull_rom(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s, float tension) {
+			vec3 v0 = (p2 - p0) * tension;
+			vec3 v1 = (p3 - p1) * tension;
+
+			vec3 a = 2.0 * (p1 - p2) + (v0 + v1);
+			vec3 b = 3.0 * (p2 - p1) - (2.0 * v0 + v1);
+    
+			vec3 res_0 = (a * s * s * s) + (b * s * s);
+			vec3 res_1 = (v0 * s) + p1;
+			return res_0 + res_1;
+		}
+
+		vec3 catmull_rom_tangent(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s, float tension) {
+			vec3 v0 = (p2 - p0) * tension;
+			vec3 v1 = (p3 - p1) * tension;
+
+			return (2.0 * p1 - 2.0 * p2 + v0 + v1) * 3.0 * s * s + (-3.0 * p1 + 3.0 * p2 - 2.0 * v0 - v1) * 2.0 * s + v0;
+		}
+		
+		vec3 spline(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s) {
+			return catmull_rom(p0, p1, p2, p3, s, u_tension);
+		}
+
+		vec3 spline_tangent(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s) {
+			return catmull_rom_tangent(p0, p1, p2, p3, s, u_tension);
+		}
+
+		void main() {
+			vec3 cp[4];
+			vec3 sv[4];
+
+			cp[0] = in_vert[0].control_point;
+			cp[1] = in_vert[1].control_point;
+			cp[2] = in_vert[2].control_point;
+			cp[3] = in_vert[3].control_point;
+
+			sv[0] = in_vert[0].support_vector;
+			sv[1] = in_vert[1].support_vector;
+			sv[2] = in_vert[2].support_vector;
+			sv[3] = in_vert[3].support_vector;
+
+			sv[0] *= sign(dot(sv[0], sv[1]));
+			sv[2] *= sign(dot(sv[2], sv[1]));
+			sv[3] *= sign(dot(sv[3], sv[2]));
+
+			for (int i = 0; i < u_num_subdivisions; i++) {
+				float s = float(i) / float(u_num_subdivisions);
+				vec3 p = spline(cp[0], cp[1], cp[2], cp[3], s);
+				vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
+				vec3 v = normalize(spline(sv[0], sv[1], sv[2], sv[3], s));
+
+				out_control_point = p;
+				out_support_vector = v;
+				out_tangent_vector = t;
+				
+				EmitVertex();
+				EndPrimitive();
+			}
+		}
+		)";
+
+        constexpr int BUFFER_SIZE = 1024;
+        char buffer[BUFFER_SIZE];
+
+        GLuint v_shader = glCreateShader(GL_VERTEX_SHADER);
+        GLuint g_shader = glCreateShader(GL_GEOMETRY_SHADER);
+
+        defer {
+            glDeleteShader(v_shader);
+            glDeleteShader(g_shader);
+        };
+
+        glShaderSource(v_shader, 1, &v_shader_src, 0);
+        glShaderSource(g_shader, 1, &g_shader_src, 0);
+
+        glCompileShader(v_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, v_shader)) {
+            LOG_ERROR("Compiling ribbons vertex shader:\n%s\n", buffer);
+        }
+        glCompileShader(g_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, g_shader)) {
+            LOG_ERROR("Compiling ribbons geometry shader:\n%s\n", buffer);
+        }
+
+        program = glCreateProgram();
+        glAttachShader(program, v_shader);
+        glAttachShader(program, g_shader);
+
+        const GLchar* feedback_varyings[] = {"out_control_point", "out_support_vector", "out_tangent_vector"};
+        glTransformFeedbackVaryings(program, 3, feedback_varyings, GL_INTERLEAVED_ATTRIBS);
+
+        glLinkProgram(program);
+        if (gl::get_program_link_error(buffer, BUFFER_SIZE, program)) {
+            LOG_ERROR("Linking ribbons program:\n%s\n", buffer);
+        }
+
+        glDetachShader(program, v_shader);
+        glDetachShader(program, g_shader);
+
+        uniform_loc_num_subdivisions = glGetUniformLocation(program, "u_num_subdivisions");
+        uniform_loc_tension = glGetUniformLocation(program, "u_tension");
+    }
+
+    glEnable(GL_RASTERIZER_DISCARD);
+    glEnable(GL_PRIMITIVE_RESTART);
+	glPrimitiveRestartIndex(0xFFFFFFFFU);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, control_point_buffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)12);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, control_point_index_buffer);
+
+    glUseProgram(program);
+
+    glUniform1i(uniform_loc_num_subdivisions, num_subdivisions);
+    glUniform1f(uniform_loc_tension, tension);
+
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, dst_buffer);
+    glBeginTransformFeedback(GL_POINTS);
+    glDrawElements(GL_LINE_STRIP_ADJACENCY, num_control_point_indices, GL_UNSIGNED_INT, 0);
+    glEndTransformFeedback();
+
+    glUseProgram(0);
+
+	glDisable(GL_PRIMITIVE_RESTART);
+    glDisable(GL_RASTERIZER_DISCARD);
 }
 
 void draw_ribbons(Array<const BackboneSegment> backbone_segments, Array<const Chain> chains, Array<const vec3> atom_positions,
@@ -1156,6 +1402,456 @@ void draw_spline(Array<const SplineSegment> spline, const mat4& view_mat, const 
     }
 
     immediate::flush();
+}
+
+void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat, uint32 color) {
+    static GLuint program = 0;
+    static GLint uniform_loc_view_proj_mat = 0;
+	static GLint uniform_loc_color = 0;
+
+    if (!program) {
+        constexpr const char* v_shader_src = R"(
+		#version 330 core
+		uniform mat4 u_view_proj_mat;
+		layout (location = 0) in vec3 v_control_point;
+		layout (location = 1) in vec3 v_support_vector;
+
+		void main() {
+			gl_Position = u_view_proj_mat * vec4(v_control_point, 1);
+		} 
+		)";
+
+        constexpr const char* f_shader_src = R"(
+		#version 330 core
+		uniform vec4 u_color;
+		out vec4 out_frag;
+		void main() {
+			out_frag = u_color;
+		}
+		)";
+
+        constexpr int BUFFER_SIZE = 1024;
+        char buffer[BUFFER_SIZE];
+
+        GLuint v_shader = glCreateShader(GL_VERTEX_SHADER);
+        GLuint f_shader = glCreateShader(GL_FRAGMENT_SHADER);
+
+        defer {
+            glDeleteShader(v_shader);
+            glDeleteShader(f_shader);
+        };
+
+        glShaderSource(v_shader, 1, &v_shader_src, 0);
+        glShaderSource(f_shader, 1, &f_shader_src, 0);
+
+        glCompileShader(v_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, v_shader)) {
+            LOG_ERROR("Compiling spline vertex shader:\n%s\n", buffer);
+        }
+        glCompileShader(f_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, f_shader)) {
+            LOG_ERROR("Compiling spline fragment shader:\n%s\n", buffer);
+        }
+
+        program = glCreateProgram();
+        glAttachShader(program, v_shader);
+        glAttachShader(program, f_shader);
+
+        glLinkProgram(program);
+        if (gl::get_program_link_error(buffer, BUFFER_SIZE, program)) {
+            LOG_ERROR("Linking spline program:\n%s\n", buffer);
+        }
+
+        glDetachShader(program, v_shader);
+        glDetachShader(program, f_shader);
+
+        uniform_loc_view_proj_mat = glGetUniformLocation(program, "u_view_proj_mat");
+        uniform_loc_color = glGetUniformLocation(program, "u_color");
+    }
+
+	glEnable(GL_PRIMITIVE_RESTART);
+    glPrimitiveRestartIndex(0xFFFFFFFFU);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, spline_buffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)12);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
+
+    glUseProgram(program);
+    glUniformMatrix4fv(uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
+    glUniform4fv(uniform_loc_color, 1, &math::convert_color(color)[0]);
+    glDrawElements(GL_LINE_STRIP, num_spline_indices, GL_UNSIGNED_INT, 0);
+    glUseProgram(0);
+
+	glDisable(GL_PRIMITIVE_RESTART);
+}
+
+
+void draw_support_vectors(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat, uint32 color) {
+    static GLuint program = 0;
+    static GLint uniform_loc_view_proj_mat = 0;
+    static GLint uniform_loc_color = 0;
+
+    if (!program) {
+        constexpr const char* v_shader_src = R"(
+		#version 330 core
+		uniform mat4 u_view_proj_mat;
+		layout (location = 0) in vec3 v_control_point;
+		layout (location = 1) in vec3 v_support_vector;
+
+		out Vertex {
+			vec4 control_point;
+			vec4 support_vector;
+		} out_vert;
+
+		void main() {
+			out_vert.control_point = u_view_proj_mat * vec4(v_control_point, 1);
+			out_vert.support_vector = u_view_proj_mat * vec4(v_support_vector, 0);
+		} 
+		)";
+
+		constexpr const char* g_shader_src = R"(
+		#version 330 core
+
+		layout(points) in;
+		layout(line_strip, max_vertices = 2) out;
+
+		in Vertex {
+			vec4 control_point;
+			vec4 support_vector;
+		} in_vert[];
+
+		void main() {
+			gl_Position = in_vert[0].control_point;
+			EmitVertex();
+			gl_Position = in_vert[0].control_point + in_vert[0].support_vector;
+			EmitVertex();
+			EndPrimitive();
+		}
+		)";
+
+        constexpr const char* f_shader_src = R"(
+		#version 330 core
+		uniform vec4 u_color;
+		out vec4 out_frag;
+		void main() {
+			out_frag = u_color;
+		}
+		)";
+
+        constexpr int BUFFER_SIZE = 1024;
+        char buffer[BUFFER_SIZE];
+
+        GLuint v_shader = glCreateShader(GL_VERTEX_SHADER);
+        GLuint g_shader = glCreateShader(GL_GEOMETRY_SHADER);
+        GLuint f_shader = glCreateShader(GL_FRAGMENT_SHADER);
+
+        defer {
+            glDeleteShader(v_shader);
+            glDeleteShader(g_shader);
+            glDeleteShader(f_shader);
+        };
+
+        glShaderSource(v_shader, 1, &v_shader_src, 0);
+        glShaderSource(g_shader, 1, &g_shader_src, 0);
+        glShaderSource(f_shader, 1, &f_shader_src, 0);
+
+        glCompileShader(v_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, v_shader)) {
+            LOG_ERROR("Compiling spline vertex shader:\n%s\n", buffer);
+        }
+        glCompileShader(g_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, g_shader)) {
+            LOG_ERROR("Compiling spline vertex shader:\n%s\n", buffer);
+        }
+        glCompileShader(f_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, f_shader)) {
+            LOG_ERROR("Compiling spline fragment shader:\n%s\n", buffer);
+        }
+
+        program = glCreateProgram();
+        glAttachShader(program, v_shader);
+        glAttachShader(program, g_shader);
+        glAttachShader(program, f_shader);
+
+        glLinkProgram(program);
+        if (gl::get_program_link_error(buffer, BUFFER_SIZE, program)) {
+            LOG_ERROR("Linking spline program:\n%s\n", buffer);
+        }
+
+        glDetachShader(program, v_shader);
+        glDetachShader(program, g_shader);
+        glDetachShader(program, f_shader);
+
+        uniform_loc_view_proj_mat = glGetUniformLocation(program, "u_view_proj_mat");
+        uniform_loc_color = glGetUniformLocation(program, "u_color");
+    }
+
+    glEnable(GL_PRIMITIVE_RESTART);
+    glPrimitiveRestartIndex(0xFFFFFFFFU);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, spline_buffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)12);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
+
+    glUseProgram(program);
+    glUniformMatrix4fv(uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
+    glUniform4fv(uniform_loc_color, 1, &math::convert_color(color)[0]);
+    glDrawElements(GL_POINTS, num_spline_indices, GL_UNSIGNED_INT, 0);
+    glUseProgram(0);
+
+    glDisable(GL_PRIMITIVE_RESTART);
+}
+
+void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_mat, const mat4& proj_mat, uint32 color) {
+    static GLuint program = 0;
+    static GLint uniform_loc_view_mat = 0;
+    static GLint uniform_loc_view_proj_mat = 0;
+    static GLint uniform_loc_scale = 0;
+    static GLint uniform_loc_color = 0;
+
+    if (!program) {
+        constexpr const char* v_shader_src = R"(
+		#version 330 core
+		//uniform mat4 u_view_proj_mat;
+		layout (location = 0) in vec3 v_control_point;
+		layout (location = 1) in vec3 v_support_vector;
+		layout (location = 2) in vec3 v_support_tangent;
+		
+		out Vertex {
+			vec4 control_point;
+			vec4 support_vector;
+			vec4 support_tangent;
+		} out_vert;
+
+		void main() {
+			out_vert.control_point = vec4(v_control_point, 1);
+			out_vert.support_vector = vec4(v_support_vector, 0);
+			out_vert.support_tangent = vec4(v_support_tangent, 0);
+		} 
+		)";
+
+		constexpr const char* g_shader_src = R"(
+		#version 330 core
+		//#define DEBUG_MODE 1
+		uniform mat4 u_view_mat;
+		uniform mat4 u_view_proj_mat;
+		uniform vec2 u_scale = vec2(1.0, 0.1);
+		layout(lines) in;
+		#ifdef DEBUG_MODE
+		layout(line_strip, max_vertices = 12) out;
+		#else
+		layout(triangle_strip, max_vertices = 64) out;
+		#endif
+
+		in Vertex {
+			vec4 control_point;
+			vec4 support_vector;
+			vec4 support_tangent;
+		} in_vert[];
+
+		out Fragment {
+			smooth vec4 color;
+			smooth vec3 view_normal;
+			flat vec4 picking_color;
+		} out_frag;
+
+		void main() {
+			vec4 p[2];
+			vec4 x[2];
+			vec4 y[2];
+			vec4 z[2];
+			
+			p[0] = in_vert[0].control_point;
+			p[1] = in_vert[1].control_point;
+			x[0] = in_vert[0].support_vector;
+			x[1] = in_vert[1].support_vector * sign(dot(in_vert[0].support_vector, in_vert[1].support_vector));
+			z[0] = in_vert[0].support_tangent;
+			z[1] = in_vert[1].support_tangent;
+			y[0] = vec4(cross(z[0].xyz, x[0].xyz), 0);
+			y[1] = vec4(cross(z[1].xyz, x[1].xyz), 0);
+
+			mat4 m[2];
+			m[0] = mat4(x[0], y[0], z[0], p[0]);
+			m[1] = mat4(x[1], y[1], z[1], p[1]);
+
+		#ifdef DEBUG_MODE
+			out_frag.color = vec4(1,0,0,1);
+			gl_Position = m[0] * vec4(0,0,0,1); EmitVertex();
+			gl_Position = m[0] * vec4(1,0,0,1); EmitVertex();
+			EndPrimitive();
+			gl_Position = m[1] * vec4(0,0,0,1); EmitVertex();
+			gl_Position = m[1] * vec4(1,0,0,1); EmitVertex();
+			EndPrimitive();
+			out_frag.color = vec4(0,1,0,1);
+			gl_Position = m[0] * vec4(0,0,0,1); EmitVertex();
+			gl_Position = m[0] * vec4(0,1,0,1); EmitVertex();
+			EndPrimitive();
+			gl_Position = m[1] * vec4(0,0,0,1); EmitVertex();
+			gl_Position = m[1] * vec4(0,1,0,1); EmitVertex();
+			EndPrimitive();
+			out_frag.color = vec4(0,0,1,1);
+			gl_Position = m[0] * vec4(0,0,0,1); EmitVertex();
+			gl_Position = m[0] * vec4(0,0,1,1); EmitVertex();
+			EndPrimitive();
+			gl_Position = m[1] * vec4(0,0,0,1); EmitVertex();
+			gl_Position = m[1] * vec4(0,0,1,1); EmitVertex();
+			EndPrimitive();
+
+		#else	
+			out_frag.color = vec4(1,0,0,1);
+
+			mat3 normal_mat = inverse(transpose(mat3(u_view_mat)));
+			// BOTTOM
+			
+			out_frag.view_normal = normal_mat * vec3(m[0] * vec4( 0, -1, 0, 0));
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
+			out_frag.view_normal = normal_mat * vec3(m[1] * vec4( 0, -1, 0, 0));
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
+			EndPrimitive();
+
+			// TOP
+			out_frag.view_normal = normal_mat * vec3(m[0] * vec4( 0, 1, 0, 0));
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
+			out_frag.view_normal = normal_mat * vec3(m[1] * vec4( 0, 1, 0, 0));
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
+			EndPrimitive();
+
+			// LEFT
+			out_frag.view_normal = normal_mat * vec3(m[0] * vec4(-1, 0, 0, 0));
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
+			out_frag.view_normal = normal_mat * vec3(m[1] * vec4(-1, 0, 0, 0));
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
+			EndPrimitive();
+
+			// RIGHT
+			out_frag.view_normal = normal_mat * vec3(m[0] * vec4( 1, 0, 0, 0));
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
+			out_frag.view_normal = normal_mat * vec3(m[1] * vec4( 1, 0, 0, 0));
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
+			gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
+			EndPrimitive();
+		#endif
+		}
+		)";
+
+        constexpr const char* f_shader_src = R"(
+		#version 330 core
+
+		in Fragment {
+			smooth vec4 color;
+			smooth vec3 view_normal;
+			flat vec4 picking_color;
+		} in_frag;
+
+		layout(location = 0) out vec4 out_color_alpha;
+		layout(location = 1) out vec4 out_f0_smoothness;
+		layout(location = 2) out vec4 out_normal;
+		layout(location = 3) out vec4 out_picking_id;
+
+		vec4 encode_normal (vec3 n) {
+			float p = sqrt(n.z*8+8);
+			return vec4(n.xy/p + 0.5,0,0);
+		}
+
+		void main() {
+			out_color_alpha = in_frag.color;
+			out_f0_smoothness = vec4(0.04, 0.04, 0.04, 0.0);
+			out_normal = encode_normal(in_frag.view_normal);
+			out_picking_id = in_frag.picking_color;
+		}
+		)";
+
+        constexpr int BUFFER_SIZE = 1024;
+        char buffer[BUFFER_SIZE];
+
+        GLuint v_shader = glCreateShader(GL_VERTEX_SHADER);
+        GLuint g_shader = glCreateShader(GL_GEOMETRY_SHADER);
+        GLuint f_shader = glCreateShader(GL_FRAGMENT_SHADER);
+
+        defer {
+            glDeleteShader(v_shader);
+            glDeleteShader(g_shader);
+            glDeleteShader(f_shader);
+        };
+
+        glShaderSource(v_shader, 1, &v_shader_src, 0);
+        glShaderSource(g_shader, 1, &g_shader_src, 0);
+        glShaderSource(f_shader, 1, &f_shader_src, 0);
+
+        glCompileShader(v_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, v_shader)) {
+            LOG_ERROR("Compiling spline vertex shader:\n%s\n", buffer);
+        }
+        glCompileShader(g_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, g_shader)) {
+            LOG_ERROR("Compiling spline geometry shader:\n%s\n", buffer);
+        }
+        glCompileShader(f_shader);
+        if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, f_shader)) {
+            LOG_ERROR("Compiling spline fragment shader:\n%s\n", buffer);
+        }
+
+        program = glCreateProgram();
+        glAttachShader(program, v_shader);
+        glAttachShader(program, g_shader);
+        glAttachShader(program, f_shader);
+
+        glLinkProgram(program);
+        if (gl::get_program_link_error(buffer, BUFFER_SIZE, program)) {
+            LOG_ERROR("Linking spline program:\n%s\n", buffer);
+        }
+
+        glDetachShader(program, v_shader);
+        glDetachShader(program, g_shader);
+        glDetachShader(program, f_shader);
+
+        uniform_loc_view_mat = glGetUniformLocation(program, "u_view_mat");
+        uniform_loc_view_proj_mat = glGetUniformLocation(program, "u_view_proj_mat");
+        uniform_loc_scale = glGetUniformLocation(program, "u_scale");
+        uniform_loc_color = glGetUniformLocation(program, "u_color");
+    }
+
+	mat4 view_proj_mat = proj_mat * view_mat;
+
+    glEnable(GL_PRIMITIVE_RESTART);
+    glPrimitiveRestartIndex(0xFFFFFFFFU);
+
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, spline_buffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)12);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 36, (const GLvoid*)24);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
+
+    glUseProgram(program);
+    glUniformMatrix4fv(uniform_loc_view_mat, 1, GL_FALSE, &view_mat[0][0]);
+    glUniformMatrix4fv(uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
+    glUniform4fv(uniform_loc_color, 1, &math::convert_color(color)[0]);
+    glDrawElements(GL_LINE_STRIP, num_spline_indices, GL_UNSIGNED_INT, 0);
+    glUseProgram(0);
+
+    glDisable(GL_PRIMITIVE_RESTART);
 }
 
 }  // namespace draw
