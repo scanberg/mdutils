@@ -1051,9 +1051,9 @@ void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buf
 		layout (triangles_adjacency) in;
 		layout (points, max_vertices = 1) out;
 
-		layout (location = 0) out vec3 out_control_point;
-		layout (location = 1) out vec3 out_support_vector;
-		layout (location = 2) out vec3 out_tangent_vector;
+		out vec3 out_control_point;
+		out vec3 out_support_vector;
+		out vec3 out_tangent_vector;
 
 		void main() {
 			vec3 ca_p = gl_in[0].gl_Position.xyz; // Ca[i-1]
@@ -1166,10 +1166,10 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 
 		layout(lines_adjacency) in;
 		layout(points, max_vertices = 8) out;
-
-		layout (location = 0) out vec3 out_control_point;
-		layout (location = 1) out vec3 out_support_vector;
-		layout (location = 3) out vec3 out_tangent_vector;
+        
+        out vec3 out_control_point;
+		out vec3 out_support_vector;
+		out vec3 out_tangent_vector;
 
 		in Vertex {
 			vec3 control_point;
@@ -1709,6 +1709,7 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_sp
 
 		#else	
 			out_frag.color = vec4(1,0,0,1);
+            out_frag.picking_color = vec4(1,1,1,1);
 
 			mat3 normal_mat = inverse(transpose(mat3(u_view_mat)));
 			// BOTTOM
