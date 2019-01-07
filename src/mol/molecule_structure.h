@@ -69,7 +69,7 @@ struct Chain {
 // Interface to access molecular data
 struct MoleculeStructure {
     struct {
-        uint32 count = 0;
+        int64 count = 0;
         vec3* positions = nullptr;
         Element* elements = nullptr;
         Label* labels = nullptr;
@@ -242,5 +242,6 @@ inline Array<const Bond> get_internal_bonds(const MoleculeStructure& mol, const 
 }
 
 bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains,
-                             int32 num_backbone_segments = 0, int32 num_backbone_sequences = 0, int32 num_hydrogen_bond_donors = 0, int32 num_hydrogen_bond_acceptors = 0);
+                             int32 num_backbone_segments = 0, int32 num_backbone_sequences = 0, int32 num_hydrogen_bond_donors = 0,
+                             int32 num_hydrogen_bond_acceptors = 0);
 void free_molecule_structure(MoleculeStructure* mol);

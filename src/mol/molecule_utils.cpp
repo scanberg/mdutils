@@ -122,7 +122,7 @@ vec3 compute_periodic_com(Array<const vec3> positions, Array<const Element> elem
     return *reinterpret_cast<vec3*>(&sum);
 }
 
-void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx, bool whole_residues) {
+void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
     ASSERT(dynamic);
     if (!dynamic->operator bool()) {
         LOG_ERROR("Dynamic is not valid.");
@@ -206,17 +206,17 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
     glm_vec4 p0, p1, p2, p3;
 
     for (int i = 0; i < positions.count; i++) {
-        if constexpr (sizeof(vec3) == 16) { // @NOTE: If this is true, we can assume that it is 16 byte aligned
+        if constexpr (sizeof(vec3) == 16) {  // @NOTE: If this is true, we can assume that it is 16 byte aligned
             p0 = *reinterpret_cast<const glm_vec4*>(&pos0[i]);
             p1 = *reinterpret_cast<const glm_vec4*>(&pos1[i]);
             p2 = *reinterpret_cast<const glm_vec4*>(&pos2[i]);
             p3 = *reinterpret_cast<const glm_vec4*>(&pos3[i]);
         } else {
             p0 = _mm_set_ps(0, pos0[i].z, pos0[i].y, pos0[i].x);
-			p1 = _mm_set_ps(0, pos1[i].z, pos1[i].y, pos1[i].x);
-			p2 = _mm_set_ps(0, pos2[i].z, pos2[i].y, pos2[i].x);
-			p3 = _mm_set_ps(0, pos3[i].z, pos3[i].y, pos3[i].x);
-		}
+            p1 = _mm_set_ps(0, pos1[i].z, pos1[i].y, pos1[i].x);
+            p2 = _mm_set_ps(0, pos2[i].z, pos2[i].y, pos2[i].x);
+            p3 = _mm_set_ps(0, pos3[i].z, pos3[i].y, pos3[i].x);
+        }
 
         p0 = de_periodize(p1, p0, full_box_ext);
         p2 = de_periodize(p1, p2, full_box_ext);
@@ -279,8 +279,8 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
             res.bond_idx.beg = residues[i - 1].bond_idx.end_internal;
             res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = residues[i - 1].bond_idx.end;
         } else {
-            res.bond_idx.beg = res.bond_idx.end = bonds.size();
-            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = bonds.size();
+            res.bond_idx.beg = res.bond_idx.end = (BondIdx)bonds.size();
+            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = (BondIdx)bonds.size();
         }
 
         // Internal bonds
@@ -349,8 +349,8 @@ DynamicArray<Bond> compute_covalent_bonds(Array<const vec3> atom_pos, Array<cons
     return bonds;
 }
 
-bool has_covalent_bond(Array<const Bond> bonds, const Residue& res_a, const Residue& res_b) {
-	return (res_a.bond_idx.beg < res_b.bond_idx.end && res_b.bond_idx.beg < res_a.bond_idx.end);
+bool has_covalent_bond(const Residue& res_a, const Residue& res_b) {
+    return (res_a.bond_idx.beg < res_b.bond_idx.end && res_b.bond_idx.beg < res_a.bond_idx.end);
 }
 
 bool valid_segment(const BackboneSegment& segment) {
@@ -359,15 +359,15 @@ bool valid_segment(const BackboneSegment& segment) {
 
 // @NOTE this method is sub-optimal and can surely be improved...
 // Residues should have no more than 2 potential connections to other residues.
-DynamicArray<Chain> compute_chains(Array<const Residue> residues, Array<const Bond> bonds) {
+DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
 
     DynamicArray<Bond> residue_bonds;
-	for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
-        if (has_covalent_bond(bonds, residues[i], residues[i + 1])) {
-			residue_bonds.push_back({i, i + 1});
-		}
-	}
-	
+    for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
+        if (has_covalent_bond(residues[i], residues[i + 1])) {
+            residue_bonds.push_back({i, i + 1});
+        }
+    }
+
     if (residue_bonds.count == 0) {
         // No residue bonds, No chains.
         return {};
@@ -400,30 +400,29 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues, Array<const Bo
             chains.push_back({lbl, (ResIdx)i, (ResIdx)i});
         }
         if (chains.size() > 0) {
-			chains.back().res_idx.end++;
+            chains.back().res_idx.end++;
         }
     }
 
     return chains;
 }
 
-DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues,
-																Array<const Bond> bonds) {
+DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues, Array<const Bond> bonds) {
     if (segments.count == 0) return {};
-	ASSERT(segments.count == residues.count);
+    ASSERT(segments.count == residues.count);
 
-	DynamicArray<IntRange> bb_sequences;
+    DynamicArray<IntRange> bb_sequences;
     for (ResIdx i = 0; i < (ResIdx)residues.size(); i++) {
         if (valid_segment(segments[i])) {
             bb_sequences.push_back({i, i + 1});
-			while (i < (ResIdx)residues.size() - 1 && has_covalent_bond(bonds, residues[i], residues[i + 1])) {
+            while (i < (ResIdx)residues.size() - 1 && has_covalent_bond(residues[i], residues[i + 1])) {
                 bb_sequences.back().y++;
                 i++;
-			}
-		}
-	}
+            }
+        }
+    }
 
-	return bb_sequences;
+    return bb_sequences;
 }
 
 template <int64 N>
@@ -650,11 +649,11 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
             auto bb_segments = get_backbone(dynamic.molecule, c);
             auto bb_angles = frame_angles.sub_array(c.res_idx.beg, c.res_idx.end - c.res_idx.beg);
 
-            if (bb_segments < 2) {
+            if (bb_segments.size() < 2) {
                 memset(bb_angles.data, 0, bb_angles.size_in_bytes());
             } else {
-				compute_backbone_angles(bb_angles, frame_pos, bb_segments);
-			}
+                compute_backbone_angles(bb_angles, frame_pos, bb_segments);
+            }
         }
     }
 }

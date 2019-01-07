@@ -66,7 +66,7 @@ vec3 compute_com(Array<const vec3> positions, Array<const float> masses);
 vec3 compute_com(Array<const vec3> positions, Array<const Element> elements);
 vec3 compute_periodic_com(Array<const vec3> positions, Array<const Element> elements, const vec3& box_ext);
 
-void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx, bool whole_residues = true);
+void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx);
 
 void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev_pos, Array<const vec3> next_pos, float t, mat3 sim_box);
 void linear_interpolation(Array<vec3> positions, Array<const vec3> prev_pos, Array<const vec3> next_pos, float t);
@@ -83,10 +83,10 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
 // This is computes heuristical covalent bonds between any atoms without hierarchical constraints.
 DynamicArray<Bond> compute_covalent_bonds(Array<const vec3> atom_pos, Array<const Element> atom_elem);
 
-bool has_covalent_bond(Array<const Bond> bonds, const Residue& res_a, const Residue& res_b);
+bool has_covalent_bond(const Residue& res_a, const Residue& res_b);
 bool valid_segment(const BackboneSegment& seg);
 
-DynamicArray<Chain> compute_chains(Array<const Residue> residue, Array<const Bond> bonds);
+DynamicArray<Chain> compute_chains(Array<const Residue> residue);
 DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues, Array<const Bond> bonds);
 DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels);
 DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone,

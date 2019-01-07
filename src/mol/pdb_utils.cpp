@@ -134,7 +134,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
                 res.atom_idx = {num_atoms, num_atoms};
                 residues.push_back(res);
                 if (chains.size() > 0) {
-					chains.back().res_idx.end++;
+                    chains.back().res_idx.end++;
                 }
             }
             residues.back().atom_idx.end++;
@@ -181,7 +181,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
             chain.res_idx.end = (ResIdx)residues.size();
             chain.id = current_chain_id;
             chains.push_back(chain);
-			*/
+                        */
         }
     }
 
@@ -193,7 +193,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
         auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
         auto acceptors = hydrogen_bond::compute_acceptors(elements);
         if (chains.size() == 0) {
-            chains = compute_chains(residues, covalent_bonds);
+            chains = compute_chains(residues);
         }
 
         init_molecule_structure(&md->molecule, num_atoms, (int32)covalent_bonds.count, (int32)residues.count, (int32)chains.count,

@@ -28,7 +28,7 @@ void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buf
 void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices,
                              int num_subdivisions = 8, float tension = 0.5);
 
-//void compute_backbone_spline2(GLuint dst_buffer, GLuint atom_position_buffer, GLuint backbone_index_buffer, int num_backbone_indices,
+// void compute_backbone_spline2(GLuint dst_buffer, GLuint atom_position_buffer, GLuint backbone_index_buffer, int num_backbone_indices,
 //                             int num_subdivisions = 8, float tension = 0.5);
 
 // DEBUG
@@ -39,6 +39,7 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
 void draw_support_vectors(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat,
                           uint32 color = 0xFF00FF00);
 
-void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_mat, const mat4& proj_mat, uint32 color);
+void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const mat4& view_mat,
+                  const mat4& proj_mat);
 
 }  // namespace draw

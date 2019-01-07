@@ -133,7 +133,7 @@ static inline void append_draw_command(Index offset, Index count, GLenum primiti
     } else {
         ASSERT(curr_view_matrix_idx > -1, "Immediate Mode View Matrix not set!");
         ASSERT(curr_proj_matrix_idx > -1, "Immediate Mode Proj Matrix not set!");
-        //ASSERT(curr_material_idx > -1, "Material not set!");
+        // ASSERT(curr_material_idx > -1, "Material not set!");
 
         DrawCommand cmd{offset, count, primitive_type, program, curr_view_matrix_idx, curr_proj_matrix_idx, curr_material_idx};
         commands.push_back(cmd);
@@ -363,10 +363,10 @@ void draw_plane(const vec3& center, const vec3& vec_u, const vec3& vec_v, uint32
     const Index idx = (Index)vertices.count;
     const vec3 normal = math::normalize(math::cross(vec_u, vec_v));
 
-    vertices.push_back({{center - vec_u + vec_v}, normal, {0, 1}});
-    vertices.push_back({{center - vec_u - vec_v}, normal, {0, 0}});
-    vertices.push_back({{center + vec_u + vec_v}, normal, {1, 1}});
-    vertices.push_back({{center + vec_u - vec_v}, normal, {1, 0}});
+    vertices.push_back({{center - vec_u + vec_v}, normal, {0, 1}, color});
+    vertices.push_back({{center - vec_u - vec_v}, normal, {0, 0}, color});
+    vertices.push_back({{center + vec_u + vec_v}, normal, {1, 1}, color});
+    vertices.push_back({{center + vec_u - vec_v}, normal, {1, 0}, color});
 
     indices.push_back(idx);
     indices.push_back(idx + 1);

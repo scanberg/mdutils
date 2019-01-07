@@ -230,7 +230,7 @@ void initialize() {
     auto filter_atom_name = [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
         if (args.count == 0) return false;
 
-        for (int i = 0; i < dyn.molecule.atom.count; i++) {
+        for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
             mask[i] = false;
             for (const auto& arg : args) {
                 if (compare(dyn.molecule.atom.labels[i], arg)) {
@@ -284,12 +284,12 @@ void initialize() {
     filter_commands.push_back({"element", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    Array<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
                                    defer { TMP_FREE(elements.data); };
-                                   for (int i = 0; i < elements.count; i++) {
+                                   for (int64 i = 0; i < elements.count; i++) {
                                        elements[i] = element::get_from_string(args[i]);
                                        if (elements[i] == Element::Unknown) return false;
                                    }
 
-                                   for (int i = 0; i < dyn.molecule.atom.count; i++) {
+                                   for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
                                        mask[i] = false;
                                        for (const auto& ele : elements) {
                                            if (dyn.molecule.atom.elements[i] == ele) {
@@ -304,7 +304,7 @@ void initialize() {
     filter_commands.push_back({"atomicnumber", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   for (int i = 0; i < dyn.molecule.atom.count; i++) {
+                                   for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
                                        int atomnr = (int)dyn.molecule.atom.elements[i];
                                        mask[i] = false;
                                        for (auto range : ranges) {
