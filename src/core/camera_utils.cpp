@@ -138,7 +138,7 @@ bool camera_controller_trackball(vec3* position, quat* orientation, TrackballCon
             *orientation * vec3(-delta.x, delta.y, 0) * math::pow(state->distance * state->params.pan_scale, state->params.pan_exponent);
         *position += move;
         return true;
-    } else if (state->input.dolly_button && mouse_move || state->input.dolly_delta != 0.f) {
+    } else if ((state->input.dolly_button && mouse_move) || state->input.dolly_delta != 0.f) {
         float delta = -(state->input.mouse_coord_curr.y - state->input.mouse_coord_prev.y) *
                       math::pow(state->distance * state->params.dolly_drag_scale, state->params.dolly_drag_exponent);
         delta -= state->input.dolly_delta * math::pow(state->distance * state->params.dolly_delta_scale, state->params.dolly_delta_exponent);
