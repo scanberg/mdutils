@@ -1061,21 +1061,21 @@ void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buf
 		out uint out_atom_index;
 
 		void main() {
-			vec3 ca_p = gl_in[0].gl_Position.xyz; // Ca[i-1]
-			vec3 ca   = gl_in[1].gl_Position.xyz; // Ca[i]
-			vec3 ca_n = gl_in[2].gl_Position.xyz; // Ca[i+1]
-			vec3 o    = gl_in[3].gl_Position.xyz; //  O[i]
-			vec3 c	  = gl_in[4].gl_Position.xyz; //  C[i]
-			vec3 n	  = gl_in[5].gl_Position.xyz; //  N[i]
+            vec3 ca  = gl_in[0].gl_Position.xyz; // Ca[i]
+            vec3 c   = gl_in[1].gl_Position.xyz; // C[i]
+            vec3 o   = gl_in[2].gl_Position.xyz; // O[i]
+            vec3 n   = gl_in[3].gl_Position.xyz; // N[i]
+            vec3 c_p = gl_in[4].gl_Position.xyz; // C[i-1]
+            vec3 n_n = gl_in[5].gl_Position.xyz; // N[i+1]
 
 			vec3 p = ca;
-			vec3 t = normalize((ca_n - ca_p) * 0.5); // Estimate tangent via central difference
 			vec3 v = normalize(o - c);
+			vec3 t = vec3(0);   // Placeholder, tangent is computed analytically in spline shader
 			
 			out_control_point = p;
 			out_support_vector = v;
 			out_tangent_vector = t;
-			out_atom_index = atom_index[1];
+			out_atom_index = atom_index[0];
 			EmitVertex();
 			EndPrimitive();
 		}
@@ -1229,8 +1229,8 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 		}
 		
 		vec3 spline(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s) {
-			//return catmull_rom(p0, p1, p2, p3, s, u_tension);
-			return b_spline(p0, p1, p2, p3, s);
+			return catmull_rom(p0, p1, p2, p3, s, u_tension);
+			//return b_spline(p0, p1, p2, p3, s);
 		}
 
 		vec3 spline_tangent(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s) {
@@ -1258,8 +1258,8 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 			for (int i = 0; i < u_num_subdivisions; i++) {
 				float s = float(i) / float(u_num_subdivisions);
 				vec3 p = spline(cp[0], cp[1], cp[2], cp[3], s);
-				vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
 				vec3 v = normalize(spline(sv[0], sv[1], sv[2], sv[3], s));
+				vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
 
 				out_control_point = p;
 				out_support_vector = v;
