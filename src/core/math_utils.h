@@ -86,11 +86,11 @@ T angle(glm::vec<N, T, Q> const& a, glm::vec<N, T, Q> const& b, glm::vec<N, T, Q
 }
 
 inline float dihedral_angle(const vec3& p0, const vec3& p1, const vec3& p2, const vec3& p3) {
-    vec3 b1 = p1 - p0;
-    vec3 b2 = p2 - p1;
-    vec3 b3 = p3 - p2;
-    vec3 c1 = math::cross(b1, b2);
-    vec3 c2 = math::cross(b2, b3);
+    const vec3 b1 = p1 - p0;
+    const vec3 b2 = p2 - p1;
+    const vec3 b3 = p3 - p2;
+    const vec3 c1 = math::cross(b1, b2);
+    const vec3 c2 = math::cross(b2, b3);
     return glm::atan(glm::dot(glm::cross(c1, c2), glm::normalize(b2)), glm::dot(c1, c2));
 }
 
@@ -136,7 +136,7 @@ T hermite(T const& v1, T const& t1, T const& v2, T const& t2, V s) {
 }
 
 template <typename T, typename V>
-static T spline(const T& p0, const T& p1, const T& p2, const T& p3, V s, V tension = (V)0.5) {
+T spline(const T& p0, const T& p1, const T& p2, const T& p3, V s, V tension = (V)0.5) {
     T v0 = (p2 - p0) * tension;
     T v1 = (p3 - p1) * tension;
     V s2 = s * s;
@@ -146,16 +146,16 @@ static T spline(const T& p0, const T& p1, const T& p2, const T& p3, V s, V tensi
 }
 
 template <typename T, typename V>
-static T spline_tangent(const T& p0, const T& p1, const T& p2, const T& p3, V s, V tension = (V)0.5) {
-	T v0 = (p2 - p0) * tension;
-	T v1 = (p3 - p1) * tension;
+T spline_tangent(const T& p0, const T& p1, const T& p2, const T& p3, V s, V tension = (V)0.5) {
+    T v0 = (p2 - p0) * tension;
+    T v1 = (p3 - p1) * tension;
 
-	// f(t) = (2p1 - 2p2 + v0 + v1)s^3 + (-3p1 + 3p2 - 2v0 - v1)s^2 + v0s + p1;
-	// df(t)/dt = (2p1 - 2p2 + v0 + v1)*3s^2 + (-3p1 + 3p2 - 2v0 - v1)*2s + v0;
-	return ((V)2.0 * p1 - (V)2.0 * p2 + v0 + v1) * (V)3.0 * s * s + (-(V)3.0 * p1 + (V)3.0 * p2 - (V)2.0 * v0 - v1) * (V)2.0 * s + v0;
+    // f(t) = (2p1 - 2p2 + v0 + v1)s^3 + (-3p1 + 3p2 - 2v0 - v1)s^2 + v0s + p1;
+    // df(t)/dt = (2p1 - 2p2 + v0 + v1)*3s^2 + (-3p1 + 3p2 - 2v0 - v1)*2s + v0;
+    return ((V)2.0 * p1 - (V)2.0 * p2 + v0 + v1) * (V)3.0 * s * s + (-(V)3.0 * p1 + (V)3.0 * p2 - (V)2.0 * v0 - v1) * (V)2.0 * s + v0;
 }
 
-static inline glm_vec4 spline(const glm_vec4 p0, const glm_vec4 p1, const glm_vec4 p2, const glm_vec4 p3, float s, float tension = 0.5f) {
+inline glm_vec4 spline(const glm_vec4 p0, const glm_vec4 p1, const glm_vec4 p2, const glm_vec4 p3, float s, float tension = 0.5f) {
     const glm_vec4 v_t = _mm_set_ps1(tension);
 
     const glm_vec4 v0 = glm_vec4_mul(glm_vec4_sub(p2, p0), v_t);
@@ -163,20 +163,30 @@ static inline glm_vec4 spline(const glm_vec4 p0, const glm_vec4 p1, const glm_ve
 
     // (2p1  - 2p2 + v0 + v1) s3 + (-3p1 + 3p2 - 2v0 - v1) s2 + v0 s + p1
     // a = 2(p1 - p2) + (v0 + v1)
-    // b = 3(p2 - p1) - (2v0 + v1) 
+    // b = 3(p2 - p1) - (2v0 + v1)
 
     const glm_vec4 a = glm_vec4_add(glm_vec4_mul(_mm_set_ps1(2), glm_vec4_sub(p1, p2)), glm_vec4_add(v0, v1));
     const glm_vec4 b = glm_vec4_sub(glm_vec4_mul(_mm_set_ps1(3), glm_vec4_sub(p2, p1)), glm_vec4_add(glm_vec4_mul(_mm_set_ps1(2), v0), v1));
-    
-    const glm_vec4 res_0 = glm_vec4_add(glm_vec4_mul(a, _mm_set_ps1(s*s*s)), glm_vec4_mul(b, _mm_set_ps1(s*s)));
+
+    const glm_vec4 res_0 = glm_vec4_add(glm_vec4_mul(a, _mm_set_ps1(s * s * s)), glm_vec4_mul(b, _mm_set_ps1(s * s)));
     const glm_vec4 res_1 = glm_vec4_add(glm_vec4_mul(v0, _mm_set_ps1(s)), p1);
     return glm_vec4_add(res_0, res_1);
 }
 
 // Quaternion
-template <typename T, glm::qualifier Q>
-glm::tquat<T, Q> angle_axis(T const& angle, glm::vec<3, T, Q> const& axis) {
-    return glm::angleAxis(angle, axis);
+inline quat angle_axis(float angle, const vec3& axis) { return glm::angleAxis(angle, axis); }
+
+// Projection
+inline vec3 unproject(const vec3& window_coords, const mat4& inv_view_proj_mat, const vec4& viewport) {
+    vec4 tmp = vec4(window_coords, 1.f);
+    tmp.x = (tmp.x - viewport[0]) / viewport[2];
+    tmp.y = (tmp.y - viewport[1]) / viewport[3];
+    tmp = tmp * 2.f - 1.f;
+
+    vec4 obj = inv_view_proj_mat * tmp;
+    obj /= obj.w;
+
+    return vec3(obj);
 }
 
 // Random

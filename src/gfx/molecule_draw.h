@@ -35,9 +35,9 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 void draw_backbone(Array<const BackboneSegment> backbone, Array<const vec3> atom_positions, const mat4& view_mat, const mat4& proj_mat);
 void draw_spline(Array<const SplineSegment> spline, const mat4& view_mat, const mat4& proj_mat);
 
-void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat, uint32 color = 0xFF00FF00);
+void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat, uint32 color = 0xFF0000FF);
 void draw_support_vectors(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat,
-                          uint32 color = 0xFF00FF00);
+                          uint32 v_color = 0xFF00FF00, uint32 t_color = 0xFFFF0000);
 
 void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const mat4& view_mat,
                   const mat4& proj_mat);

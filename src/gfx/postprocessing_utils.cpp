@@ -793,7 +793,7 @@ void main() {
 	vec3 N = normal;
 	vec3 V = -normalize(view_coord.xyz);
 	vec3 result = shade(color.rgb, V, N);
-	result = N;
+	//result = N;
 
 	out_frag = vec4(result, color.a);
 }
