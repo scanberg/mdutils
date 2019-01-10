@@ -195,8 +195,7 @@ void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev
     }
 }
 
-void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2,
-                                  Array<const vec3> pos3, float t, mat3 sim_box) {
+void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t, mat3 sim_box) {
     ASSERT(pos0.count == positions.count);
     ASSERT(pos1.count == positions.count);
     ASSERT(pos2.count == positions.count);
@@ -227,8 +226,7 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
     }
 }
 
-void cubic_interpolation(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3,
-                         float t) {
+void cubic_interpolation(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t) {
     ASSERT(pos0.count == positions.count);
     ASSERT(pos1.count == positions.count);
     ASSERT(pos2.count == positions.count);
@@ -255,8 +253,7 @@ inline bool covelent_bond_heuristic(const vec3& pos_a, Element elem_a, const vec
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
 // The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const ResIdx> atom_res_idx, Array<const vec3> atom_pos,
-                                          Array<const Element> atom_elem) {
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const ResIdx> atom_res_idx, Array<const vec3> atom_pos, Array<const Element> atom_elem) {
     ASSERT(atom_pos.count == atom_elem.count);
     ASSERT(atom_pos.count == atom_res_idx.count);
 
@@ -285,29 +282,26 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
 
         // Internal bonds
         for (AtomIdx atom_i = res.atom_idx.beg; atom_i < res.atom_idx.end; atom_i++) {
-            spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length,
-                                         [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
-                                             (void)atom_j_pos;
-                                             if (atom_i < atom_j && atom_res_idx[atom_i] == atom_res_idx[atom_j] &&
-                                                 covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-                                                 bonds.push_back({atom_i, atom_j});
-                                                 res.bond_idx.end++;
-                                             }
-                                         });
+            spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length, [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
+                (void)atom_j_pos;
+                if (atom_i < atom_j && atom_res_idx[atom_i] == atom_res_idx[atom_j] && covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
+                    bonds.push_back({atom_i, atom_j});
+                    res.bond_idx.end++;
+                }
+            });
         }
         res.bond_idx.end_internal = res.bond_idx.end;
 
         // Now locate external bonds to next residue
         for (AtomIdx atom_i = res.atom_idx.beg; atom_i < res.atom_idx.end; atom_i++) {
-            spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length,
-                                         [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
-                                             (void)atom_j_pos;
-                                             if (atom_i < atom_j && math::abs(atom_res_idx[atom_i] - atom_res_idx[atom_j]) == 1 &&  // consecutive
-                                                 covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-                                                 bonds.push_back({atom_i, atom_j});
-                                                 res.bond_idx.end++;
-                                             }
-                                         });
+            spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length, [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
+                (void)atom_j_pos;
+                if (atom_i < atom_j && math::abs(atom_res_idx[atom_i] - atom_res_idx[atom_j]) == 1 &&  // consecutive
+                    covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
+                    bonds.push_back({atom_i, atom_j});
+                    res.bond_idx.end++;
+                }
+            });
         }
     }
 
@@ -337,25 +331,20 @@ DynamicArray<Bond> compute_covalent_bonds(Array<const vec3> atom_pos, Array<cons
     DynamicArray<Bond> bonds;
 
     for (int atom_i = 0; atom_i < atom_pos.count; atom_i++) {
-        spatialhash::for_each_within(
-            frame, atom_pos[atom_i], max_covelent_bond_length, [&bonds, atom_pos, atom_elem, atom_i](int atom_j, const vec3& atom_j_pos) {
-                (void)atom_j_pos;
-                if (atom_i < atom_j && covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-                    bonds.push_back({atom_i, atom_j});
-                }
-            });
+        spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length, [&bonds, atom_pos, atom_elem, atom_i](int atom_j, const vec3& atom_j_pos) {
+            (void)atom_j_pos;
+            if (atom_i < atom_j && covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
+                bonds.push_back({atom_i, atom_j});
+            }
+        });
     }
 
     return bonds;
 }
 
-bool has_covalent_bond(const Residue& res_a, const Residue& res_b) {
-    return (res_a.bond_idx.beg < res_b.bond_idx.end && res_b.bond_idx.beg < res_a.bond_idx.end);
-}
+bool has_covalent_bond(const Residue& res_a, const Residue& res_b) { return (res_a.bond_idx.beg < res_b.bond_idx.end && res_b.bond_idx.beg < res_a.bond_idx.end); }
 
-bool valid_segment(const BackboneSegment& segment) {
-    return segment.ca_idx != -1 && segment.c_idx != -1 && segment.n_idx != -1 && segment.o_idx != -1;
-}
+bool valid_segment(const BackboneSegment& segment) { return segment.ca_idx != -1 && segment.c_idx != -1 && segment.n_idx != -1 && segment.o_idx != -1; }
 
 // @NOTE this method is sub-optimal and can surely be improved...
 // Residues should have no more than 2 potential connections to other residues.
@@ -472,8 +461,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
     return segments;
 }
 
-DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone,
-                                           int32 num_subdivisions, float tension) {
+DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions, float tension) {
     if (backbone.count < 4) return {};
 
     DynamicArray<vec3> p_tmp;
@@ -570,40 +558,33 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
     return segments;
 }
 
-DynamicArray<BackboneAngles> compute_backbone_angles(Array<const vec3> pos, Array<const BackboneSegment> backbone) {
+DynamicArray<vec2> compute_backbone_angles(Array<const vec3> pos, Array<const BackboneSegment> backbone) {
     if (backbone.count == 0) return {};
-    DynamicArray<BackboneAngles> angles(backbone.count);
+    DynamicArray<vec2> angles(backbone.count);
     compute_backbone_angles(angles, pos, backbone);
     return angles;
 }
 
-void compute_backbone_angles(Array<BackboneAngles> dst, Array<const vec3> pos, Array<const BackboneSegment> backbone_segments) {
+void compute_backbone_angles(Array<vec2> dst, Array<const vec3> pos, Array<const BackboneSegment> backbone_segments) {
     ASSERT(dst.count >= backbone_segments.count);
-    float omega, phi, psi;
+    float phi, psi;
 
-    omega = 0;
     phi = 0;
-    psi = math::dihedral_angle(pos[backbone_segments[0].n_idx], pos[backbone_segments[0].ca_idx], pos[backbone_segments[0].c_idx],
-                               pos[backbone_segments[1].n_idx]);
-    dst[0] = {omega, phi, psi};
+    psi = math::dihedral_angle(pos[backbone_segments[0].n_idx], pos[backbone_segments[0].ca_idx], pos[backbone_segments[0].c_idx], pos[backbone_segments[1].n_idx]);
+    dst[0] = {phi, psi};
 
     for (int64 i = 1; i < backbone_segments.count - 1; i++) {
-        omega = math::dihedral_angle(pos[backbone_segments[i - 1].ca_idx], pos[backbone_segments[i - 1].c_idx], pos[backbone_segments[i].n_idx],
-                                     pos[backbone_segments[i].ca_idx]);
-        phi = math::dihedral_angle(pos[backbone_segments[i - 1].c_idx], pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx],
-                                   pos[backbone_segments[i].c_idx]);
-        psi = math::dihedral_angle(pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx], pos[backbone_segments[i].c_idx],
-                                   pos[backbone_segments[i + 1].n_idx]);
-        dst[i] = {omega, phi, psi};
+        // omega = math::dihedral_angle(pos[backbone_segments[i - 1].ca_idx], pos[backbone_segments[i - 1].c_idx], pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx]);
+        phi = math::dihedral_angle(pos[backbone_segments[i - 1].c_idx], pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx], pos[backbone_segments[i].c_idx]);
+        psi = math::dihedral_angle(pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx], pos[backbone_segments[i].c_idx], pos[backbone_segments[i + 1].n_idx]);
+        dst[i] = {phi, psi};
     }
 
     auto N = backbone_segments.count - 1;
-    omega = math::dihedral_angle(pos[backbone_segments[N - 1].ca_idx], pos[backbone_segments[N - 1].c_idx], pos[backbone_segments[N].n_idx],
-                                 pos[backbone_segments[N].ca_idx]);
-    phi = math::dihedral_angle(pos[backbone_segments[N - 1].c_idx], pos[backbone_segments[N].n_idx], pos[backbone_segments[N].ca_idx],
-                               pos[backbone_segments[N].c_idx]);
+    // omega = math::dihedral_angle(pos[backbone_segments[N - 1].ca_idx], pos[backbone_segments[N - 1].c_idx], pos[backbone_segments[N].n_idx], pos[backbone_segments[N].ca_idx]);
+    phi = math::dihedral_angle(pos[backbone_segments[N - 1].c_idx], pos[backbone_segments[N].n_idx], pos[backbone_segments[N].ca_idx], pos[backbone_segments[N].c_idx]);
     psi = 0;
-    dst[N] = {omega, phi, psi};
+    dst[N] = {phi, psi};
 }
 
 void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic) {
@@ -617,7 +598,7 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
     int32 alloc_count = (int32)dynamic.molecule.backbone_segments.count * (int32)dynamic.trajectory.frame_buffer.count;
     data->num_segments = (int32)dynamic.molecule.backbone_segments.count;
     data->num_frames = 0;
-    data->angle_data = {(BackboneAngles*)CALLOC(alloc_count, sizeof(BackboneAngles)), alloc_count};
+    data->angle_data = {(vec2*)CALLOC(alloc_count, sizeof(vec2)), alloc_count};
 }
 
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data) {
@@ -644,7 +625,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
     // @NOTE: Only compute data for indices which are new
     for (int32 f_idx = data->num_frames; f_idx < traj_num_frames; f_idx++) {
         Array<const vec3> frame_pos = get_trajectory_positions(dynamic.trajectory, f_idx);
-        Array<BackboneAngles> frame_angles = get_backbone_angles(*data, f_idx);
+        Array<vec2> frame_angles = get_backbone_angles(*data, f_idx);
         for (const Chain& c : dynamic.molecule.chains) {
             auto bb_segments = get_backbone(dynamic.molecule, c);
             auto bb_angles = frame_angles.sub_array(c.res_idx.beg, c.res_idx.end - c.res_idx.beg);

@@ -1293,7 +1293,7 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 				vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
 
 				out_control_point = p;
-				out_support_vector = v;
+				out_support_vector = normalize(v - dot(t, v)*t);
 				out_tangent_vector = t;
 				out_backbone_angles = mix(bb[0], bb[1], s);
 				out_atom_index = in_vert[0].atom_index; 
