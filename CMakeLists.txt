@@ -29,7 +29,9 @@ target_include_directories(mdutils
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/libxdrfile/src
 )
 
-#target_compile_options(mdutils PRIVATE -W4)
+target_compile_definitions(mdutils PRIVATE
+	MDUTILS_SHADER_DIR=\"${PROJECT_SOURCE_DIR}/shaders\")
+
 target_compile_features(mdutils PRIVATE cxx_std_17)
 
 target_link_libraries(mdutils
