@@ -396,7 +396,7 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
     return chains;
 }
 
-DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues, Array<const Bond> bonds) {
+DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
     if (segments.count == 0) return {};
     ASSERT(segments.count == residues.count);
 
@@ -610,11 +610,11 @@ void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data) {
 }
 
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic) {
-    ASSERT(dynamic.trajectory && dynamic.molecule);
+    ASSERT(dynamic);
     if (dynamic.trajectory.num_frames == 0 || dynamic.molecule.backbone_segments.count == 0) return;
 
     //@NOTE: Trajectory may be loading while this is taking place, therefore read num_frames once and stick to that
-    int32 traj_num_frames = dynamic.trajectory.num_frames;
+    const int32 traj_num_frames = dynamic.trajectory.num_frames;
 
     // @NOTE: If we are up to date, no need to compute anything
     if (traj_num_frames == data->num_frames) {
@@ -626,9 +626,9 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
     for (int32 f_idx = data->num_frames; f_idx < traj_num_frames; f_idx++) {
         Array<const vec3> frame_pos = get_trajectory_positions(dynamic.trajectory, f_idx);
         Array<vec2> frame_angles = get_backbone_angles(*data, f_idx);
-        for (const Chain& c : dynamic.molecule.chains) {
-            auto bb_segments = get_backbone(dynamic.molecule, c);
-            auto bb_angles = frame_angles.sub_array(c.res_idx.beg, c.res_idx.end - c.res_idx.beg);
+        for (const auto& bb_seq : dynamic.molecule.backbone_sequences) {
+            auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
+            auto bb_angles = frame_angles.sub_array(bb_seq.beg, bb_seq.end - bb_seq.beg);
 
             if (bb_segments.size() < 2) {
                 memset(bb_angles.data, 0, bb_angles.size_in_bytes());
@@ -637,6 +637,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
             }
         }
     }
+    data->num_frames = traj_num_frames; // update current count
 }
 
 DynamicArray<float> compute_atom_radii(Array<const Element> elements) {
