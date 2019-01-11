@@ -637,7 +637,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
             }
         }
     }
-    data->num_frames = traj_num_frames; // update current count
+    data->num_frames = traj_num_frames;  // update current count
 }
 
 DynamicArray<float> compute_atom_radii(Array<const Element> elements) {
@@ -650,100 +650,6 @@ void compute_atom_radii(Array<float> radii_dst, Array<const Element> elements) {
     ASSERT(radii_dst.count <= elements.count);
     for (int64 i = 0; i < radii_dst.count; i++) {
         radii_dst[i] = element::vdw_radius(elements[i]);
-    }
-}
-
-DynamicArray<uint32> compute_atom_colors(const MoleculeStructure& mol, ColorMapping mapping, uint32 static_color) {
-    DynamicArray<uint32> colors(mol.atom.count, 0xFFFFFFFF);
-    compute_atom_colors(colors, mol, mapping, static_color);
-    return colors;
-}
-
-static inline vec3 compute_color(uint32 hash) {
-    constexpr float CHROMA = 0.45f;
-    constexpr float LUMINANCE = 0.90f;
-    constexpr int32 MOD = 21;
-    constexpr float SCL = 1.f / (float)MOD;
-
-    return math::hcl_to_rgb(vec3((hash % MOD) * SCL, CHROMA, LUMINANCE));
-}
-
-void compute_atom_colors(Array<uint32> color_dst, const MoleculeStructure& mol, ColorMapping mapping, uint32 static_color) {
-    // @TODO: Implement more mappings
-
-    // CPK
-    switch (mapping) {
-        case ColorMapping::STATIC_COLOR:
-            for (int64 i = 0; i < color_dst.count; i++) {
-                color_dst[i] = static_color;
-            }
-            break;
-        case ColorMapping::CPK:
-            for (int64 i = 0; i < color_dst.count; i++) {
-                color_dst[i] = element::color(mol.atom.elements[i]);
-            }
-            break;
-        case ColorMapping::RES_ID:
-            // Color based on residues, not unique by any means.
-            // Perhaps use predefined colors if residues are Amino acids
-            for (int64 i = 0; i < color_dst.count; i++) {
-                if (i < mol.atom.count) {
-                    const auto& res = mol.residues[mol.atom.residue_indices[i]];
-                    vec3 c = compute_color(hash::crc32(res.name.operator CString()));
-                    unsigned char color[4];
-                    color[0] = (unsigned char)(c.x * 255);
-                    color[1] = (unsigned char)(c.y * 255);
-                    color[2] = (unsigned char)(c.z * 255);
-                    color[3] = (unsigned char)255;
-                    color_dst[i] = *(uint32*)(color);
-                }
-            }
-            break;
-        case ColorMapping::RES_INDEX:
-            for (int64 i = 0; i < color_dst.count; i++) {
-                if (i < mol.atom.count) {
-                    vec3 c = compute_color(mol.atom.residue_indices[i]);
-                    unsigned char color[4];
-                    color[0] = (unsigned char)(c.x * 255);
-                    color[1] = (unsigned char)(c.y * 255);
-                    color[2] = (unsigned char)(c.z * 255);
-                    color[3] = (unsigned char)(255);
-                    color_dst[i] = *(uint32*)(color);
-                }
-            }
-            break;
-        case ColorMapping::CHAIN_ID:
-            for (int64 i = 0; i < color_dst.count; i++) {
-                if (i < mol.atom.count) {
-                    const auto& res = mol.residues[mol.atom.residue_indices[i]];
-                    if (res.chain_idx < mol.chains.count) {
-                        vec3 c = compute_color(hash::crc32(res.name.operator CString()));
-                        unsigned char color[4];
-                        color[0] = (unsigned char)(c.x * 255);
-                        color[1] = (unsigned char)(c.y * 255);
-                        color[2] = (unsigned char)(c.z * 255);
-                        color[3] = (unsigned char)(255);
-                        color_dst[i] = *(uint32*)(color);
-                    }
-                }
-            }
-        case ColorMapping::CHAIN_INDEX:
-            for (int64 i = 0; i < color_dst.count; i++) {
-                if (i < mol.atom.count) {
-                    const auto& res = mol.residues[mol.atom.residue_indices[i]];
-                    if (res.chain_idx < mol.chains.count) {
-                        vec3 c = compute_color(res.chain_idx);
-                        unsigned char color[4];
-                        color[0] = (unsigned char)(c.x * 255);
-                        color[1] = (unsigned char)(c.y * 255);
-                        color[2] = (unsigned char)(c.z * 255);
-                        color[3] = (unsigned char)(255);
-                        color_dst[i] = *(uint32*)(color);
-                    }
-                }
-            }
-        default:
-            break;
     }
 }
 

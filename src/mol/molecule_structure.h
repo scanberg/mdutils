@@ -60,6 +60,7 @@ struct Residue {
 
 struct Chain {
     Label id{};
+
     struct {
         ResIdx beg = 0;
         ResIdx end = 0;
@@ -136,13 +137,9 @@ inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, C
     return mol.backbone_segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
 }
 
-inline Array<Residue> get_residues(MoleculeStructure& mol, Chain chain) {
-    return mol.residues.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
-}
+inline Array<Residue> get_residues(MoleculeStructure& mol, Chain chain) { return mol.residues.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg); }
 
-inline Array<const Residue> get_residues(const MoleculeStructure& mol, Chain chain) {
-    return mol.residues.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
-}
+inline Array<const Residue> get_residues(const MoleculeStructure& mol, Chain chain) { return mol.residues.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg); }
 
 inline AtomIdx get_atom_beg_idx(MoleculeStructure& mol, Chain chain) {
     ASSERT(0 <= chain.res_idx.beg && chain.res_idx.beg < mol.residues.count);
@@ -201,47 +198,28 @@ inline Array<const Label> get_labels(const MoleculeStructure& mol, Chain chain) 
 }
 
 // Res func
-inline Array<vec3> get_positions(MoleculeStructure& mol, const Residue& res) {
-    return get_positions(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg);
-}
+inline Array<vec3> get_positions(MoleculeStructure& mol, const Residue& res) { return get_positions(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
 
-inline Array<const vec3> get_positions(const MoleculeStructure& mol, const Residue& res) {
-    return get_positions(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg);
-}
+inline Array<const vec3> get_positions(const MoleculeStructure& mol, const Residue& res) { return get_positions(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
 
-inline Array<Element> get_elements(MoleculeStructure& mol, const Residue& res) {
-    return get_elements(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg);
-}
+inline Array<Element> get_elements(MoleculeStructure& mol, const Residue& res) { return get_elements(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
 
-inline Array<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) {
-    return get_elements(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg);
-}
+inline Array<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) { return get_elements(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
 
-inline Array<Label> get_labels(MoleculeStructure& mol, const Residue& res) {
-    return get_labels(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg);
-}
+inline Array<Label> get_labels(MoleculeStructure& mol, const Residue& res) { return get_labels(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
 
-inline Array<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) {
-    return get_labels(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg);
-}
+inline Array<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) { return get_labels(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
 
-inline Array<Bond> get_bonds(MoleculeStructure& mol, const Residue& res) {
-    return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg);
-}
+inline Array<Bond> get_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
 
-inline Array<const Bond> get_bonds(const MoleculeStructure& mol, const Residue& res) {
-    return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg);
-}
+inline Array<const Bond> get_bonds(const MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
 
-inline Array<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res) {
-    return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg);
-}
+inline Array<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
 
 inline Array<const Bond> get_internal_bonds(const MoleculeStructure& mol, const Residue& res) {
     return mol.covalent_bonds.sub_array(res.bond_idx.beg_internal, res.bond_idx.end_internal - res.bond_idx.beg_internal);
 }
 
-bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains,
-                             int32 num_backbone_segments = 0, int32 num_backbone_sequences = 0, int32 num_hydrogen_bond_donors = 0,
-                             int32 num_hydrogen_bond_acceptors = 0);
+bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_backbone_segments = 0, int32 num_backbone_sequences = 0,
+                             int32 num_hydrogen_bond_donors = 0, int32 num_hydrogen_bond_acceptors = 0);
 void free_molecule_structure(MoleculeStructure* mol);

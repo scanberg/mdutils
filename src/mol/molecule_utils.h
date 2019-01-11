@@ -7,8 +7,6 @@
 #include <mol/molecule_dynamic.h>
 #include <mol/aminoacid.h>
 
-enum class ColorMapping { STATIC_COLOR, CPK, RES_ID, RES_INDEX, CHAIN_ID, CHAIN_INDEX };
-
 // tangent AND binormal is perhaps redundant
 struct SplineSegment {
     vec3 position;
@@ -83,7 +81,6 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
 DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions = 1, float tension = 0.5f);
 
 // Computes the dihedral angles within the backbone:
-// omega = dihedral(CA[i-1], C[i-1], N[i], CA[i])
 // phi   = dihedral( C[i-1], N[i],  CA[i],  C[i])
 // psi   = dihedral( N[i],  CA[i],   C[i],  N[i+1])
 // As seen here https://en.wikipedia.org/wiki/Ramachandran_plot.
@@ -96,9 +93,6 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj,
 
 DynamicArray<float> compute_atom_radii(Array<const Element> elements);
 void compute_atom_radii(Array<float> radii_dst, Array<const Element> elements);
-
-DynamicArray<uint32> compute_atom_colors(const MoleculeStructure& mol, ColorMapping mapping, uint32 static_color = 0xffffffff);
-void compute_atom_colors(Array<uint32> color_dst, const MoleculeStructure& mol, ColorMapping mapping, uint32 static_color = 0xffffffff);
 
 inline bool is_amino_acid(const Residue& res) { return aminoacid::get_from_string(res.name) != AminoAcid::Unknown; }
 bool is_dna(const Residue& res);
