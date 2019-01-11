@@ -1,13 +1,18 @@
 #include "gro_utils.h"
 #include <core/string_utils.h>
+#include <core/log.h>
 #include <mol/element.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
 
 bool allocate_and_load_gro_from_file(MoleculeStructure* mol, const char* filename) {
     String txt = allocate_and_read_textfile(filename);
+    defer { FREE(txt); };
+    if (!txt) {
+        LOG_ERROR("Could not read file: '%s'.", filename);
+        return false;
+    }
     auto res = allocate_and_parse_gro_from_string(mol, txt);
-    FREE(txt);
     return res;
 }
 
@@ -44,8 +49,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
 
         // Get line first and then scanf the line to avoid bug when velocities are not present in data
         copy_line(line, gro_string);
-        auto result =
-            sscanf(line, "%5d%5c%5c%5d%8f%8f%8f%8f%8f%8f", &res_idx, res_name, atom_name, &atom_idx, &pos.x, &pos.y, &pos.z, &vel.x, &vel.y, &vel.z);
+        auto result = sscanf(line, "%5d%5c%5c%5d%8f%8f%8f%8f%8f%8f", &res_idx, res_name, atom_name, &atom_idx, &pos.x, &pos.y, &pos.z, &vel.x, &vel.y, &vel.z);
         if (result > 0) {
             if (cur_res != res_idx) {
                 cur_res = res_idx;
@@ -103,8 +107,8 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
         }
     }
 
-    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(),
-                            (int32)backbone_segments.size(), (int32)backbone_sequences.size(), (int32)donors.size(), (int32)acceptors.size());
+    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
+                            (int32)donors.size(), (int32)acceptors.size());
 
     // Copy data into molecule
     memcpy(mol->atom.positions, positions.data, positions.size_in_bytes());

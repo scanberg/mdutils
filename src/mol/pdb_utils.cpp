@@ -17,6 +17,7 @@ static inline bool valid_line(CString line, uint32 options) {
 
 bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, const char* filename, PdbLoadParams params) {
     String txt = allocate_and_read_textfile(filename);
+    defer { FREE(txt); };
     if (!txt) {
         LOG_ERROR("Could not read file: '%s'.", filename);
         return false;
@@ -25,7 +26,6 @@ bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, const char* filename, 
     free_molecule_structure(&md->molecule);
     free_trajectory(&md->trajectory);
     auto res = allocate_and_parse_pdb_from_string(md, txt, params);
-    FREE(txt);
     return res;
 }
 
@@ -196,8 +196,8 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
             chains = compute_chains(residues);
         }
 
-        init_molecule_structure(&md->molecule, num_atoms, (int32)covalent_bonds.count, (int32)residues.count, (int32)chains.count,
-                                (int32)backbone_segments.count, (int32)backbone_sequences.count, (int32)donors.count, (int32)acceptors.count);
+        init_molecule_structure(&md->molecule, num_atoms, (int32)covalent_bonds.count, (int32)residues.count, (int32)chains.count, (int32)backbone_segments.count, (int32)backbone_sequences.count,
+                                (int32)donors.count, (int32)acceptors.count);
 
         // Copy data into molecule
         memcpy(md->molecule.atom.positions, mol_pos.data, mol_pos.size_in_bytes());
