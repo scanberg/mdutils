@@ -1293,7 +1293,7 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 				vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
 
 				out_control_point = p;
-				out_support_vector = normalize(v - dot(t, v)*t);
+				out_support_vector = v; //normalize(v - dot(t, v)*t);
 				out_tangent_vector = t;
 				out_backbone_angles = mix(bb[0], bb[1], s);
 				out_atom_index = in_vert[0].atom_index; 
@@ -1786,8 +1786,16 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
 			x[1] = in_vert[1].support_vector * sign(dot(in_vert[0].support_vector, in_vert[1].support_vector));
 			z[0] = in_vert[0].support_tangent;
 			z[1] = in_vert[1].support_tangent;
-			y[0] = vec4(cross(z[0].xyz, x[0].xyz), 0);
+			y[0] = vec4(cross(z[0].xyz, x[0].xyz), 0); // To maintain right-handedness
 			y[1] = vec4(cross(z[1].xyz, x[1].xyz), 0);
+
+			float flip_sign = sign(dot(x[1].xyz, y[0].xyz));
+			x[0].xyz *= flip_sign;
+			x[1].xyz *= flip_sign;
+			y[0].xyz *= flip_sign;
+			y[1].xyz *= flip_sign;
+			z[0].xyz *= flip_sign;
+			z[1].xyz *= flip_sign;
 
 			mat4 m[2];
 			m[0] = mat4(x[0], y[0], z[0], p[0]);
