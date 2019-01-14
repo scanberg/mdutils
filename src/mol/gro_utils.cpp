@@ -5,32 +5,47 @@
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
 
-bool allocate_and_load_gro_from_file(MoleculeStructure* mol, const char* filename) {
+bool allocate_and_load_gro_from_file(MoleculeStructure* mol, CString filename) {
     String txt = allocate_and_read_textfile(filename);
     defer { FREE(txt); };
     if (!txt) {
-        LOG_ERROR("Could not read file: '%s'.", filename);
+        LOG_ERROR("Could not read file: '%.*s'.", filename.length(), filename);
         return false;
     }
     auto res = allocate_and_parse_gro_from_string(mol, txt);
     return res;
 }
 
-bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_string) {
-    CString header;
-    CString length;
+const char* get_format(CString line) {
+    const char* format_n = "%5d%5c%5c%5d%8f%8f%8f%8f%8f%8f";        // narrow 8 characters per float
+    const char* format_w = "%5d%5c%5c%5d%11f%11f%11f%11f%11f%11f";  // wide 11 characters per float, perhaps meant to be 10 with a space character.. who knows!
 
-    extract_line(header, gro_string);
-    extract_line(length, gro_string);
+    // First float starts at offset 20, count
+    if (line.length() < 20) {
+        return nullptr;
+    }
+
+    const uint8* c = &line[20];
+    while (c != line.end() && *c == ' ') c++;
+    while (c != line.end() && *c != ' ') c++;
+	
+	auto len = c - (&line[20]);
+    if (len < 10) {
+		return format_n;
+	}	
+	else {
+        return format_w;
+	}
+}
+
+bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_string) {
+    CString header = extract_line(gro_string);
+    CString length = extract_line(gro_string);
 
     int num_atoms = to_int(length);
-
     if (num_atoms == 0) {
         return false;
     }
-
-    int res_count = 0;
-    int cur_res = -1;
 
     DynamicArray<vec3> positions;
     DynamicArray<vec3> velocities;
@@ -39,17 +54,23 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     DynamicArray<ResIdx> residue_indices;
     DynamicArray<Residue> residues;
 
-    char buffer[256] = {};
-    String line(buffer, 256);
+    const char* format = get_format(peek_line(gro_string));
+    if (!format) {
+        LOG_ERROR("Could not identify internal format of gro file!");
+        return false;
+	}
+    int res_count = 0;
+    int cur_res = -1;
+    StringBuffer<256> line;
+
     for (int i = 0; i < num_atoms; ++i) {
         vec3 pos, vel;
         int atom_idx, res_idx;
         char atom_name[8] = {};
         char res_name[8] = {};
 
-        // Get line first and then scanf the line to avoid bug when velocities are not present in data
-        copy_line(line, gro_string);
-        auto result = sscanf(line, "%5d%5c%5c%5d%8f%8f%8f%8f%8f%8f", &res_idx, res_name, atom_name, &atom_idx, &pos.x, &pos.y, &pos.z, &vel.x, &vel.y, &vel.z);
+        line = extract_line(gro_string);  // line becomes zero terminated upon assignment
+        auto result = sscanf(line, format, &res_idx, res_name, atom_name, &atom_idx, &pos.x, &pos.y, &pos.z, &vel.x, &vel.y, &vel.z);
         if (result > 0) {
             if (cur_res != res_idx) {
                 cur_res = res_idx;
@@ -82,7 +103,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     }
 
     vec3 box{};
-    copy_line(line, gro_string);
+    line = extract_line(gro_string);
     sscanf(line, "%8f %8f %8f", &box.x, &box.y, &box.z);
 
     // Convert from nm to ångström

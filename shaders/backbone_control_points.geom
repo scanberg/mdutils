@@ -35,13 +35,11 @@ void main() {
     float phi = dihedral_angle(c_p, n, ca, c);
     float psi = dihedral_angle(n, ca, c, n_n);
 
-    uint cap = uint(phi * psi == 0) << 31;
-
     out_control_point = p;
     out_support_vector = v;
     out_tangent_vector = t;
     out_backbone_angles = vec2(phi, psi);
-    out_atom_index = cap & atom_index[0];
+    out_atom_index = atom_index[0];
     EmitVertex();
     EndPrimitive();
 }

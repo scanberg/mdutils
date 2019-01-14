@@ -12,7 +12,6 @@ out Vertex {
     vec4 support_tangent;
     vec4 color;
     vec4 picking_color;
-    uint cap;
 } out_vert;
 
 vec4 pack_u32(uint data) {
@@ -28,7 +27,5 @@ void main() {
     out_vert.support_vector = vec4(v_support_vector, 0);
     out_vert.support_tangent = vec4(v_support_tangent, 0);
     out_vert.color = texelFetch(u_atom_colors, int(v_atom_index));
-    out_vert.picking_color = pack_u32(v_atom_index & uint(0x7FFFFFFF));
-    //out_vert.cap = v_atom_index & uint(0x80000000);
-    out_vert.cap = 1U;
+    out_vert.picking_color = pack_u32(v_atom_index);
 }

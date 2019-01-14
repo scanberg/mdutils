@@ -15,7 +15,9 @@ static inline bool valid_line(CString line, uint32 options) {
     return false;
 }
 
-bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, const char* filename, PdbLoadParams params) {
+bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename, PdbLoadParams params) {
+    auto r = load_pdb(filename);
+
     String txt = allocate_and_read_textfile(filename);
     defer { FREE(txt); };
     if (!txt) {
@@ -29,27 +31,31 @@ bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, const char* filename, 
     return res;
 }
 
-inline int char_to_digit(char c) { return c - '0'; }
+inline int char_to_digit(uint8 c) { return c - '0'; }
 
 #include <ctype.h>
 inline float fast_and_unsafe_str_to_float(CString str) {
-    str = trim(str);
-    if (str.beg() == str.end()) return 0;
+    const uint8* c = str.beg();
+    while (c != str.end() && *c == ' ') ++c;
+    const uint8* end = c;
+    while (end != str.end() && *end != ' ') ++end;
+    if (c == end) return 0;
+
     float val = 0;
     float base = 1;
     float sign = 1;
-    const char* c = str.beg();
     if (*c == '-') {
         sign = -1;
         c++;
-    }
-    while (c != str.end() && *c != '.') {
+	}
+    while (c != end && *c != '.') {
         val *= 10;
         val += char_to_digit(*c);
         c++;
     }
-    if (c != str.end()) c++;
-    while (c != str.end()) {
+    if (c == end) return sign * val;
+    c++;
+    while (c != end) {
         base *= 0.1f;
         val += char_to_digit(*c) * base;
         c++;
@@ -71,6 +77,15 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
     DynamicArray<Residue> residues;
     DynamicArray<Chain> chains;
 
+	positions.reserve(1024);
+    labels.reserve(1024);
+    elements.reserve(1024);
+    residue_indices.reserve(1024);
+    occupancies.reserve(1024);
+    temp_factors.reserve(1024);
+    residues.reserve(128);
+    chains.reserve(32);
+
     int current_res_id = -1;
     char current_chain_id = -1;
     int num_atoms = 0;
@@ -78,12 +93,14 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
     int num_frames = 0;
     mat3 box(0);
     CString line;
-    while (extract_line(line, pdb_string)) {
+    while (line = extract_line(pdb_string)) {
         if (valid_line(line, params)) {
             vec3 pos;
 
             // SLOW AS SHIT
             // sscanf(line.substr(30).data, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
+
+			// FASTER atof
 
             // FASTEST?
             pos.x = fast_and_unsafe_str_to_float(line.substr(30, 8));
@@ -230,4 +247,36 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
     }
 
     return true;
+}
+
+Result load_pdb(CString filename) {
+    String txt = allocate_and_read_textfile(filename);
+    defer { FREE(txt); };
+    if (!txt) {
+        LOG_ERROR("Could not read file: '%s'.", filename);
+        return {};
+    }
+
+	int32 num_frames = 0;
+    CString pattern("\nENDMDL");
+
+	/*
+    const char* str = txt;
+    while (auto res = strstr(str, pattern)) {
+        str = res + pattern.length();
+		num_frames++;
+	}
+	*/
+
+	String head = txt;
+    /*
+	while (auto res = find_needle(pattern, head)) {
+		head = {res.end(), head.length() - pattern.length()};
+        num_frames++;
+	}
+	*/
+
+	LOG_ERROR("NUM FRAMES %i", num_frames);
+
+    return {num_frames};
 }

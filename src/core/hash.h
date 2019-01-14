@@ -121,7 +121,7 @@ constexpr uint32 crc32(Array<T> arr) {
     return crc32(arr.data, arr.count * sizeof(T));
 }
 
-inline uint32 crc32(CString str) { return crc32(str.data, str.count); }
+inline uint32 crc32(CString str) { return crc32(str.cstr(), str.count); }
 
 template <size_t N>
 constexpr uint32 crc32(const char (&cstr)[N]) {
@@ -139,7 +139,7 @@ constexpr uint64 crc64(Array<T> arr) {
     return crc64(arr.data, arr.count * sizeof(T));
 }
 
-inline uint64 crc64(CString str) { return crc64(str.data, str.count); }
+inline uint64 crc64(CString str) { return crc64(str.cstr(), str.count); }
 
 template <size_t N>
 constexpr uint64 crc64(const char (&cstr)[N]) {

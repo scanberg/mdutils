@@ -19,14 +19,24 @@ inline glm_vec4 de_periodize(const glm_vec4 p0, const glm_vec4 p1, const glm_vec
     const glm_vec4 half_ext = glm_vec4_mul(box_ext, _mm_set1_ps(0.5f));
     const glm_vec4 delta = glm_vec4_sub(p1, p0);
     const glm_vec4 signed_mask = glm_vec4_mul(glm_vec4_sign(delta), glm_step(half_ext, glm_vec4_abs(delta)));
-    return glm_vec4_sub(p1, glm_vec4_mul(box_ext, signed_mask));
+    const glm_vec4 res = glm_vec4_sub(p1, glm_vec4_mul(box_ext, signed_mask));
+    //const glm_vec4 res = glm_vec4_add(p1, glm_vec4_mul(box_ext, signed_mask));
+    return res;
+}
+
+inline glm_vec4 apply_pbc(const glm_vec4 p, const glm_vec4 box_ext) {
+    const glm_vec4 add = _mm_and_ps(_mm_cmplt_ps(p, _mm_setzero_ps()), box_ext);
+    const glm_vec4 sub = _mm_and_ps(_mm_cmpgt_ps(p, box_ext), box_ext);
+    const glm_vec4 res = _mm_add_ps(p, _mm_sub_ps(add, sub));
+    return res;
 }
 
 inline vec3 de_periodize(const vec3 ref, const vec3 p, const vec3 box_ext) {
     const vec3 half_ext = box_ext * 0.5f;
     const vec3 delta = p - ref;
     const vec3 signed_mask = sign(delta) * step(half_ext, abs(delta));
-    return p - box_ext * signed_mask;
+    const vec3 res = p - box_ext * signed_mask;
+    return res;
 }
 
 void translate_positions(Array<vec3> positions, const vec3& translation) {
@@ -177,25 +187,43 @@ void linear_interpolation(Array<vec3> positions, Array<const vec3> prev_pos, Arr
 
 // @TODO: Fix this, is it possible in theory to get a good interpolation between frames with periodicity without modifying source data?
 // @PERFORMANCE: VECTORIZE THIS
-void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev_pos, Array<const vec3> next_pos, float t, mat3 sim_box) {
+void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev_pos, Array<const vec3> next_pos, float t, const mat3& sim_box) {
     ASSERT(prev_pos.count == positions.count);
     ASSERT(next_pos.count == positions.count);
 
     const glm_vec4 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
     const glm_vec4 t_vec = _mm_set_ps1(t);
+    glm_vec4 prev, next;
 
-    for (int i = 0; i < positions.count; i++) {
-        glm_vec4 next = _mm_set_ps(0, next_pos[i].z, next_pos[i].y, next_pos[i].x);
-        glm_vec4 prev = _mm_set_ps(0, prev_pos[i].z, prev_pos[i].y, prev_pos[i].x);
+    for (int64 i = 0; i < positions.size(); i++) {
+        if constexpr (sizeof(vec3) == 16) {
+            prev = *reinterpret_cast<const glm_vec4*>(&prev_pos[i]);
+            next = *reinterpret_cast<const glm_vec4*>(&next_pos[i]);
+		} else {
+            prev = _mm_set_ps(0, prev_pos[i].z, prev_pos[i].y, prev_pos[i].x);
+            next = _mm_set_ps(0, next_pos[i].z, next_pos[i].y, next_pos[i].x);
+		}
 
         next = de_periodize(prev, next, full_box_ext);
+
         const glm_vec4 res = glm_vec4_mix(prev, next, t_vec);
 
         positions[i] = *reinterpret_cast<const vec3*>(&res);
     }
 }
 
-void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t, mat3 sim_box) {
+void cubic_interpolation(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t) {
+    ASSERT(pos0.count == positions.count);
+    ASSERT(pos1.count == positions.count);
+    ASSERT(pos2.count == positions.count);
+    ASSERT(pos3.count == positions.count);
+
+    for (int i = 0; i < positions.count; i++) {
+        positions[i] = math::spline(pos0[i], pos1[i], pos2[i], pos3[i], t);
+    }
+}
+
+void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t, const mat3& sim_box) {
     ASSERT(pos0.count == positions.count);
     ASSERT(pos1.count == positions.count);
     ASSERT(pos2.count == positions.count);
@@ -226,20 +254,27 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
     }
 }
 
-void cubic_interpolation(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t) {
-    ASSERT(pos0.count == positions.count);
-    ASSERT(pos1.count == positions.count);
-    ASSERT(pos2.count == positions.count);
-    ASSERT(pos3.count == positions.count);
+void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, const mat3& sim_box) {
+    const glm_vec4 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
+	for (const auto& res : residues) {
+        const auto count = res.atom_idx.end - res.atom_idx.beg;
+        const glm_vec4 scl = _mm_set_ps1(1.f / (float)count);
+        glm_vec4 res_cent = _mm_setzero_ps();
+        auto res_pos = positions.sub_array(res.atom_idx.beg, count);
+        for (const auto& pos : res_pos) {
+            const glm_vec4 pos_vec = *reinterpret_cast<const glm_vec4*>(&pos);
+            res_cent = glm_vec4_add(res_cent, pos_vec);
+		}
+        res_cent = glm_vec4_mul(res_cent, scl);
+        const glm_vec4 pbc_cent = apply_pbc(res_cent, full_box_ext);
+        const glm_vec4 delta = glm_vec4_sub(pbc_cent, res_cent);
 
-    for (int i = 0; i < positions.count; i++) {
-        vec3 p0 = pos0[i];
-        vec3 p1 = pos1[i];
-        vec3 p2 = pos2[i];
-        vec3 p3 = pos3[i];
-
-        positions[i] = math::spline(p0, p1, p2, p3, t);
-    }
+		// @TODO: if delta is zero, skip this
+		for (auto& pos : res_pos) {
+            glm_vec4& pos_vec = *reinterpret_cast<glm_vec4*>(&pos);
+            pos_vec = glm_vec4_add(pos_vec, delta);
+		}
+	}
 }
 
 inline bool covelent_bond_heuristic(const vec3& pos_a, Element elem_a, const vec3& pos_b, Element elem_b) {
@@ -385,7 +420,7 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
         if (residue_chains[i] != curr_chain_idx) {
             curr_chain_idx = residue_chains[i];
             Label lbl;
-            snprintf(lbl.beg(), Label::MAX_LENGTH, "C%i", curr_chain_idx);
+            snprintf(lbl.cstr(), Label::MAX_LENGTH, "C%i", curr_chain_idx);
             chains.push_back({lbl, (ResIdx)i, (ResIdx)i});
         }
         if (chains.size() > 0) {

@@ -33,11 +33,11 @@ int32 count_parentheses(CString str) {
 }
 
 CString extract_parenthesis(CString str) {
-    const char* beg = str.beg();
+    const uint8* beg = str.beg();
     while (beg != str.end() && *beg != '(') beg++;
     if (beg == str.end()) return {};
 
-    const char* end = beg + 1;
+    const uint8* end = beg + 1;
     int count = 1;
     while (end++ != str.end() && count > 0) {
         if (*end == '(') count++;
@@ -50,14 +50,14 @@ CString extract_parenthesis(CString str) {
 DynamicArray<CString> extract_chunks(CString str) {
     DynamicArray<CString> chunks;
 
-    const char* beg = str.beg();
+    const uint8* beg = str.beg();
     while (beg != str.end()) {
         if (*beg == '(') {
             CString par = extract_parenthesis(CString(beg, str.end()));
             chunks.push_back({par.beg(), par.end()});  // Exclude actual parentheses
             beg = par.end();
         } else if (*beg != ' ') {
-            const char* end = beg;
+            const uint8* end = beg;
             while (end != str.end() && *end != ' ') end++;
             chunks.push_back(CString(beg, end));
             beg = end;

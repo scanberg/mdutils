@@ -19,7 +19,7 @@ Element get_from_string(CString cstr) {
     if (cstr.count == 0) return Element::Unknown;
 
     // Prune
-    const char* c = cstr.beg();
+    const auto* c = cstr.beg();
     while (c != cstr.end() && !isalpha(*c)) c++;
     if (c == cstr.end()) return Element::Unknown;
     cstr.data = c;

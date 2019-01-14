@@ -11,5 +11,11 @@ enum PdbLoadParams {
 	PDB_DEFAULT = 0xFFFFFFFF
 };
 
-bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, const char* filename, PdbLoadParams params = PDB_DEFAULT);
+bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename, PdbLoadParams params = PDB_DEFAULT);
 bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString string, PdbLoadParams params = PDB_DEFAULT);
+
+struct Result {
+    int32 num_frames = 0;
+};
+
+Result load_pdb(CString filename);

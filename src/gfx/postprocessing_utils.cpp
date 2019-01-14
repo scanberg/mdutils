@@ -1026,7 +1026,7 @@ void initialize(int width, int height) {
     if (!gl.linearize_depth.program_ortho)
         setup_program(&gl.linearize_depth.program_ortho, "linearize depth ortho", f_shader_src_linearize_depth,
                       "#version 150 core\n#define PERSPECTIVE 0");
-    if (!gl.linearize_depth.fbo) glGenFramebuffers(1, &gl.linearize_depth.fbo);
+
     if (!gl.linearize_depth.texture) glGenTextures(1, &gl.linearize_depth.texture);
 
     glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
@@ -1037,13 +1037,16 @@ void initialize(int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
-    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.linearize_depth.texture, 0);
-    GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        LOG_ERROR("Something went wrong");
-    }
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	if (!gl.linearize_depth.fbo) {
+		glGenFramebuffers(1, &gl.linearize_depth.fbo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.linearize_depth.texture, 0);
+		GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE) {
+			LOG_ERROR("Something went wrong");
+		}
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
 
     gl.linearize_depth.uniform_loc.clip_info = glGetUniformLocation(gl.linearize_depth.program_persp, "u_clip_info");
     gl.linearize_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linearize_depth.program_persp, "u_tex_depth");

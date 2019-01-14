@@ -41,7 +41,8 @@ GLuint gl::compile_shader_from_file(CString filename, GLenum type) {
     }
 
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &shader_src.data, 0);
+    const char* c_src = shader_src.cstr();
+    glShaderSource(shader, 1, &c_src, 0);
 
     glCompileShader(shader);
     if (gl::get_shader_compile_error(buffer, buffer_size, shader)) {

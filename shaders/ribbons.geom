@@ -16,7 +16,6 @@ in Vertex {
     vec4 support_tangent;
     vec4 color;
     vec4 picking_color;
-    uint cap;
 } in_vert[];
 
 out Fragment {
@@ -138,28 +137,24 @@ void main() {
     EndPrimitive();
 
     // FRONT
-    if (in_vert[0].cap != 0U) {
-        out_frag.color = in_vert[1].color;
-        out_frag.picking_color = in_vert[1].picking_color;
-        out_frag.view_normal = normal_mat * vec3(m[1] * vec4( 0, 0, 1, 0));
-        gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
-        gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
-        gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
-        gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
-        EndPrimitive();
-    }
+    out_frag.color = in_vert[1].color;
+    out_frag.picking_color = in_vert[1].picking_color;
+    out_frag.view_normal = normal_mat * vec3(m[1] * vec4( 0, 0, 1, 0));
+    gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
+    gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
+    gl_Position = u_view_proj_mat * m[1] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
+    gl_Position = u_view_proj_mat * m[1] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
+    EndPrimitive();
 
     // BACK
-    if (in_vert[1].cap != 0U) {
-        out_frag.color = in_vert[0].color;
-        out_frag.picking_color = in_vert[0].picking_color;
-        out_frag.view_normal = normal_mat * vec3(m[0] * vec4( 0, 0, -1, 0));
-        gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
-        gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
-        gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
-        gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
-        EndPrimitive();
-    }
+    out_frag.color = in_vert[0].color;
+    out_frag.picking_color = in_vert[0].picking_color;
+    out_frag.view_normal = normal_mat * vec3(m[0] * vec4( 0, 0, -1, 0));
+    gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1,-1) * u_scale, 0, 1); EmitVertex();
+    gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1,-1) * u_scale, 0, 1); EmitVertex();
+    gl_Position = u_view_proj_mat * m[0] * vec4(vec2( 1, 1) * u_scale, 0, 1); EmitVertex();
+    gl_Position = u_view_proj_mat * m[0] * vec4(vec2(-1, 1) * u_scale, 0, 1); EmitVertex();
+    EndPrimitive();
 
 #endif
 }
