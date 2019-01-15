@@ -66,6 +66,7 @@ void cubic_interpolation(Array<vec3> positions, Array<const vec3> pos0, Array<co
 void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t, const mat3& sim_box);
 
 void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, const mat3& sim_box);
+void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<const Residue> residues, const mat3& sim_box);
 
 // This computes heuristical covalent bonds in a hierarchical way (first internal, then external per residue) and stores the indices to the bonds
 // within the residues. Only adjacent residues can form external covalent bonds in this function.
@@ -78,7 +79,8 @@ bool has_covalent_bond(const Residue& res_a, const Residue& res_b);
 bool valid_segment(const BackboneSegment& seg);
 
 DynamicArray<Chain> compute_chains(Array<const Residue> residue);
-DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues);
+
+DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues);
 DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels);
 DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions = 1, float tension = 0.5f);
 
@@ -88,6 +90,9 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
 // As seen here https://en.wikipedia.org/wiki/Ramachandran_plot.
 DynamicArray<vec2> compute_backbone_angles(Array<const vec3> atom_pos, Array<const BackboneSegment> backbone_segments);
 void compute_backbone_angles(Array<vec2> dst, Array<const vec3> atom_pos, Array<const BackboneSegment> backbone_segments);
+
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const vec3> atom_pos, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences);
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const vec3> atom_pos, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences);
 
 void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic);
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);

@@ -2,7 +2,7 @@
 
 in Fragment {
     smooth vec4 color;
-    smooth vec3 view_normal;
+    smooth vec4 view_normal;
     flat vec4 picking_color;
 } in_frag;
 
@@ -19,6 +19,6 @@ vec4 encode_normal (vec3 n) {
 void main() {
     out_color_alpha = in_frag.color;
     out_f0_smoothness = vec4(0.04, 0.04, 0.04, 0.0);
-    out_normal = encode_normal(in_frag.view_normal);
+    out_normal = encode_normal(in_frag.view_normal.xyz);
     out_picking_color = in_frag.picking_color;
 }

@@ -15,12 +15,20 @@ inline glm_vec4 glm_step(const glm_vec4 edge, const glm_vec4 x) {
     return res;
 }
 
+inline bool all_zero(const glm_vec4 v) {
+    // const auto res = _mm_testz_ps(v, v);
+    // return res != 0;
+    const auto res = _mm_cmpeq_ps(v, _mm_setzero_ps());
+    const auto mask = _mm_movemask_ps(res);
+    return mask == 0x0000000F;
+}
+
 inline glm_vec4 de_periodize(const glm_vec4 p0, const glm_vec4 p1, const glm_vec4 box_ext) {
     const glm_vec4 half_ext = glm_vec4_mul(box_ext, _mm_set1_ps(0.5f));
     const glm_vec4 delta = glm_vec4_sub(p1, p0);
     const glm_vec4 signed_mask = glm_vec4_mul(glm_vec4_sign(delta), glm_step(half_ext, glm_vec4_abs(delta)));
     const glm_vec4 res = glm_vec4_sub(p1, glm_vec4_mul(box_ext, signed_mask));
-    //const glm_vec4 res = glm_vec4_add(p1, glm_vec4_mul(box_ext, signed_mask));
+    // const glm_vec4 res = glm_vec4_add(p1, glm_vec4_mul(box_ext, signed_mask));
     return res;
 }
 
@@ -199,10 +207,10 @@ void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev
         if constexpr (sizeof(vec3) == 16) {
             prev = *reinterpret_cast<const glm_vec4*>(&prev_pos[i]);
             next = *reinterpret_cast<const glm_vec4*>(&next_pos[i]);
-		} else {
+        } else {
             prev = _mm_set_ps(0, prev_pos[i].z, prev_pos[i].y, prev_pos[i].x);
             next = _mm_set_ps(0, next_pos[i].z, next_pos[i].y, next_pos[i].x);
-		}
+        }
 
         next = de_periodize(prev, next, full_box_ext);
 
@@ -256,25 +264,56 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
 
 void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, const mat3& sim_box) {
     const glm_vec4 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
-	for (const auto& res : residues) {
+    for (const auto& res : residues) {
         const auto count = res.atom_idx.end - res.atom_idx.beg;
         const glm_vec4 scl = _mm_set_ps1(1.f / (float)count);
-        glm_vec4 res_cent = _mm_setzero_ps();
-        auto res_pos = positions.sub_array(res.atom_idx.beg, count);
-        for (const auto& pos : res_pos) {
+        glm_vec4 center = _mm_setzero_ps();
+        for (const auto& pos : positions.sub_array(res.atom_idx.beg, count)) {
             const glm_vec4 pos_vec = *reinterpret_cast<const glm_vec4*>(&pos);
-            res_cent = glm_vec4_add(res_cent, pos_vec);
-		}
-        res_cent = glm_vec4_mul(res_cent, scl);
-        const glm_vec4 pbc_cent = apply_pbc(res_cent, full_box_ext);
-        const glm_vec4 delta = glm_vec4_sub(pbc_cent, res_cent);
+            center = glm_vec4_add(center, pos_vec);
+        }
+        center = glm_vec4_mul(center, scl);
+        const glm_vec4 pbc_cent = apply_pbc(center, full_box_ext);
+        const glm_vec4 delta = glm_vec4_sub(pbc_cent, center);
 
-		// @TODO: if delta is zero, skip this
-		for (auto& pos : res_pos) {
+        // @TODO: if delta is zero, skip this
+        // if (!all_zero(delta)) {
+        for (auto& pos : positions.sub_array(res.atom_idx.beg, count)) {
             glm_vec4& pos_vec = *reinterpret_cast<glm_vec4*>(&pos);
             pos_vec = glm_vec4_add(pos_vec, delta);
-		}
-	}
+        }
+        //}
+    }
+}
+
+void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<const Residue> residues, const mat3& sim_box) {
+    const glm_vec4 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
+    for (const auto& chain : chains) {
+        const auto beg_idx = residues[chain.res_idx.beg].atom_idx.beg;
+        const auto end_idx = residues[chain.res_idx.end - 1].atom_idx.end;
+        const auto count = end_idx - beg_idx;
+        const glm_vec4 scl = _mm_set_ps1(1.f / (float)count);
+        glm_vec4 center = _mm_setzero_ps();
+        for (const auto& pos : positions.sub_array(beg_idx, count)) {
+            const glm_vec4 pos_vec = *reinterpret_cast<const glm_vec4*>(&pos);
+            center = glm_vec4_add(center, pos_vec);
+        }
+        center = glm_vec4_mul(center, scl);
+        const glm_vec4 pbc_cent = apply_pbc(center, full_box_ext);
+        const glm_vec4 delta = glm_vec4_sub(pbc_cent, center);
+
+        if (delta.m128_f32[0] != 0) {
+            printf("HEJ!");
+        }
+
+        // if (!all_zero(delta)) {
+        for (auto& pos : positions.sub_array(beg_idx, count)) {
+            const glm_vec4 pos_vec = *reinterpret_cast<glm_vec4*>(&pos);
+            const glm_vec4 res = glm_vec4_add(pos_vec, delta);
+            pos = *reinterpret_cast<const vec3*>(&res);
+        }
+        //}
+    }
 }
 
 inline bool covelent_bond_heuristic(const vec3& pos_a, Element elem_a, const vec3& pos_b, Element elem_b) {
@@ -431,16 +470,16 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
     return chains;
 }
 
-DynamicArray<IntRange> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
+DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
     if (segments.count == 0) return {};
     ASSERT(segments.count == residues.count);
 
-    DynamicArray<IntRange> bb_sequences;
+    DynamicArray<BackboneSequence> bb_sequences;
     for (ResIdx i = 0; i < (ResIdx)residues.size(); i++) {
         if (valid_segment(segments[i])) {
             bb_sequences.push_back({i, i + 1});
             while (i < (ResIdx)residues.size() - 1 && has_covalent_bond(residues[i], residues[i + 1])) {
-                bb_sequences.back().y++;
+                bb_sequences.back().end++;
                 i++;
             }
         }
@@ -593,22 +632,25 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
     return segments;
 }
 
-DynamicArray<vec2> compute_backbone_angles(Array<const vec3> pos, Array<const BackboneSegment> backbone) {
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const vec3> pos, Array<const BackboneSegment> backbone) {
     if (backbone.count == 0) return {};
-    DynamicArray<vec2> angles(backbone.count);
+    DynamicArray<BackboneAngle> angles(backbone.count);
     compute_backbone_angles(angles, pos, backbone);
     return angles;
 }
 
-void compute_backbone_angles(Array<vec2> dst, Array<const vec3> pos, Array<const BackboneSegment> backbone_segments) {
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const vec3> pos, Array<const BackboneSegment> backbone_segments) {
     ASSERT(dst.count >= backbone_segments.count);
     float phi, psi;
 
+    ASSERT(valid_segment(backbone_segments[0]));
     phi = 0;
     psi = math::dihedral_angle(pos[backbone_segments[0].n_idx], pos[backbone_segments[0].ca_idx], pos[backbone_segments[0].c_idx], pos[backbone_segments[1].n_idx]);
     dst[0] = {phi, psi};
 
     for (int64 i = 1; i < backbone_segments.count - 1; i++) {
+        ASSERT(valid_segment(backbone_segments[i]));
+
         // omega = math::dihedral_angle(pos[backbone_segments[i - 1].ca_idx], pos[backbone_segments[i - 1].c_idx], pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx]);
         phi = math::dihedral_angle(pos[backbone_segments[i - 1].c_idx], pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx], pos[backbone_segments[i].c_idx]);
         psi = math::dihedral_angle(pos[backbone_segments[i].n_idx], pos[backbone_segments[i].ca_idx], pos[backbone_segments[i].c_idx], pos[backbone_segments[i + 1].n_idx]);
@@ -617,9 +659,23 @@ void compute_backbone_angles(Array<vec2> dst, Array<const vec3> pos, Array<const
 
     auto N = backbone_segments.count - 1;
     // omega = math::dihedral_angle(pos[backbone_segments[N - 1].ca_idx], pos[backbone_segments[N - 1].c_idx], pos[backbone_segments[N].n_idx], pos[backbone_segments[N].ca_idx]);
+    ASSERT(valid_segment(backbone_segments[N]));
     phi = math::dihedral_angle(pos[backbone_segments[N - 1].c_idx], pos[backbone_segments[N].n_idx], pos[backbone_segments[N].ca_idx], pos[backbone_segments[N].c_idx]);
     psi = 0;
     dst[N] = {phi, psi};
+}
+
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const vec3> atom_pos, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences) {
+    if (segments.size() == 0) return {};
+    DynamicArray<BackboneAngle> angles(segments.count);
+    compute_backbone_angles(angles, atom_pos, segments, sequences);
+    return angles;
+}
+
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const vec3> atom_pos, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences) {
+    for (const auto& seq : sequences) {
+        compute_backbone_angles(dst.sub_array(seq.beg, seq.end - seq.beg), atom_pos, segments.sub_array(seq.beg, seq.end - seq.beg));
+    }
 }
 
 void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic) {
@@ -630,8 +686,8 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
         FREE(data->angle_data.data);
     }
 
-    int32 alloc_count = (int32)dynamic.molecule.backbone_segments.count * (int32)dynamic.trajectory.frame_buffer.count;
-    data->num_segments = (int32)dynamic.molecule.backbone_segments.count;
+    int32 alloc_count = (int32)dynamic.molecule.backbone.segments.count * (int32)dynamic.trajectory.frame_buffer.count;
+    data->num_segments = (int32)dynamic.molecule.backbone.segments.count;
     data->num_frames = 0;
     data->angle_data = {(vec2*)CALLOC(alloc_count, sizeof(vec2)), alloc_count};
 }
@@ -646,7 +702,7 @@ void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data) {
 
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic) {
     ASSERT(dynamic);
-    if (dynamic.trajectory.num_frames == 0 || dynamic.molecule.backbone_segments.count == 0) return;
+    if (dynamic.trajectory.num_frames == 0 || dynamic.molecule.backbone.segments.count == 0) return;
 
     //@NOTE: Trajectory may be loading while this is taking place, therefore read num_frames once and stick to that
     const int32 traj_num_frames = dynamic.trajectory.num_frames;
@@ -661,7 +717,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
     for (int32 f_idx = data->num_frames; f_idx < traj_num_frames; f_idx++) {
         Array<const vec3> frame_pos = get_trajectory_positions(dynamic.trajectory, f_idx);
         Array<vec2> frame_angles = get_backbone_angles(*data, f_idx);
-        for (const auto& bb_seq : dynamic.molecule.backbone_sequences) {
+        for (const auto& bb_seq : dynamic.molecule.backbone.sequences) {
             auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
             auto bb_angles = frame_angles.sub_array(bb_seq.beg, bb_seq.end - bb_seq.beg);
 

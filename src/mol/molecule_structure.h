@@ -28,12 +28,14 @@ struct BackboneSequence {
     ResIdx end = 0;
 };
 
+using BackboneAngle = vec2;
+
 struct HydrogenBondDonor {
     AtomIdx donor_idx = 0;
     AtomIdx hydro_idx = 0;
 };
 
-typedef AtomIdx HydrogenBondAcceptor;
+using HydrogenBondAcceptor = AtomIdx;
 
 struct Residue {
     Label name{};
@@ -81,9 +83,12 @@ struct MoleculeStructure {
     Array<Residue> residues{};
     Array<Chain> chains{};
 
-    // If this is not zero in length it should have the same length as residues
-    Array<BackboneSegment> backbone_segments{};
-    Array<BackboneSequence> backbone_sequences{};
+    struct {
+        // Segments and angles should match in length and if not zero, they should match the number of residues
+        Array<BackboneSegment> segments{};
+        Array<BackboneAngle> angles{};
+        Array<BackboneSequence> sequences{};
+    } backbone;
 
     struct {
         Array<HydrogenBondDonor> donors{};
@@ -92,6 +97,14 @@ struct MoleculeStructure {
 
     operator bool() const { return atom.count > 0; }
 };
+
+// General accessors
+inline Array<Residue> get_residues(MoleculeStructure& mol) { return mol.residues; }
+inline Array<const Residue> get_residues(const MoleculeStructure& mol) { return mol.residues; }
+inline Array<Chain> get_chains(MoleculeStructure& mol) { return mol.chains; }
+inline Array<const Chain> get_chains(const MoleculeStructure& mol) { return mol.chains; }
+inline Array<Bond> get_covalent_bonds(MoleculeStructure& mol) { return mol.covalent_bonds; }
+inline Array<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { return mol.covalent_bonds; }
 
 // Atom data accessors
 inline Array<vec3> get_positions(MoleculeStructure& mol) { return Array<vec3>(mol.atom.positions, mol.atom.count); }
@@ -106,12 +119,12 @@ inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { r
 // Backbone accessors
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, BackboneSequence seq) {
     ASSERT(0 <= seq.beg && seq.end <= mol.backbone_segments.count);
-    return mol.backbone_segments.sub_array(seq.beg, seq.end - seq.beg);
+    return mol.backbone.segments.sub_array(seq.beg, seq.end - seq.beg);
 }
 
 inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, BackboneSequence seq) {
     ASSERT(0 <= seq.beg && seq.end <= mol.backbone_segments.count);
-    return mol.backbone_segments.sub_array(seq.beg, seq.end - seq.beg);
+    return mol.backbone.segments.sub_array(seq.beg, seq.end - seq.beg);
 }
 
 // Chain accessors
@@ -127,14 +140,14 @@ inline Chain get_chain(const MoleculeStructure& mol, ChainIdx idx) {
 
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, Chain chain) {
     ASSERT(0 <= chain.res_idx.beg && chain.res_idx.end <= mol.residues.count);
-    if (mol.backbone_segments.count == 0) return {};
-    return mol.backbone_segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
+    if (mol.backbone.segments.count == 0) return {};
+    return mol.backbone.segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
 }
 
 inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, Chain chain) {
     ASSERT(0 <= chain.res_idx.beg && chain.res_idx.end <= mol.residues.count);
-    if (mol.backbone_segments.count == 0) return {};
-    return mol.backbone_segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
+    if (mol.backbone.segments.count == 0) return {};
+    return mol.backbone.segments.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg);
 }
 
 inline Array<Residue> get_residues(MoleculeStructure& mol, Chain chain) { return mol.residues.sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.beg); }
@@ -199,23 +212,14 @@ inline Array<const Label> get_labels(const MoleculeStructure& mol, Chain chain) 
 
 // Res func
 inline Array<vec3> get_positions(MoleculeStructure& mol, const Residue& res) { return get_positions(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
-
 inline Array<const vec3> get_positions(const MoleculeStructure& mol, const Residue& res) { return get_positions(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
-
 inline Array<Element> get_elements(MoleculeStructure& mol, const Residue& res) { return get_elements(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
-
 inline Array<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) { return get_elements(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
-
 inline Array<Label> get_labels(MoleculeStructure& mol, const Residue& res) { return get_labels(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
-
 inline Array<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) { return get_labels(mol).sub_array(res.atom_idx.beg, res.atom_idx.end - res.atom_idx.beg); }
-
 inline Array<Bond> get_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
-
 inline Array<const Bond> get_bonds(const MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
-
 inline Array<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
-
 inline Array<const Bond> get_internal_bonds(const MoleculeStructure& mol, const Residue& res) {
     return mol.covalent_bonds.sub_array(res.bond_idx.beg_internal, res.bond_idx.end_internal - res.bond_idx.beg_internal);
 }

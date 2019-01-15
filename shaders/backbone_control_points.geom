@@ -1,4 +1,5 @@
 #version 330 core
+#extension GL_ARB_shading_language_packing : enable
 
 layout (triangles_adjacency) in;
 layout (points, max_vertices = 1) out;
@@ -6,9 +7,10 @@ layout (points, max_vertices = 1) out;
 in uint atom_index[];
 
 out vec3 out_control_point;
-out vec3 out_support_vector;
-out vec3 out_tangent_vector;
-out vec2 out_backbone_angles;
+out uint out_support_vector_xy;
+out uint out_support_vector_z_tangent_vector_x;
+out uint out_tangent_vector_yz;
+out uint out_backbone_angles;
 out uint out_atom_index;
 
 float dihedral_angle(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3) {
@@ -35,11 +37,20 @@ void main() {
     float phi = dihedral_angle(c_p, n, ca, c);
     float psi = dihedral_angle(n, ca, c, n_n);
 
-    out_control_point = p;
+/*  out_control_point = p;
     out_support_vector = v;
     out_tangent_vector = t;
     out_backbone_angles = vec2(phi, psi);
     out_atom_index = atom_index[0];
+    */
+
+    out_control_point = p;
+    out_support_vector_xy = packSnorm2x16(v.xy);
+    out_support_vector_z_tangent_vector_x = packSnorm2x16(vec2(v.z, t.x));
+    out_tangent_vector_yz = packSnorm2x16(t.yz);
+    out_backbone_angles = packSnorm2x16(vec2(phi, psi));
+    out_atom_index = atom_index[0];
+
     EmitVertex();
     EndPrimitive();
 }

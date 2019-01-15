@@ -16,8 +16,6 @@ static inline bool valid_line(CString line, uint32 options) {
 }
 
 bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename, PdbLoadParams params) {
-    auto r = load_pdb(filename);
-
     String txt = allocate_and_read_textfile(filename);
     defer { FREE(txt); };
     if (!txt) {
@@ -47,7 +45,7 @@ inline float fast_and_unsafe_str_to_float(CString str) {
     if (*c == '-') {
         sign = -1;
         c++;
-	}
+    }
     while (c != end && *c != '.') {
         val *= 10;
         val += char_to_digit(*c);
@@ -77,7 +75,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
     DynamicArray<Residue> residues;
     DynamicArray<Chain> chains;
 
-	positions.reserve(1024);
+    positions.reserve(1024);
     labels.reserve(1024);
     elements.reserve(1024);
     residue_indices.reserve(1024);
@@ -100,7 +98,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
             // SLOW AS SHIT
             // sscanf(line.substr(30).data, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
 
-			// FASTER atof
+            // FASTER atof
 
             // FASTEST?
             pos.x = fast_and_unsafe_str_to_float(line.substr(30, 8));
@@ -207,6 +205,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
         auto covalent_bonds = compute_covalent_bonds(residues, residue_indices, mol_pos, elements);
         auto backbone_segments = compute_backbone_segments(residues, labels);
         auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
+        auto backbone_angles = compute_backbone_angles(mol_pos, backbone_segments, backbone_sequences);
         auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
         auto acceptors = hydrogen_bond::compute_acceptors(elements);
         if (chains.size() == 0) {
@@ -225,8 +224,9 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
         memcpy(md->molecule.residues.data, residues.data, residues.size_in_bytes());
         memcpy(md->molecule.chains.data, chains.data, chains.size_in_bytes());
         memcpy(md->molecule.covalent_bonds.data, covalent_bonds.data, covalent_bonds.size_in_bytes());
-        memcpy(md->molecule.backbone_segments.data, backbone_segments.data, backbone_segments.size_in_bytes());
-        memcpy(md->molecule.backbone_sequences.data, backbone_sequences.data, backbone_sequences.size_in_bytes());
+        memcpy(md->molecule.backbone.segments.data, backbone_segments.data, backbone_segments.size_in_bytes());
+        memcpy(md->molecule.backbone.angles.data, backbone_angles.data, backbone_angles.size_in_bytes());
+        memcpy(md->molecule.backbone.sequences.data, backbone_sequences.data, backbone_sequences.size_in_bytes());
         memcpy(md->molecule.hydrogen_bond.donors.data, donors.data, donors.size_in_bytes());
         memcpy(md->molecule.hydrogen_bond.acceptors.data, acceptors.data, acceptors.size_in_bytes());
     }
@@ -257,26 +257,26 @@ Result load_pdb(CString filename) {
         return {};
     }
 
-	int32 num_frames = 0;
+    int32 num_frames = 0;
     CString pattern("\nENDMDL");
 
-	/*
-    const char* str = txt;
-    while (auto res = strstr(str, pattern)) {
-        str = res + pattern.length();
-		num_frames++;
-	}
-	*/
-
-	String head = txt;
     /*
-	while (auto res = find_needle(pattern, head)) {
-		head = {res.end(), head.length() - pattern.length()};
-        num_frames++;
-	}
-	*/
+const char* str = txt;
+while (auto res = strstr(str, pattern)) {
+    str = res + pattern.length();
+            num_frames++;
+    }
+    */
 
-	LOG_ERROR("NUM FRAMES %i", num_frames);
+    String head = txt;
+    /*
+        while (auto res = find_needle(pattern, head)) {
+                head = {res.end(), head.length() - pattern.length()};
+        num_frames++;
+        }
+        */
+
+    LOG_ERROR("NUM FRAMES %i", num_frames);
 
     return {num_frames};
 }

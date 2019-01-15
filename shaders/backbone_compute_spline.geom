@@ -1,4 +1,5 @@
 #version 330 core
+#extension GL_ARB_shading_language_packing : enable
 
 uniform int u_num_subdivisions = 8;
 uniform float u_tension = 0.5;
@@ -7,9 +8,10 @@ layout(lines_adjacency) in;
 layout(points, max_vertices = 8) out;
 
 out vec3 out_control_point;
-out vec3 out_support_vector;
-out vec3 out_tangent_vector;
-out vec2 out_backbone_angles;
+out uint out_support_vector_xy;
+out uint out_support_vector_z_tangent_vector_x;
+out uint out_tangent_vector_yz;
+out uint out_backbone_angles;
 out uint out_atom_index;
 
 in Vertex {
@@ -82,6 +84,7 @@ void main() {
     vec3 cp[4];
     vec3 sv[4];
     vec2 bb[2];
+    uint ai[2];
 
     cp[0] = in_vert[0].control_point;
     cp[1] = in_vert[1].control_point;
@@ -97,8 +100,11 @@ void main() {
     sv[2] *= sign(dot(sv[2], sv[1]));
     sv[3] *= sign(dot(sv[3], sv[2]));
 
-    bb[0] = in_vert[0].backbone_angles;
-    bb[1] = in_vert[3].backbone_angles;
+    bb[0] = in_vert[1].backbone_angles;
+    bb[1] = in_vert[2].backbone_angles;
+
+    ai[0] = in_vert[1].atom_index;
+    ai[1] = in_vert[2].atom_index;
 
     for (int i = 0; i < u_num_subdivisions; i++) {
         float s = float(i) / float(u_num_subdivisions);
@@ -107,10 +113,11 @@ void main() {
         vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
 
         out_control_point = p;
-        out_support_vector = v; //normalize(v - dot(t, v)*t);
-        out_tangent_vector = t;
-        out_backbone_angles = mix(bb[0], bb[1], s);
-        out_atom_index = in_vert[0].atom_index; 
+        out_support_vector_xy = packSnorm2x16(v.xy);
+        out_support_vector_z_tangent_vector_x = packSnorm2x16(vec2(v.z, t.x));
+        out_tangent_vector_yz = packSnorm2x16(t.yz);
+        out_backbone_angles = packSnorm2x16(mix(bb[0], bb[1], s));
+        out_atom_index = s < 0.5 ? ai[0] : ai[1];
         
         EmitVertex();
         EndPrimitive();

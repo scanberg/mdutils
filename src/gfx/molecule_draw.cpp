@@ -80,7 +80,7 @@ namespace ribbons {
 static GLuint program = 0;
 static GLuint atom_color_tex = 0;
 
-static GLint uniform_loc_view_mat = 0;
+static GLint uniform_loc_normal_mat = 0;
 static GLint uniform_loc_view_proj_mat = 0;
 static GLint uniform_loc_scale = 0;
 
@@ -98,7 +98,7 @@ void intitialize() {
     const GLuint shaders[] = {v_shader, g_shader, f_shader};
     gl::attach_link_detach(program, shaders);
 
-    uniform_loc_view_mat = glGetUniformLocation(program, "u_view_mat");
+    uniform_loc_normal_mat = glGetUniformLocation(program, "u_normal_mat");
     uniform_loc_view_proj_mat = glGetUniformLocation(program, "u_view_proj_mat");
     uniform_loc_scale = glGetUniformLocation(program, "u_scale");
 
@@ -137,10 +137,11 @@ void initialize() {
         };
 
         const GLuint shaders[] = {v_shader, g_shader};
-        const GLchar* feedback_varyings[] = {"out_control_point", "out_support_vector", "out_tangent_vector", "out_backbone_angles", "out_atom_index"};
+        const GLchar* feedback_varyings[] = {"out_control_point", "out_support_vector_xy", "out_support_vector_z_tangent_vector_x", "out_tangent_vector_yz", "out_backbone_angles", "out_atom_index"};
         if (!extract_control_points_program) extract_control_points_program = glCreateProgram();
         gl::attach_link_detach_with_transform_feedback(extract_control_points_program, shaders, feedback_varyings, GL_INTERLEAVED_ATTRIBS);
     }
+
     {
         GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/backbone_compute_spline.vert", GL_VERTEX_SHADER);
         GLuint g_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/backbone_compute_spline.geom", GL_GEOMETRY_SHADER);
@@ -150,13 +151,14 @@ void initialize() {
         };
 
         const GLuint shaders[] = {v_shader, g_shader};
-        const GLchar* feedback_varyings[] = {"out_control_point", "out_support_vector", "out_tangent_vector", "out_backbone_angles", "out_atom_index"};
+        const GLchar* feedback_varyings[] = {"out_control_point", "out_support_vector_xy", "out_support_vector_z_tangent_vector_x", "out_tangent_vector_yz", "out_backbone_angles", "out_atom_index"};
         if (!compute_spline_program) compute_spline_program = glCreateProgram();
         gl::attach_link_detach_with_transform_feedback(compute_spline_program, shaders, feedback_varyings, GL_INTERLEAVED_ATTRIBS);
 
         uniform_loc_num_subdivisions = glGetUniformLocation(compute_spline_program, "u_num_subdivisions");
         uniform_loc_tension = glGetUniformLocation(compute_spline_program, "u_tension");
     }
+
     {
         GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/backbone_draw_spline.vert", GL_VERTEX_SHADER);
         GLuint g_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/backbone_draw_spline.geom", GL_GEOMETRY_SHADER);
@@ -283,13 +285,13 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, control_point_buffer);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, control_point));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)12);
+    glVertexAttribPointer(1, 3, GL_SHORT, GL_TRUE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, support_vector));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)36);
+    glVertexAttribPointer(2, 2, GL_SHORT, GL_TRUE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, backbone_angles));
     glEnableVertexAttribArray(3);
-    glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, 48, (const GLvoid*)44);
+    glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, atom_index));
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, control_point_index_buffer);
 
@@ -316,11 +318,11 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, spline_buffer);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, control_point));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)12);
+    glVertexAttribPointer(1, 3, GL_SHORT, GL_TRUE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, support_vector));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)24);
+    glVertexAttribPointer(2, 3, GL_SHORT, GL_TRUE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, tangent_vector));
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
 
@@ -337,6 +339,7 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
 
 void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const mat4& view_mat, const mat4& proj_mat) {
     mat4 view_proj_mat = proj_mat * view_mat;
+    mat4 normal_mat = math::inverse(math::transpose(view_mat));
 
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(0xFFFFFFFFU);
@@ -344,13 +347,13 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, spline_buffer);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, control_point));
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)12);
+    glVertexAttribPointer(1, 3, GL_SHORT, GL_TRUE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, support_vector));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 48, (const GLvoid*)24);
+    glVertexAttribPointer(2, 3, GL_SHORT, GL_TRUE, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, tangent_vector));
     glEnableVertexAttribArray(3);
-    glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, 48, (const GLvoid*)44);
+    glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, sizeof(ControlPoint), (const GLvoid*)offsetof(ControlPoint, atom_index));
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
 
@@ -358,7 +361,7 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
     glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA8, atom_color_buffer);
 
     glUseProgram(ribbons::program);
-    glUniformMatrix4fv(ribbons::uniform_loc_view_mat, 1, GL_FALSE, &view_mat[0][0]);
+    glUniformMatrix4fv(ribbons::uniform_loc_normal_mat, 1, GL_FALSE, &normal_mat[0][0]);
     glUniformMatrix4fv(ribbons::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
     glDrawElements(GL_LINE_STRIP, num_spline_indices, GL_UNSIGNED_INT, 0);
     glUseProgram(0);

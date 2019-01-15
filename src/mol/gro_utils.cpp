@@ -28,14 +28,13 @@ const char* get_format(CString line) {
     const uint8* c = &line[20];
     while (c != line.end() && *c == ' ') c++;
     while (c != line.end() && *c != ' ') c++;
-	
-	auto len = c - (&line[20]);
+
+    auto len = c - (&line[20]);
     if (len < 10) {
-		return format_n;
-	}	
-	else {
+        return format_n;
+    } else {
         return format_w;
-	}
+    }
 }
 
 bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_string) {
@@ -58,7 +57,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     if (!format) {
         LOG_ERROR("Could not identify internal format of gro file!");
         return false;
-	}
+    }
     int res_count = 0;
     int cur_res = -1;
     StringBuffer<256> line;
@@ -118,6 +117,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     auto covalent_bonds = compute_covalent_bonds(residues, residue_indices, positions, elements);
     auto backbone_segments = compute_backbone_segments(residues, labels);
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
+    auto backbone_angles = compute_backbone_angles(positions, backbone_segments, backbone_sequences);
     auto chains = compute_chains(residues);
     auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors(elements);
@@ -140,8 +140,9 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     memcpy(mol->residues.data, residues.data, residues.size_in_bytes());
     memcpy(mol->chains.data, chains.data, chains.size_in_bytes());
     memcpy(mol->covalent_bonds.data, covalent_bonds.data, covalent_bonds.size_in_bytes());
-    memcpy(mol->backbone_segments.data, backbone_segments.data, backbone_segments.size_in_bytes());
-    memcpy(mol->backbone_sequences.data, backbone_sequences.data, backbone_sequences.size_in_bytes());
+    memcpy(mol->backbone.segments.data, backbone_segments.data, backbone_segments.size_in_bytes());
+    memcpy(mol->backbone.angles.data, backbone_angles.data, backbone_angles.size_in_bytes());
+    memcpy(mol->backbone.sequences.data, backbone_sequences.data, backbone_sequences.size_in_bytes());
     memcpy(mol->hydrogen_bond.donors.data, donors.data, donors.size_in_bytes());
     memcpy(mol->hydrogen_bond.acceptors.data, acceptors.data, acceptors.size_in_bytes());
 
