@@ -13,6 +13,14 @@ out uint out_tangent_vector_yz;
 out uint out_backbone_angles;
 out uint out_atom_index;
 
+#ifndef GL_ARB_shading_language_packing
+uint packSnorm2x16(in vec2 v)
+{
+    ivec2 iv = int(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
+    return (iv.y << 16) | (iv.x & 0xFFFF);
+}
+#endif
+
 float dihedral_angle(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3) {
     vec3 b1 = p1 - p0;
     vec3 b2 = p2 - p1;

@@ -21,6 +21,14 @@ in Vertex {
     uint atom_index;
 } in_vert[];
 
+#ifndef GL_ARB_shading_language_packing
+uint packSnorm2x16(in vec2 v)
+{
+    ivec2 iv = int(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
+    return (iv.y << 16) | (iv.x & 0xFFFF);
+}
+#endif
+
 vec3 catmull_rom(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s, float tension) {
     vec3 v0 = (p2 - p0) * tension;
     vec3 v1 = (p3 - p1) * tension;
