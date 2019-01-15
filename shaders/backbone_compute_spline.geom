@@ -22,10 +22,9 @@ in Vertex {
 } in_vert[];
 
 #ifndef GL_ARB_shading_language_packing
-uint packSnorm2x16(in vec2 v)
-{
-    ivec2 iv = int(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
-    return (iv.y << 16) | (iv.x & 0xFFFF);
+uint packSnorm2x16(in vec2 v) {
+    ivec2 iv = ivec2(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
+    return uint(iv.y << 16) | uint(iv.x & 0xFFFF);
 }
 #endif
 

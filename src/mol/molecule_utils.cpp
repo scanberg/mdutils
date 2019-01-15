@@ -302,10 +302,6 @@ void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<co
         const glm_vec4 pbc_cent = apply_pbc(center, full_box_ext);
         const glm_vec4 delta = glm_vec4_sub(pbc_cent, center);
 
-        if (delta.m128_f32[0] != 0) {
-            printf("HEJ!");
-        }
-
         // if (!all_zero(delta)) {
         for (auto& pos : positions.sub_array(beg_idx, count)) {
             const glm_vec4 pos_vec = *reinterpret_cast<glm_vec4*>(&pos);

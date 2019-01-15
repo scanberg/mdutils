@@ -14,10 +14,9 @@ out uint out_backbone_angles;
 out uint out_atom_index;
 
 #ifndef GL_ARB_shading_language_packing
-uint packSnorm2x16(in vec2 v)
-{
-    ivec2 iv = int(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
-    return (iv.y << 16) | (iv.x & 0xFFFF);
+uint packSnorm2x16(in vec2 v) {
+    ivec2 iv = ivec2(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
+    return uint(iv.y << 16) | uint(iv.x & 0xFFFF);
 }
 #endif
 
@@ -44,13 +43,6 @@ void main() {
 
     float phi = dihedral_angle(c_p, n, ca, c);
     float psi = dihedral_angle(n, ca, c, n_n);
-
-/*  out_control_point = p;
-    out_support_vector = v;
-    out_tangent_vector = t;
-    out_backbone_angles = vec2(phi, psi);
-    out_atom_index = atom_index[0];
-    */
 
     out_control_point = p;
     out_support_vector_xy = packSnorm2x16(v.xy);

@@ -118,12 +118,12 @@ inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { r
 
 // Backbone accessors
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, BackboneSequence seq) {
-    ASSERT(0 <= seq.beg && seq.end <= mol.backbone_segments.count);
+    ASSERT(0 <= seq.beg && seq.end <= mol.backbone.segments.count);
     return mol.backbone.segments.sub_array(seq.beg, seq.end - seq.beg);
 }
 
 inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, BackboneSequence seq) {
-    ASSERT(0 <= seq.beg && seq.end <= mol.backbone_segments.count);
+    ASSERT(0 <= seq.beg && seq.end <= mol.backbone.segments.count);
     return mol.backbone.segments.sub_array(seq.beg, seq.end - seq.beg);
 }
 
