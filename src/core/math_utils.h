@@ -1,13 +1,6 @@
 #pragma once
 
 #define NOMINMAX
-//#ifndef GLM_FORCE_SSE2
-//#define GLM_FORCE_SSE2
-//#endif
-
-//#ifndef GLM_FORCE_ALIGNED
-//#define GLM_FORCE_ALIGNED
-//#endif
 
 #include <core/types.h>
 #include <core/vector_types.h>

@@ -43,14 +43,11 @@ void compute_frame(Frame* frame, Array<const vec3> positions, vec3 cell_ext, vec
     frame->cell_count = math::max(ivec3(1), ivec3((max_box - min_box) / cell_ext));
     frame->cell_ext = (max_box - min_box) / (vec3)frame->cell_count;
     frame->cells.resize(frame->cell_count.x * frame->cell_count.y * frame->cell_count.z);
-    frame->entries.resize(positions.count);
-    memset(frame->cells.data, 0, frame->cells.count * sizeof(Cell));
+    frame->entries.resize(positions.size());
+    memset(frame->cells.data, 0, frame->cells.size() * sizeof(Cell));
 
-    unsigned int num_points = positions.count;
-    unsigned int num_cells = frame->cells.count;
-
-    uint32* l_idx = (uint32*)TMP_MALLOC(num_points * sizeof(uint32));
-    uint32* g_idx = (uint32*)TMP_MALLOC(num_points * sizeof(uint32));
+    uint32* l_idx = (uint32*)TMP_MALLOC(positions.size() * sizeof(uint32));
+    uint32* g_idx = (uint32*)TMP_MALLOC(positions.size() * sizeof(uint32));
     defer {
         TMP_FREE(l_idx);
         TMP_FREE(g_idx);
