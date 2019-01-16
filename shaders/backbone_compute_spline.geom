@@ -107,8 +107,8 @@ void main() {
     sv[2] *= sign(dot(sv[1], sv[2]));
     sv[3] *= sign(dot(sv[2], sv[3]));
 
-    bb[0] = in_vert[1].backbone_angles;
-    bb[1] = in_vert[2].backbone_angles;
+    bb[0] = mix(in_vert[0].backbone_angles, in_vert[1].backbone_angles, 1.0);
+    bb[1] = mix(in_vert[2].backbone_angles, in_vert[3].backbone_angles, 0.0);
 
     ai[0] = in_vert[1].atom_index;
     ai[1] = in_vert[2].atom_index;
@@ -118,6 +118,8 @@ void main() {
         vec3 p = spline(cp[0], cp[1], cp[2], cp[3], s);
         vec3 v = normalize(spline(sv[0], sv[1], sv[2], sv[3], s));
         vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
+
+        //v = normalize(v - t*dot(v,t)); // Othonormalize v with respect to t
 
         out_control_point = p;
         out_support_vector_xy = packSnorm2x16(v.xy);

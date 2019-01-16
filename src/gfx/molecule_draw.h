@@ -26,6 +26,7 @@ constexpr int cp_size = sizeof(ControlPoint);
 void draw_vdw(GLuint atom_position_radius_buffer, GLuint atom_color_buffer, int32 atom_count, const mat4& view_mat, const mat4& proj_mat, float radius_scale = 1.f);
 void draw_licorice(GLuint atom_position_buffer, GLuint atom_color_buffer, GLuint bond_buffer, int32 bond_count, const mat4& view_mat, const mat4& proj_mat, float radius_scale = 1.f);
 void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const mat4& view_mat, const mat4& proj_mat);
+void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, GLuint ramachandran_tex, const mat4& view_mat, const mat4& proj_mat);
 void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat, uint32 s_color = 0xFF00FF00, uint32 v_color = 0xFF0000FF,
                  uint32 t_color = 0xFFFF0000);
 

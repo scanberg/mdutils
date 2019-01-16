@@ -41,8 +41,10 @@ void main() {
     vec3 v = normalize(o - c);
     vec3 t = vec3(0);   // Placeholder, tangent is computed analytically in spline shader
 
-    float phi = dihedral_angle(c_p, n, ca, c);
-    float psi = dihedral_angle(n, ca, c, n_n);
+    const float ONE_OVER_PI = 1.0 / 3.14159265;
+    // [-PI, PI] -> [-1, 1]
+    float phi = dihedral_angle(c_p, n, ca, c) * ONE_OVER_PI;
+    float psi = dihedral_angle(n, ca, c, n_n) * ONE_OVER_PI;
 
     out_control_point = p;
     out_support_vector_xy = packSnorm2x16(v.xy);

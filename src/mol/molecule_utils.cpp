@@ -474,7 +474,7 @@ DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSe
     for (ResIdx i = 0; i < (ResIdx)residues.size(); i++) {
         if (valid_segment(segments[i])) {
             bb_sequences.push_back({i, i + 1});
-            while (i < (ResIdx)residues.size() - 1 && has_covalent_bond(residues[i], residues[i + 1])) {
+            while (i < (ResIdx)residues.size() - 1 && valid_segment(segments[i + 1]) && has_covalent_bond(residues[i], residues[i + 1])) {
                 bb_sequences.back().end++;
                 i++;
             }
@@ -497,32 +497,32 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
     int64 invalid_segments = 0;
     for (auto& res : residues) {
         BackboneSegment seg{};
-        if (is_amino_acid(res)) {
-            // find atoms
-            for (int32 i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
+        // if (is_amino_acid(res)) {
+        // find atoms
+        for (int32 i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
+            const auto& lbl = atom_labels[i];
+            if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
+            if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
+            if (seg.c_idx == -1 && match(lbl, "C")) seg.c_idx = i;
+            if (seg.o_idx == -1 && match(lbl, "O")) seg.o_idx = i;
+        }
+
+        // Could not match "O"
+        if (seg.o_idx == -1) {
+            // Pick first atom containing O after C atom
+            for (int32 i = seg.c_idx; i < res.atom_idx.end; i++) {
                 const auto& lbl = atom_labels[i];
-                if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
-                if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
-                if (seg.c_idx == -1 && match(lbl, "C")) seg.c_idx = i;
-                if (seg.o_idx == -1 && match(lbl, "O")) seg.o_idx = i;
+                if (lbl[0] == 'o' || lbl[0] == 'O') seg.o_idx = i;
             }
+        }
 
-            // Could not match "O"
-            if (seg.o_idx == -1) {
-                // Pick first atom containing O after C atom
-                for (int32 i = seg.c_idx; i < res.atom_idx.end; i++) {
-                    const auto& lbl = atom_labels[i];
-                    if (lbl[0] == 'o' || lbl[0] == 'O') seg.o_idx = i;
-                }
-            }
-
-            if (!valid_segment(seg)) {
-                LOG_ERROR("Could not identify all backbone indices for residue %s.\n", res.name.beg());
-                invalid_segments++;
-            }
-        } else {
+        if (!valid_segment(seg)) {
+            // LOG_ERROR("Could not identify all backbone indices for residue %s.", res.name.beg());
             invalid_segments++;
         }
+        //} else {
+        //    invalid_segments++;
+        //}
         segments.push_back(seg);
     }
 
