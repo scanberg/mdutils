@@ -104,8 +104,8 @@ void main() {
     sv[3] = in_vert[3].support_vector;
 
     sv[0] *= sign(dot(sv[0], sv[1]));
-    sv[2] *= sign(dot(sv[2], sv[1]));
-    sv[3] *= sign(dot(sv[3], sv[2]));
+    sv[2] *= sign(dot(sv[1], sv[2]));
+    sv[3] *= sign(dot(sv[2], sv[3]));
 
     bb[0] = in_vert[1].backbone_angles;
     bb[1] = in_vert[2].backbone_angles;

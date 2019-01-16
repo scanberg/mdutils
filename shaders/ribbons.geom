@@ -1,5 +1,14 @@
 #version 330 core
 
+/*
+    This shader can be optimized alot furhter.
+    Especially for Intel integrated GPUs, where we want to minimize the workload in the geometry shader
+    Move matrix multiplications and transformations to vertex shader
+    Output 'Ready' corner points for the box that is the body for the ribbon-segment
+    Output 'Ready' normals for the edges of the boxes
+    In geometry shader: Pick the right indices and construct geometry
+*/
+
 uniform mat4 u_normal_mat;
 uniform mat4 u_view_proj_mat;
 uniform vec2 u_scale = vec2(1.0, 0.1);
