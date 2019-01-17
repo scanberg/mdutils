@@ -531,6 +531,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
     return segments;
 }
 
+/*
 DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions, float tension) {
     if (backbone.count < 4) return {};
 
@@ -627,6 +628,7 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
 
     return segments;
 }
+*/
 
 DynamicArray<BackboneAngle> compute_backbone_angles(Array<const vec3> pos, Array<const BackboneSegment> backbone) {
     if (backbone.count == 0) return {};

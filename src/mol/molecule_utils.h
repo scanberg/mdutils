@@ -7,6 +7,7 @@
 #include <mol/molecule_dynamic.h>
 #include <mol/aminoacid.h>
 
+/*
 // tangent AND binormal is perhaps redundant
 struct SplineSegment {
     vec3 position;
@@ -17,6 +18,7 @@ struct SplineSegment {
     uint32 index;
     uint32 color;
 };
+*/
 
 struct BackboneAnglesTrajectory {
     int num_segments = 0;
@@ -82,7 +84,7 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residue);
 
 DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues);
 DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels);
-DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions = 1, float tension = 0.5f);
+// DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions = 1, float tension = 0.5f);
 
 // Computes the dihedral angles within the backbone:
 // phi   = dihedral( C[i-1], N[i],  CA[i],  C[i])

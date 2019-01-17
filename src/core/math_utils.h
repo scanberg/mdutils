@@ -186,6 +186,20 @@ inline vec3 unproject(const vec3& window_coords, const mat4& inv_view_proj_mat, 
 inline float rnd() { return (float)rand() / (float)RAND_MAX; }
 inline void set_rnd_seed(unsigned int seed) { srand(seed); }
 
+inline float halton(int index, int base) {
+    float f = 1;
+    float r = 0;
+    const float ifb = 1.f / base;
+    while (index > 0) {
+        f = f * ifb;
+        r = r + f * fmod(index, base);
+        index = (int)(index * ifb);
+    }
+    return r;
+}
+
+void generate_halton_sequence(float* dst, int count, int base);
+
 // Color
 
 // http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
