@@ -785,7 +785,10 @@ vec3 shade(vec3 color, vec3 V, vec3 N) {
 
 void main() {
 	float depth = texelFetch(u_texture_depth, ivec2(gl_FragCoord.xy), 0).x;
-	if (depth == 1.0) discard;
+	if (depth == 1.0) {
+		out_frag = vec4(1,1,1,1);
+		return;
+	}
 	vec4 color = texelFetch(u_texture_color, ivec2(gl_FragCoord.xy), 0);
 	vec3 normal = decode_normal(texelFetch(u_texture_normal, ivec2(gl_FragCoord.xy), 0).xy);
 	vec4 view_coord = depth_to_view_coord(tc, depth);
@@ -921,7 +924,7 @@ uniform float uFocusScale;
 
 const float GOLDEN_ANGLE = 2.39996323; 
 const float MAX_BLUR_SIZE = 20.0; 
-const float RAD_SCALE = 2.0; // Smaller = nicer blur, larger = faster
+const float RAD_SCALE = 1.0; // Smaller = nicer blur, larger = faster
 
 float getBlurSize(float depth, float focusPoint, float focusScale)
 {
@@ -949,18 +952,17 @@ vec3 depthOfField(vec2 tex_coord, float focus_point, float focus_scale)
 		float sample_coc   = getBlurSize(sample_depth, focus_point, focus_scale);
 		vec4 sample_color_coc = vec4(sample_color, sample_coc);
 
-/*
 		if (sample_depth > center_depth)
 			sample_coc = clamp(sample_coc, 0.0, center_coc*2.0);
-*/
 
 		color_coc_sum     += mix(color_coc_sum / contrib_sum, sample_color_coc, smoothstep(radius-0.5, radius+0.5, sample_color_coc.a));
 		contrib_sum       += 1.0;
 		radius            += RAD_SCALE/radius;
 
-		if (color_coc_sum.a / contrib_sum > 10.0) break;
+		//if (color_coc_sum.a / contrib_sum > 10.0) break;
 	}
 
+#if 0
 	for (; radius < MAX_BLUR_SIZE; ang += GOLDEN_ANGLE) {
 		vec2 tc = tex_coord + vec2(cos(ang), sin(ang)) * uPixelSize * radius;
 		vec4  sample_color_coc = texture(uHalfRes, tc) * vec4(1, 1, 1, MAX_BLUR_SIZE);
@@ -974,7 +976,7 @@ vec3 depthOfField(vec2 tex_coord, float focus_point, float focus_scale)
 		contrib_sum       += 1.0;
 		radius            += RAD_SCALE/radius;
 	}
-
+#endif
 	return color_coc_sum.rgb /= contrib_sum;
 }
 

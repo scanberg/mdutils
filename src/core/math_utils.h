@@ -192,13 +192,14 @@ inline float halton(int index, int base) {
     const float ifb = 1.f / base;
     while (index > 0) {
         f = f * ifb;
-        r = r + f * fmod(index, base);
+        r = r + f * fmodf(index, base);
         index = (int)(index * ifb);
     }
     return r;
 }
 
 void generate_halton_sequence(float* dst, int count, int base);
+void generate_halton_sequence(vec2* dst, int count, int base_x, int base_y);
 
 // Color
 

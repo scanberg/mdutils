@@ -1,4 +1,4 @@
-#include "pdb_utils.h"
+﻿#include "pdb_utils.h"
 #include <mol/element.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
@@ -6,16 +6,7 @@
 #include <core/string_utils.h>
 #include <core/log.h>
 
-static inline bool valid_line(CString line, uint32 options) {
-    if ((options & PDB_READ_ATOM) && compare_n(line, "ATOM", 4))
-        return true;
-    else if ((options & PDB_READ_HETATM) && compare_n(line, "HETATM", 6))
-        return true;
-
-    return false;
-}
-
-bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename, PdbLoadParams params) {
+bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename) {
     String txt = allocate_and_read_textfile(filename);
     defer { FREE(txt); };
     if (!txt) {
@@ -25,7 +16,7 @@ bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename, PdbL
 
     free_molecule_structure(&md->molecule);
     free_trajectory(&md->trajectory);
-    auto res = allocate_and_parse_pdb_from_string(md, txt, params);
+    auto res = allocate_and_parse_pdb_from_string(md, txt);
     return res;
 }
 
@@ -62,7 +53,7 @@ inline float fast_and_unsafe_str_to_float(CString str) {
     return sign * val;
 }
 
-bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string, PdbLoadParams params) {
+bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string) {
     free_molecule_structure(&md->molecule);
     free_trajectory(&md->trajectory);
 
@@ -92,22 +83,25 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
     mat3 box(0);
     CString line;
     while (line = extract_line(pdb_string)) {
-        if (valid_line(line, params)) {
+        if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
 
-            // SLOW AS SHIT
+            // SLOW AS 💩
             // sscanf(line.substr(30).data, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
 
-            // FASTER atof
+            // FASTER 🚴 
+            // pos.x = to_float(line.substr(30, 8));
+			// pos.y = to_float(line.substr(38, 8));
+			// pos.z = to_float(line.substr(46, 8));
 
-            // FASTEST?
+            // FASTEST? 🏎️💨
             pos.x = fast_and_unsafe_str_to_float(line.substr(30, 8));
             pos.y = fast_and_unsafe_str_to_float(line.substr(38, 8));
             pos.z = fast_and_unsafe_str_to_float(line.substr(46, 8));
 
             positions.push_back(pos);
-            // positions.push_back(vec3(to_float(line.substr(30, 8)), to_float(line.substr(38, 8)), to_float(line.substr(46, 8))));
-            if (params & PDB_TREAT_MODELS_AS_FRAMES && num_frames > 0) continue;
+            if (num_frames > 0) continue;
+
             labels.push_back(trim(line.substr(12, 4)));
             if (line.count > 60) {
                 occupancies.push_back(to_float(line.substr(54, 6)));
@@ -166,37 +160,9 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
             box[0].x = dim.x;
             box[1].y = dim.y;
             box[2].z = dim.z;
-        } else if (compare_n(line, "MODEL", 5)) {
-
         } else if (compare_n(line, "ENDMDL", 6)) {
-            if (params & PDB_TREAT_MODELS_AS_FRAMES) {
-                num_frames++;
-            } else {
-                ASSERT(false);
-                num_models++;
-                num_atoms = 0;
-                current_res_id = -1;
-                current_chain_id = -1;
-
-                positions.clear();
-                labels.clear();
-                elements.clear();
-                residue_indices.clear();
-                occupancies.clear();
-                temp_factors.clear();
-                residues.clear();
-                chains.clear();
-            }
-        } else if (compare_n(line, "TER", 3)) {
-            if (params & PDB_TREAT_MODELS_AS_FRAMES && num_frames > 0) continue;
-            /*
-            current_chain_id = line[21];
-            Chain chain;
-            chain.res_idx.beg = (ResIdx)residues.size();
-            chain.res_idx.end = (ResIdx)residues.size();
-            chain.id = current_chain_id;
-            chains.push_back(chain);
-                        */
+            num_frames++;
+			// @TODO: Handle the case where the models are different and not consecutive frames of an animation.
         }
     }
 
@@ -247,36 +213,4 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string,
     }
 
     return true;
-}
-
-Result load_pdb(CString filename) {
-    String txt = allocate_and_read_textfile(filename);
-    defer { FREE(txt); };
-    if (!txt) {
-        LOG_ERROR("Could not read file: '%s'.", filename);
-        return {};
-    }
-
-    int32 num_frames = 0;
-    CString pattern("\nENDMDL");
-
-    /*
-const char* str = txt;
-while (auto res = strstr(str, pattern)) {
-    str = res + pattern.length();
-            num_frames++;
-    }
-    */
-
-    String head = txt;
-    /*
-        while (auto res = find_needle(pattern, head)) {
-                head = {res.end(), head.length() - pattern.length()};
-        num_frames++;
-        }
-        */
-
-    LOG_ERROR("NUM FRAMES %i", num_frames);
-
-    return {num_frames};
 }

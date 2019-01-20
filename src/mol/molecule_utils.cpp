@@ -495,8 +495,16 @@ bool match(const Label& lbl, const char (&cstr)[N]) {
 DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels) {
     DynamicArray<BackboneSegment> segments;
     int64 invalid_segments = 0;
+    constexpr int32 min_atom_count = 4; // Must contain at least 8 atoms to be considered as an amino acid.
     for (auto& res : residues) {
-        BackboneSegment seg{};
+        const int32 atom_count = res.atom_idx.end - res.atom_idx.beg;
+        if (atom_count < min_atom_count) {
+            segments.push_back({-1, -1, -1, -1});
+            invalid_segments++;
+			continue;
+		}
+        
+		BackboneSegment seg{};
         // if (is_amino_acid(res)) {
         // find atoms
         for (int32 i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
