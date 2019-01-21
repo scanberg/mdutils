@@ -81,7 +81,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
     int num_frames = 0;
     mat3 box(0);
     CString line;
-    while (line = extract_line(pdb_string)) {
+    while ((line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
 
