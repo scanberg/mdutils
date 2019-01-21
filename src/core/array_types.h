@@ -49,20 +49,20 @@ struct Array {
 
     const T& front() const {
         ASSERT(count > 0);
-		return data[0];
-	}
+        return data[0];
+    }
     const T& back() const {
         ASSERT(count > 0);
-		return data[count - 1];
-	}
+        return data[count - 1];
+    }
     T& front() {
         ASSERT(count > 0);
-		return data[0];
-	}
+        return data[0];
+    }
     T& back() {
         ASSERT(count > 0);
-		return data[count - 1];
-	}
+        return data[count - 1];
+    }
 
     int64 size() const { return count; }
     int64 size_in_bytes() const { return count * sizeof(T); }
@@ -70,12 +70,12 @@ struct Array {
     operator bool() const { return data != nullptr && count > 0; }
     const T& operator[](int64 i) const {
         ASSERT(i < count);
-		return data[i];
-	}
+        return data[i];
+    }
     T& operator[](int64 i) {
         ASSERT(i < count);
-		return data[i];
-	}
+        return data[i];
+    }
 
     operator Array<const T>() const { return {data, count}; }
 
@@ -291,7 +291,7 @@ private:
 
 template <typename T, int64 Length>
 struct StaticArray {
-	T data[Length];
+                T data[Length];
 };
 */
 
@@ -312,17 +312,34 @@ void free_array(Array<T>* arr) {
 }
 
 template <typename T>
-void zero_array(Array<T>* arr) {
-	ASSERT(arr);
-	memset(arr->data, 0, arr->count * sizeof(T));
+void zero_array(Array<T>& arr) {
+    memset(arr.data, 0, arr.size_in_bytes());
+}
+
+template <typename T>
+void memset_array(Array<T>& arr, const T& val) {
+    ASSERT(arr);
+    for (int64 i = 0; i < arr.count; i++) {
+        *(arr.data + i) = val;
+    }
+}
+
+template <typename T>
+void memset_array(Array<T>& arr, const T& val, int64 offset, int64 length) {
+    ASSERT(arr);
+    ASSERT(0 <= offset && offset < arr.count);
+    ASSERT(0 < length && offset + length <= arr.count);
+    for (int64 i = offset; i < offset + length; i++) {
+        *(arr.data + i) = val;
+    }
 }
 
 // count = 4
 // i = 2
 // [0,1,2,3]
 template <typename T>
-void remove_array_element(Array<T>* arr, int i) {
-    ASSERT(arr);
-    ASSERT(i < arr->count);
-    memmove(arr->data + i, arr->data + (i + 1), arr->count - (i + 1));
+void remove_array_element(Array<T>& arr, int i) {
+    ASSERT(i < arr.data);
+    ASSERT(i < arr.count);
+    memmove(arr.data + i, arr.data + (i + 1), arr.count - (i + 1));
 }

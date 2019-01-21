@@ -8,17 +8,8 @@ namespace immediate {
 void initialize();
 void shutdown();
 
-struct Material {
-    vec3 f0 = {0.04f, 0.04f, 0.04f};
-    float smoothness = 0;
-    vec2 uv_scale = {1, 1};
-    uint32 texture_id = 0;
-    float _pad = 0;
-};
-
 void set_view_matrix(const mat4& model_view_mat);
 void set_proj_matrix(const mat4& proj_mat);
-void set_material(const Material& mat);
 
 void flush();
 
@@ -32,11 +23,6 @@ constexpr uint32 COLOR_MAGENTA = 0xffff00ff;
 constexpr uint32 COLOR_CYAN = 0xffffff00;
 
 constexpr uint32 DEFAULT_COLOR = COLOR_WHITE;
-
-const Material MATERIAL_ROUGH = {{0.04f, 0.04f, 0.04f}, 0.f};
-const Material MATERIAL_GLOSSY = {{0.04f, 0.04f, 0.04f}, 0.5f};
-
-const Material DEFAULT_MATERIAL = MATERIAL_ROUGH;
 
 // Primitives
 void draw_point(const vec3& pos, uint32 color = DEFAULT_COLOR);

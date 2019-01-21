@@ -19,9 +19,8 @@ in Fragment {
 layout (depth_greater) out float gl_FragDepth;
 #endif
 layout(location = 0) out vec4 out_color_alpha;
-layout(location = 1) out vec4 out_f0_smoothness;
-layout(location = 2) out vec4 out_normal;
-layout(location = 3) out vec4 out_picking_id;
+layout(location = 1) out vec4 out_normal;
+layout(location = 2) out vec4 out_picking_id;
 
 // Source from Ingo Quilez (https://www.shadertoy.com/view/Xt3SzX)
 float intersect_capsule(in vec3 ro, in vec3 rd, in vec3 cc, in vec3 ca, float cr,
@@ -95,7 +94,6 @@ void main() {
 
     gl_FragDepth = coord.z * 0.5 + 0.5;
     out_color_alpha = color;
-    out_f0_smoothness = vec4(0.04, 0.04, 0.04, 0.0);
     out_normal = encode_normal(normal);
     out_picking_id = picking_color;
 }

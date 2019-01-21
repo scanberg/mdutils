@@ -78,7 +78,6 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
     int current_res_id = -1;
     char current_chain_id = -1;
     int num_atoms = 0;
-    int num_models = 0;
     int num_frames = 0;
     mat3 box(0);
     CString line;
@@ -89,10 +88,10 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
             // SLOW AS 💩
             // sscanf(line.substr(30).data, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
 
-            // FASTER 🚴 
+            // FASTER 🚴
             // pos.x = to_float(line.substr(30, 8));
-			// pos.y = to_float(line.substr(38, 8));
-			// pos.z = to_float(line.substr(46, 8));
+            // pos.y = to_float(line.substr(38, 8));
+            // pos.z = to_float(line.substr(46, 8));
 
             // FASTEST? 🏎️💨
             pos.x = fast_and_unsafe_str_to_float(line.substr(30, 8));
@@ -162,7 +161,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
             box[2].z = dim.z;
         } else if (compare_n(line, "ENDMDL", 6)) {
             num_frames++;
-			// @TODO: Handle the case where the models are different and not consecutive frames of an animation.
+            // @TODO: Handle the case where the models are different and not consecutive frames of an animation.
         }
     }
 

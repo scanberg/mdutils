@@ -192,7 +192,7 @@ inline float halton(int index, int base) {
     const float ifb = 1.f / base;
     while (index > 0) {
         f = f * ifb;
-        r = r + f * fmodf(index, base);
+        r = r + f * fmodf((float)index, (float)base);
         index = (int)(index * ifb);
     }
     return r;

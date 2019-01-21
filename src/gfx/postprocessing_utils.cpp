@@ -574,7 +574,7 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     data.radius_to_screen = r * 0.5f * proj_scl;
     data.r2 = r * r;
     data.neg_inv_r2 = -1.f / (r * r);
-    data.n_dot_v_bias = math::clamp(bias, 0.f, 1.f);
+    data.n_dot_v_bias = math::clamp(bias, 0.f, 1.f - math::EPSILON);
 
     data.inv_full_res = vec2(1.f / float(width), 1.f / float(height));
     data.inv_quarter_res = vec2(1.f / float((width + 3) / 4), 1.f / float((height + 3) / 4));
@@ -597,10 +597,13 @@ void initialize_rnd_tex(GLuint rnd_tex, int num_direction) {
     constexpr int BUFFER_SIZE = AO_RANDOM_TEX_SIZE * AO_RANDOM_TEX_SIZE * AO_MAX_SAMPLES;
     signed short buffer[BUFFER_SIZE * 4];
 
+    vec2 halton23[BUFFER_SIZE];
+    math::generate_halton_sequence(halton23, BUFFER_SIZE, 2, 3);
+
     for (int i = 0; i < BUFFER_SIZE; i++) {
 #define SCALE ((1 << 15))
-        float rand1 = math::rnd();
-        float rand2 = math::rnd();
+        float rand1 = halton23[i].x;
+        float rand2 = halton23[i].y;
         float angle = 2.f * math::PI * rand1 / (float)num_direction;
 
         buffer[i * 4 + 0] = (signed short)(SCALE * math::cos(angle));
@@ -618,33 +621,33 @@ void initialize_rnd_tex(GLuint rnd_tex, int num_direction) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-float compute_sharpness(float radius) { return 30.f / radius; }
+float compute_sharpness(float radius) { return 20.f * math::pow(radius, -0.5f); }
 
 void initialize(int width, int height) {
     // @TODO: dynamically generate this
-    const char* defines = R"(
+    const char* defines_hbao = R"(
         #version 150 core
         #define AO_RANDOM_TEX_SIZE 4
         #define PERSPECTIVE 1
-        #define AO_BLUR 0
+        #define AO_BLUR 1
         #define AO_STEPS 4
         #define AO_DIRS 8
         #define AO_USE_NORMAL 1
     )";
 
-    const char* define_blur_first = R"(
+    const char* defines_blur_first = R"(
         #version 150 core
         #define AO_BLUR_PRESENT 0
     )";
 
-    const char* define_blur_second = R"(
+    const char* defines_blur_second = R"(
         #version 150 core
         #define AO_BLUR_PRESENT 1
     )";
 
-    setup_program(&prog_hbao, "hbao", f_shader_src_hbao, defines);
-    setup_program(&prog_blur_first, "hbao first blur", f_shader_src_hbao_blur, define_blur_first);
-    setup_program(&prog_blur_second, "hbao second blur", f_shader_src_hbao_blur, define_blur_second);
+    setup_program(&prog_hbao, "hbao", f_shader_src_hbao, defines_hbao);
+    setup_program(&prog_blur_first, "hbao first blur", f_shader_src_hbao_blur, defines_blur_first);
+    setup_program(&prog_blur_second, "hbao second blur", f_shader_src_hbao_blur, defines_blur_second);
 
     uniform_block_index_hbao_control_buffer = glGetUniformBlockIndex(prog_hbao, "u_control_buffer");
     uniform_loc_hbao_tex_linear_depth = glGetUniformLocation(prog_hbao, "u_tex_linear_depth");
@@ -765,12 +768,13 @@ vec3 decode_normal(vec2 enc) {
     return n;
 }
 
-vec3 shade(vec3 color, vec3 V, vec3 N) {
-    const vec3 env_radiance = vec3(0.5);
-    const vec3 dir_radiance = vec3(0.5);
-    const vec3 L = normalize(vec3(1));
-    const float spec_exp = 10.0;
+const vec3 bg_radiance = vec3(100);
+const vec3 env_radiance = vec3(5.0);
+const vec3 dir_radiance = vec3(5.0);
+const vec3 L = normalize(vec3(1));
+const float spec_exp = 10.0;
 
+vec3 shade(vec3 color, vec3 V, vec3 N) {
     vec3 H = normalize(L + V);
     float H_dot_V = max(0.0, dot(H, V));
     float N_dot_H = max(0.0, dot(N, H));
@@ -786,7 +790,7 @@ vec3 shade(vec3 color, vec3 V, vec3 N) {
 void main() {
 	float depth = texelFetch(u_texture_depth, ivec2(gl_FragCoord.xy), 0).x;
 	if (depth == 1.0) {
-		out_frag = vec4(1,1,1,1);
+		out_frag = vec4(bg_radiance,1);
 		return;
 	}
 	vec4 color = texelFetch(u_texture_color, ivec2(gl_FragCoord.xy), 0);
@@ -834,7 +838,7 @@ vec3 reinhard(vec3 c) {
     return pow(c, vec3(1.0 / 2.2));
 }
 
-vec3 uncharted2_tonemap(vec3 x) {
+vec3 uncharted_tonemap(vec3 x) {
     const float A = 0.15;
     const float B = 0.50;
     const float C = 0.10;
@@ -844,17 +848,17 @@ vec3 uncharted2_tonemap(vec3 x) {
     return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
 }
 
-vec3 uncharted2(vec3 c) {
+vec3 uncharted(vec3 c) {
     const float W = 11.2;
     //c *= 2;  // Hardcoded Exposure Adjustment
 
     float exp_bias = 0.5;
-    vec3 curr = uncharted2_tonemap(exp_bias * c);
+    vec3 curr = uncharted_tonemap(exp_bias * c);
 
-    vec3 white_scale = vec3(1.0) / uncharted2_tonemap(vec3(W));
+    vec3 white_scale = vec3(1.0) / uncharted_tonemap(vec3(W));
     vec3 color = curr * white_scale;
       
-    return pow(color, vec3(1.0/2.2));
+    return pow(color, vec3(1.0/1.0));
 }
 
 vec3 hejl_dawsson(vec3 c) {
@@ -865,7 +869,8 @@ vec3 hejl_dawsson(vec3 c) {
 
 void main() {
 	vec4 color = texelFetch(u_texture, ivec2(gl_FragCoord.xy), 0);
-	out_frag = vec4(color.rgb, color.a);
+	color.rgb = uncharted(color.rgb);
+	out_frag = color;
 }
 )";
 
@@ -998,6 +1003,32 @@ void main() {
 
 namespace fxaa {}
 
+namespace blit {
+static GLuint program = 0;
+static GLint uniform_loc_texture = -1;
+static const char* f_shader_src = R"(
+#version 150 core
+
+uniform sampler2D u_texture;
+
+in vec2 tc;
+out vec4 out_frag;
+
+void main() {
+	out_frag = texture(u_texture, tc);
+}
+)";
+
+void initialize() {
+    if (!program) setup_program(&program, "render_texture", f_shader_src);
+    uniform_loc_texture = glGetUniformLocation(program, "u_texture");
+}
+
+void shutdown() {
+    if (program) glDeleteProgram(program);
+}
+}  // namespace blit
+
 void initialize(int width, int height) {
     constexpr int BUFFER_SIZE = 1024;
     char buffer[BUFFER_SIZE];
@@ -1100,12 +1131,14 @@ void initialize(int width, int height) {
     ssao::initialize(width, height);
     deferred::initialize();
     tonemapping::initialize();
+    blit::initialize();
 }
 
 void shutdown() {
     ssao::shutdown();
     deferred::shutdown();
     tonemapping::shutdown();
+    blit::shutdown();
 
     if (gl.vao) glDeleteVertexArrays(1, &gl.vao);
     if (gl.vbo) glDeleteBuffers(1, &gl.vbo);
@@ -1210,7 +1243,7 @@ void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, fl
     glBindVertexArray(0);
 }
 
-void render_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix) {
+void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix) {
     ASSERT(glIsTexture(depth_tex));
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(normal_tex));
@@ -1307,6 +1340,18 @@ void apply_tonemapping(GLuint color_tex) {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, color_tex);
     glUniform1i(tonemapping::uniform_loc_texture, 0);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void blit_texture(GLuint tex) {
+    ASSERT(glIsTexture(tex));
+    glUseProgram(blit::program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glUniform1i(blit::uniform_loc_texture, 0);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);

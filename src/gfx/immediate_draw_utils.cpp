@@ -24,11 +24,9 @@ struct DrawCommand {
     GLuint program;
     int view_matrix_idx = -1;
     int proj_matrix_idx = -1;
-    int material_idx = -1;
 };
 
 static DynamicArray<mat4> matrix_stack;
-static DynamicArray<Material> material_stack;
 
 static DynamicArray<DrawCommand> commands;
 static DynamicArray<Vertex> vertices;
@@ -37,38 +35,25 @@ static DynamicArray<Index> indices;
 static GLuint vbo = 0;
 static GLuint ibo = 0;
 static GLuint vao = 0;
-static GLuint ubo_material = 0;
 static GLuint default_tex = 0;
 
 static GLuint program = 0;
 
 static GLint uniform_loc_mvp_matrix = -1;
 static GLint uniform_loc_normal_matrix = -1;
+static GLint uniform_loc_uv_scale = -1;
 static GLint uniform_loc_point_size = -1;
-static GLint uniform_block_index_material = -1;
 
 static int curr_view_matrix_idx = -1;
 static int curr_proj_matrix_idx = -1;
-static int curr_material_idx = -1;
 
 static const char* v_shader_src = R"(
 #version 150 core
 #extension GL_ARB_explicit_attrib_location : enable
 
-struct Material {
-	vec3 f0;
-	float smoothness;
-	vec2 uv_scale;
-	float _pad_0;
-	float _pad_1;
-};
-
-layout(std140) uniform u_material_buffer {
-	Material material;
-};
-
 uniform mat4 u_mvp_matrix;
 uniform mat3 u_normal_matrix;
+uniform vec2 u_uv_scale = vec2(1,1);
 uniform float u_point_size = 1.f;
 
 layout(location = 0) in vec3 in_position;
@@ -84,7 +69,7 @@ void main() {
 	gl_Position = u_mvp_matrix * vec4(in_position, 1);
     gl_PointSize = max(u_point_size, 400.f / gl_Position.w);
 	normal = u_normal_matrix * in_normal;
-	uv = in_uv;
+	uv = in_uv * u_uv_scale;
 	color = in_color;
 }
 )";
@@ -93,18 +78,6 @@ static const char* f_shader_src = R"(
 #version 150 core
 #extension GL_ARB_explicit_attrib_location : enable
 
-struct Material {
-	vec3 f0;
-	float smoothness;
-	vec2 uv_scale;
-	float _pad_0;
-	float _pad_1;
-};
-
-layout(std140) uniform u_material_buffer {
-	Material material;
-};
-
 uniform sampler2D u_base_color_texture;
 
 in vec3 normal;
@@ -112,8 +85,7 @@ in vec2 uv;
 in vec4 color;
 
 layout(location = 0) out vec4 out_color_alpha;
-layout(location = 1) out vec4 out_f0_smoothness;
-layout(location = 2) out vec4 out_normal;
+layout(location = 1) out vec4 out_normal;
 
 vec4 encode_normal (vec3 n) {
     float p = sqrt(n.z*8+8);
@@ -122,7 +94,6 @@ vec4 encode_normal (vec3 n) {
 
 void main() {
 	out_color_alpha = texture(u_base_color_texture, uv) * color;
-	out_f0_smoothness = vec4(material.f0, material.smoothness);
 	out_normal = encode_normal(normalize(normal));
 }
 )";
@@ -135,7 +106,7 @@ static inline void append_draw_command(Index offset, Index count, GLenum primiti
         ASSERT(curr_proj_matrix_idx > -1, "Immediate Mode Proj Matrix not set!");
         // ASSERT(curr_material_idx > -1, "Material not set!");
 
-        DrawCommand cmd{offset, count, primitive_type, program, curr_view_matrix_idx, curr_proj_matrix_idx, curr_material_idx};
+        DrawCommand cmd{offset, count, primitive_type, program, curr_view_matrix_idx, curr_proj_matrix_idx};
         commands.push_back(cmd);
     }
 }
@@ -173,8 +144,8 @@ void initialize() {
 
     uniform_loc_mvp_matrix = glGetUniformLocation(program, "u_mvp_matrix");
     uniform_loc_normal_matrix = glGetUniformLocation(program, "u_normal_matrix");
+    uniform_loc_uv_scale = glGetUniformLocation(program, "u_uv_scale");
     uniform_loc_point_size = glGetUniformLocation(program, "u_point_size");
-    uniform_block_index_material = glGetUniformBlockIndex(program, "u_material_buffer");
 
     glGenBuffers(1, &vbo);
     glGenBuffers(1, &ibo);
@@ -196,10 +167,6 @@ void initialize() {
     glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (const GLvoid*)offsetof(Vertex, color));
 
     glBindVertexArray(0);
-
-    if (!ubo_material) glGenBuffers(1, &ubo_material);
-    glBindBuffer(GL_UNIFORM_BUFFER, ubo_material);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(Material), nullptr, GL_DYNAMIC_DRAW);
 
     constexpr uint32 pixel_data = 0xffffffff;
     if (!default_tex) glGenTextures(1, &default_tex);
@@ -232,11 +199,6 @@ void set_proj_matrix(const mat4& proj_matrix) {
     matrix_stack.push_back(proj_matrix);
 }
 
-void set_material(const Material& material) {
-    curr_material_idx = (int)material_stack.count;
-    material_stack.push_back(material);
-}
-
 void flush() {
     glBindVertexArray(vao);
 
@@ -251,16 +213,12 @@ void flush() {
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(program);
-    // glPointSize(20.f);
     glLineWidth(1.f);
 
     glUniform1f(uniform_loc_point_size, 4.f);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo_material);
-    glUniformBlockBinding(program, uniform_block_index_material, 0);
 
     int current_view_matrix_idx = -999;
     int current_proj_matrix_idx = -999;
-    int current_material_idx = -999;
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, default_tex);
@@ -286,21 +244,9 @@ void flush() {
             mat4 mvp_matrix = matrix_stack[cmd.proj_matrix_idx] * matrix_stack[cmd.view_matrix_idx];
             glUniformMatrix4fv(uniform_loc_mvp_matrix, 1, GL_FALSE, &mvp_matrix[0][0]);
         }
-        if (cmd.material_idx != current_material_idx) {
-            current_material_idx = cmd.material_idx;
-            const Material& material = cmd.material_idx == -1 ? DEFAULT_MATERIAL : material_stack[cmd.material_idx];
-            glBindBuffer(GL_UNIFORM_BUFFER, ubo_material);
-            glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Material), &material);
-            glBindBuffer(GL_UNIFORM_BUFFER, 0);
-            if (material.texture_id != 0) {
-                glBindTexture(GL_TEXTURE_2D, material.texture_id);
-            } else {
-                glBindTexture(GL_TEXTURE_2D, default_tex);
-            }
-        }
+        // @TODO: Enable textures to be bound...
 
-        glDrawElements(cmd.primitive_type, cmd.count, sizeof(Index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT,
-                       reinterpret_cast<const void*>(cmd.offset * sizeof(Index)));
+        glDrawElements(cmd.primitive_type, cmd.count, sizeof(Index) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, reinterpret_cast<const void*>(cmd.offset * sizeof(Index)));
     }
 
     glBindVertexArray(0);
@@ -316,10 +262,8 @@ void flush() {
     indices.clear();
     commands.clear();
     matrix_stack.clear();
-    material_stack.clear();
     curr_view_matrix_idx = -1;
     curr_proj_matrix_idx = -1;
-    curr_material_idx = -1;
 }
 
 // PRIMITIVES
