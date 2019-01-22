@@ -23,6 +23,6 @@ void free_volume(Volume* vol) {
 
 void clear_volume(Volume* vol) {
     ASSERT(vol);
-    memset(vol->voxel_data.data, 0, vol->voxel_data.count * sizeof(Volume::VoxelDataType));
+    memset(vol->voxel_data.ptr, 0, vol->voxel_data.count * sizeof(Volume::VoxelDataType));
     vol->voxel_range = {0, 0};
 }

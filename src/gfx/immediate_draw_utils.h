@@ -24,7 +24,7 @@ constexpr uint32 COLOR_CYAN = 0xffffff00;
 
 constexpr uint32 DEFAULT_COLOR = COLOR_WHITE;
 
-// Primitives
+// 3D Primitives
 void draw_point(const vec3& pos, uint32 color = DEFAULT_COLOR);
 void draw_line(const vec3& from, const vec3& to, uint32 color = DEFAULT_COLOR);
 void draw_triangle(const vec3& v0, const vec3& v1, const vec3& v2, uint32 color = DEFAULT_COLOR);

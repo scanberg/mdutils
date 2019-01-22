@@ -17,6 +17,6 @@ vec4 encode_normal (vec3 n) {
 
 void main() {
     out_color_alpha = in_frag.color;
-    out_normal = encode_normal(in_frag.view_normal.xyz);
+    out_normal = encode_normal(normalize(in_frag.view_normal.xyz));
     out_picking_color = in_frag.picking_color;
 }

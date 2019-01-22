@@ -1,11 +1,10 @@
 #version 330 core
 uniform samplerBuffer u_atom_color_tex;
-uniform sampler2D u_ramachandran_tex;
 
 layout (location = 0) in vec3 v_control_point;
 layout (location = 1) in vec3 v_support_vector;
 layout (location = 2) in vec3 v_support_tangent;
-layout (location = 3) in vec2 v_backbone_angles;
+layout (location = 3) in vec4 v_classification;
 layout (location = 4) in uint v_atom_index;
 
 out Vertex {
@@ -14,7 +13,7 @@ out Vertex {
     vec4 support_tangent;
     vec4 color;
     vec4 picking_color;
-    vec3 weights;
+    vec4 weights;
 } out_vert;
 
 vec4 pack_u32(uint data) {
@@ -26,19 +25,15 @@ vec4 pack_u32(uint data) {
 }
 
 void main() {
-    // [-1, 1] -> [0,1]
-    vec2 tc = vec2(0,1) + vec2(1,-1)*(v_backbone_angles * 0.5 + 0.5);
-    vec3 rc = texture(u_ramachandran_tex, tc).rgb;
+    vec4 weights = vec4(0); // coil, sheet, helix weights
+    weights.y = pow(v_classification.b, 1.0); // encoded as blue
+    weights.z = pow(v_classification.r, 1.0); // encoded as red
+    weights.x = clamp(1.0 - weights.y - weights.z, 0, 1);
 
     out_vert.control_point = vec4(v_control_point, 1);
     out_vert.support_vector = vec4(v_support_vector, 0);
     out_vert.support_tangent = vec4(v_support_tangent, 0);
     out_vert.color = texelFetch(u_atom_color_tex, int(v_atom_index));
-    out_vert.color = vec4(rc, 1);
     out_vert.picking_color = pack_u32(v_atom_index);
-    float sheet_w = rc.b;
-    float helix_w = rc.r;
-    float tube_w = clamp(1.0 - sheet_w - helix_w, 0, 1);
-    out_vert.weights = vec3(tube_w, helix_w, sheet_w);
-    //out_vert.weights = vec3(0.5,0.5,0);
+    out_vert.weights = weights;
 }

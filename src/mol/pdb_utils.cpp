@@ -166,7 +166,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
     }
 
     if (!md->molecule) {
-        auto mol_pos = positions.sub_array(0, num_atoms);
+        auto mol_pos = positions.subarray(0, num_atoms);
         auto covalent_bonds = compute_covalent_bonds(residues, residue_indices, mol_pos, elements);
         auto backbone_segments = compute_backbone_segments(residues, labels);
         auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
@@ -181,19 +181,19 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
                                 (int32)donors.count, (int32)acceptors.count);
 
         // Copy data into molecule
-        memcpy(md->molecule.atom.positions, mol_pos.data, mol_pos.size_in_bytes());
-        memcpy(md->molecule.atom.elements, elements.data, elements.size_in_bytes());
-        memcpy(md->molecule.atom.labels, labels.data, labels.size_in_bytes());
-        memcpy(md->molecule.atom.residue_indices, residue_indices.data, residue_indices.size_in_bytes());
+        memcpy(md->molecule.atom.positions, mol_pos.ptr, mol_pos.size_in_bytes());
+        memcpy(md->molecule.atom.elements, elements.ptr, elements.size_in_bytes());
+        memcpy(md->molecule.atom.labels, labels.ptr, labels.size_in_bytes());
+        memcpy(md->molecule.atom.residue_indices, residue_indices.ptr, residue_indices.size_in_bytes());
 
-        memcpy(md->molecule.residues.data, residues.data, residues.size_in_bytes());
-        memcpy(md->molecule.chains.data, chains.data, chains.size_in_bytes());
-        memcpy(md->molecule.covalent_bonds.data, covalent_bonds.data, covalent_bonds.size_in_bytes());
-        memcpy(md->molecule.backbone.segments.data, backbone_segments.data, backbone_segments.size_in_bytes());
-        memcpy(md->molecule.backbone.angles.data, backbone_angles.data, backbone_angles.size_in_bytes());
-        memcpy(md->molecule.backbone.sequences.data, backbone_sequences.data, backbone_sequences.size_in_bytes());
-        memcpy(md->molecule.hydrogen_bond.donors.data, donors.data, donors.size_in_bytes());
-        memcpy(md->molecule.hydrogen_bond.acceptors.data, acceptors.data, acceptors.size_in_bytes());
+        memcpy(md->molecule.residues.ptr, residues.ptr, residues.size_in_bytes());
+        memcpy(md->molecule.chains.ptr, chains.ptr, chains.size_in_bytes());
+        memcpy(md->molecule.covalent_bonds.ptr, covalent_bonds.ptr, covalent_bonds.size_in_bytes());
+        memcpy(md->molecule.backbone.segments.ptr, backbone_segments.ptr, backbone_segments.size_in_bytes());
+        memcpy(md->molecule.backbone.angles.ptr, backbone_angles.ptr, backbone_angles.size_in_bytes());
+        memcpy(md->molecule.backbone.sequences.ptr, backbone_sequences.ptr, backbone_sequences.size_in_bytes());
+        memcpy(md->molecule.hydrogen_bond.donors.ptr, donors.ptr, donors.size_in_bytes());
+        memcpy(md->molecule.hydrogen_bond.acceptors.ptr, acceptors.ptr, acceptors.size_in_bytes());
     }
 
     if (num_frames > 0) {
@@ -201,7 +201,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
         // COPY POSITION DATA
 
         ASSERT(positions.count > 0);
-        memcpy(md->trajectory.position_data.data, positions.data, sizeof(vec3) * positions.count);
+        memcpy(md->trajectory.position_data.ptr, positions.ptr, sizeof(vec3) * positions.count);
 
         for (int i = 0; i < md->trajectory.num_frames; i++) {
             int index = i;

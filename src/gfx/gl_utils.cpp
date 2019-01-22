@@ -92,7 +92,7 @@ bool gl::attach_link_detach_with_transform_feedback(GLuint program, Array<const 
         }
     };
 
-    glTransformFeedbackVaryings(program, (GLsizei)varyings.size(), varyings.data, buffer_capture_mode);
+    glTransformFeedbackVaryings(program, (GLsizei)varyings.size(), varyings.ptr, buffer_capture_mode);
 
     glLinkProgram(program);
     if (gl::get_program_link_error(buffer, buffer_size, program)) {

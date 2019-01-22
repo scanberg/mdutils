@@ -28,7 +28,7 @@ CString extract_line(CString& str);
 // Copies the next line from a CString
 // Note: line holds the buffer which the line will be copied to, str gets modified
 // Note: Guaranteed that the line will be zero terminated.
-//String copy_line(String& line, CString& str);
+// String copy_line(String& line, CString& str);
 
 String allocate_string(CString str);
 String allocate_string(int32 length);
@@ -122,22 +122,22 @@ bool extract_ranges(DynamicArray<IntRange>* ranges, Array<const CString> args);
 struct TmpString : CString {
     TmpString(CString str) {
         String tmp = allocate_string(str);
-        this->data = tmp.data;
+        this->ptr = tmp.ptr;
         this->count = tmp.count;
     }
     TmpString(const TmpString& other) = delete;
     TmpString(TmpString&& other) {
-        this->data = other.data;
+        this->ptr = other.ptr;
         this->count = other.count;
     }
-    ~TmpString() { FREE((void*)this->data); }
+    ~TmpString() { FREE((void*)this->ptr); }
 };
 
 // This is a hack to generate a zero terminated string from a CString object
 // Returns an object with a temporary allocated string which is freed upon its destruction
 inline TmpString make_tmp_str(CString str) { return TmpString(str); }
 
-inline void print_string(CString str) { printf("%.*s", (int)str.count, str.data); }
+inline void print_string(CString str) { printf("%.*s", (int)str.count, str.ptr); }
 
 // TODO: Possibly implement a good templated print function in the style of printf as discussed here
 // https://stackoverflow.com/questions/17671772/c11-variadic-printf-performance

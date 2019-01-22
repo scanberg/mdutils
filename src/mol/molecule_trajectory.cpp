@@ -21,9 +21,9 @@ void free_trajectory(MoleculeTrajectory* traj) {
     ASSERT(traj);
 
     free_string(&traj->path_to_file);
-    if (traj->frame_offsets.data) FREE(traj->frame_offsets.data);
-    if (traj->position_data.data) FREE(traj->position_data.data);
-    if (traj->frame_buffer.data) FREE(traj->frame_buffer.data);
+    if (traj->frame_offsets.ptr) FREE(traj->frame_offsets.ptr);
+    if (traj->position_data.ptr) FREE(traj->position_data.ptr);
+    if (traj->frame_buffer.ptr) FREE(traj->frame_buffer.ptr);
 
     *traj = {};
 }

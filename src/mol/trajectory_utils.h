@@ -19,20 +19,20 @@ void read_trajectory_box_vectors(vec3 box_vectors[3], const MoleculeTrajectory& 
 
 inline TrajectoryFrame& get_trajectory_frame(MoleculeTrajectory& traj, int frame_index) {
     ASSERT(-1 < frame_index && frame_index < traj.num_frames);
-    return traj.frame_buffer.data[frame_index];
+    return traj.frame_buffer.ptr[frame_index];
 }
 
 inline const TrajectoryFrame& get_trajectory_frame(const MoleculeTrajectory& traj, int frame_index) {
     ASSERT(-1 < frame_index && frame_index < traj.num_frames);
-    return traj.frame_buffer.data[frame_index];
+    return traj.frame_buffer.ptr[frame_index];
 }
 
 inline Array<vec3> get_trajectory_positions(MoleculeTrajectory& traj, int frame_index) {
     ASSERT(-1 < frame_index && frame_index < traj.num_frames);
-    return traj.frame_buffer.data[frame_index].atom_positions;
+    return traj.frame_buffer.ptr[frame_index].atom_positions;
 }
 
 inline Array<const vec3> get_trajectory_positions(const MoleculeTrajectory& traj, int frame_index) {
     ASSERT(-1 < frame_index && frame_index < traj.num_frames);
-    return traj.frame_buffer.data[frame_index].atom_positions;
+    return traj.frame_buffer.ptr[frame_index].atom_positions;
 }

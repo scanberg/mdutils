@@ -97,10 +97,10 @@ constexpr uint64 crc64(const void* ptr, size_t size) { return internal::crc64imp
 // Array template
 template <typename T>
 constexpr uint32 crc32(Array<T> arr) {
-    return crc32(arr.data, arr.count * sizeof(T));
+    return crc32(arr.data(), arr.size_in_bytes());
 }
 
-inline uint32 crc32(CString str) { return crc32(str.data, str.count); }
+inline uint32 crc32(CString str) { return crc32(str.ptr, str.count); }
 
 template <size_t N>
 constexpr uint32 crc32(const char (&cstr)[N]) {
@@ -115,10 +115,10 @@ constexpr uint32 crc32(const T& data) {
 
 template <typename T>
 constexpr uint64 crc64(Array<T> arr) {
-    return crc64(arr.data, arr.count * sizeof(T));
+    return crc64(arr.data(), arr.size_in_bytes());
 }
 
-inline uint64 crc64(CString str) { return crc64(str.data, str.count); }
+inline uint64 crc64(CString str) { return crc64(str.ptr, str.count); }
 
 template <size_t N>
 constexpr uint64 crc64(const char (&cstr)[N]) {

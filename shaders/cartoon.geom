@@ -13,7 +13,7 @@ in Vertex {
     vec4 support_tangent;
     vec4 color;
     vec4 picking_color;
-    vec3 weights;
+    vec4 weights;
 } in_vert[];
 
 out Fragment {
@@ -21,6 +21,14 @@ out Fragment {
     smooth vec4 view_normal;
     flat vec4 picking_color;
 } out_frag;
+
+void emit_vertex(in vec4 pos, in vec4 normal, in int idx) {
+    out_frag.color = in_vert[idx].color;
+    out_frag.picking_color = in_vert[idx].picking_color;
+    out_frag.view_normal = u_normal_mat * normal;
+    gl_Position = pos;
+    EmitVertex();
+}
 
 void main() {
     vec4 p[2];
@@ -58,13 +66,13 @@ void main() {
     N[0] = u_normal_mat * M[0];
     N[1] = u_normal_mat * M[1];
 
-    vec2 tube[12];
+    vec2 coil[12];
     vec2 sheet[12];
     vec2 helix[12];
 
     for (int i = 0; i < 12; i++) {
         float t = float(i) / 12.0 * TWO_PI;
-        tube[i] = vec2(cos(t), sin(t)) * u_scale * 0.2;
+        coil[i] = vec2(cos(t), sin(t)) * u_scale * 0.2;
     }
 
     vec2 sheet_scale = u_scale * vec2(1, 0.2);
@@ -89,35 +97,39 @@ void main() {
         helix[i] = vec2(cos(t), sin(t)) * vec2(1, 0.2) * u_scale;
     }
 
+    vec4 w0 = in_vert[0].weights;
+    vec4 w1 = in_vert[1].weights;
+
     vec2 v0[12];
+    vec2 n0[12];
     for (int i = 0; i < 12; i++) {
-        v0[i] = in_vert[0].weights.x * tube[i] + in_vert[0].weights.y * sheet[i] + in_vert[0].weights.z * helix[i];
+        v0[i] = w0.x * coil[i] + w0.y * sheet[i] + w0.z * helix[i];
     }
 
     vec2 v1[12];
+    vec2 n1[12];
     for (int i = 0; i < 12; i++) {
-        v1[i] = in_vert[1].weights.x * tube[i] + in_vert[1].weights.y * sheet[i] + in_vert[1].weights.z * helix[i];
+        v1[i] = w1.x * coil[i] + w1.y * sheet[i] + w1.z * helix[i];
     }
 
     vec4 pv0[12];
+    vec4 nv0[12];
     for (int i = 0; i < 12; i++) {
         pv0[i] = u_view_proj_mat * M[0] * vec4(v0[i], 0, 1);
+        nv0[i] = normalize(M[0] * vec4(v0[i], 0, 0));
     }
 
     vec4 pv1[12];
+    vec4 nv1[12];
     for (int i = 0; i < 12; i++) {
         pv1[i] = u_view_proj_mat * M[1] * vec4(v1[i], 0, 1);
+        nv1[i] = normalize(M[1] * vec4(v1[i], 0, 0));
     }
  
-    out_frag.color = in_vert[0].color;
-    out_frag.picking_color = in_vert[0].picking_color;
-    out_frag.view_normal = vec4( 0, 0, 1, 0);
-
     for (int i = 0; i < 12; i++) {
-        gl_Position = pv0[i]; EmitVertex();
-        gl_Position = pv1[i]; EmitVertex();
+        emit_vertex(pv1[i], nv1[i], 1);
+        emit_vertex(pv0[i], nv0[i], 0);
     }
-    gl_Position = pv0[0]; EmitVertex();
-    gl_Position = pv1[0]; EmitVertex();
-
+    emit_vertex(pv1[0], nv1[0], 1);
+    emit_vertex(pv0[0], nv0[0], 0);
 }

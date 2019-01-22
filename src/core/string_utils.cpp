@@ -27,49 +27,49 @@ bool compare(CString str_a, CString str_b, bool ignore_case) {
     // int64 len = MIN(str_a.count, str_b.count);
     if (str_a.count != str_b.count) return false;
     if (str_a.count == 0) return false;
-    return internal_compare(str_a.data, str_b.data, str_a.count, ignore_case);
+    return internal_compare(str_a.ptr, str_b.ptr, str_a.count, ignore_case);
 }
 
 bool compare_n(CString str_a, CString str_b, int64 num_chars, bool ignore_case) {
     int64 len = MIN(str_a.count, MIN(str_b.count, num_chars));
     if (len < num_chars) return false;
-    return internal_compare(str_a.data, str_b.data, len, ignore_case);
+    return internal_compare(str_a.ptr, str_b.ptr, len, ignore_case);
 }
 
 void copy(String dst, CString src) {
-    ASSERT(dst.data != 0);
-    ASSERT(src.data != 0);
+    ASSERT(dst.ptr != 0);
+    ASSERT(src.ptr != 0);
     auto len = MIN(dst.count, src.count);
-    memcpy(dst.data, src.data, len);
-    dst.data[src.count] = '\0';
+    memcpy(dst.ptr, src.ptr, len);
+    dst.ptr[src.count] = '\0';
 }
 
 void copy_n(String dst, CString src, int64 num_chars) {
-    ASSERT(dst.data != 0);
-    ASSERT(src.data != 0);
+    ASSERT(dst.ptr != 0);
+    ASSERT(src.ptr != 0);
     auto len = MIN(dst.count, src.count);
     len = MIN(len, num_chars);
-    memcpy(dst.data, src.data, len);
-    dst.data[num_chars] = '\0';
+    memcpy(dst.ptr, src.ptr, len);
+    dst.ptr[num_chars] = '\0';
 }
 
 String allocate_string(CString str) {
     if (str.count == 0) return {};
-    uint8* data = (uint8*)MALLOC(str.count + 1);
-    strncpy((char*)data, str.cstr(), str.count + 1);
-    return {data, str.count};
+    uint8* ptr = (uint8*)MALLOC(str.count + 1);
+    strncpy((char*)ptr, str.cstr(), str.count + 1);
+    return {ptr, str.count};
 }
 
 String allocate_string(int32 length) {
     if (length == 0) return {};
-    uint8* data = (uint8*)MALLOC(length);
-    return {data, length};
+    uint8* ptr = (uint8*)MALLOC(length);
+    return {ptr, length};
 }
 
 void free_string(String* str) {
-    if (str->data) {
-        FREE(str->data);
-        str->data = nullptr;
+    if (str->ptr) {
+        FREE(str->ptr);
+        str->ptr = nullptr;
         str->count = 0;
     }
 }
@@ -89,8 +89,8 @@ CString peek_line(CString str) {
 }
 
 CString extract_line(CString& str) {
-    const uint8* str_beg = str.data;
-    const uint8* str_end = str.data + str.count;
+    const uint8* str_beg = str.ptr;
+    const uint8* str_end = str.ptr + str.count;
 
     if (str_beg == str_end) {
         return {};
@@ -101,14 +101,13 @@ CString extract_line(CString& str) {
     if (!line_end) {
         line_end = str_end;
         str_beg = str_end;
-    }
-	else {
+    } else {
         // Step over return and new line characters
         str_beg = MIN(line_end + 1, str_end);
         while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
-	}
+    }
 
-    str.data = str_beg;
+    str.ptr = str_beg;
     str.count = str_end - str_beg;
 
     return {line_beg, line_end};
@@ -179,8 +178,8 @@ ConversionResult<int64> to_int64(CString str) {
 }
 
 CString trim(CString str) {
-    const uint8* beg = str.data;
-    const uint8* end = str.data + str.count;
+    const uint8* beg = str.ptr;
+    const uint8* end = str.ptr + str.count;
 
     while (beg < end && is_whitespace(*beg)) ++beg;
     while (end > beg && (is_whitespace(*(end - 1)) || *(end - 1) == '\0')) --end;
@@ -189,8 +188,8 @@ CString trim(CString str) {
 }
 
 String trim(String str) {
-    uint8* beg = str.data;
-    uint8* end = str.data + str.count;
+    uint8* beg = str.ptr;
+    uint8* end = str.ptr + str.count;
 
     while (beg < end && is_whitespace(*beg)) ++beg;
     while (end > beg && is_whitespace(*(end - 1))) --end;
@@ -218,11 +217,11 @@ String allocate_and_read_textfile(CString filename) {
 
     if (file_size <= 0) return {};
 
-    uint8* data = (uint8*)MALLOC(file_size + 1);
-    fread(data, 1, file_size, file);
-    data[file_size] = '\0';
+    uint8* ptr = (uint8*)MALLOC(file_size + 1);
+    fread(ptr, 1, file_size, file);
+    ptr[file_size] = '\0';
 
-    return {data, file_size + 1};
+    return {ptr, file_size + 1};
 }
 
 CString get_directory(CString url) {
@@ -325,11 +324,11 @@ StringBuffer<256> get_relative_path(CString from, CString to) {
     StringBuffer<256> res;
     int offset = 0;
     for (int i = 0; i < dir_count; i++) {
-        offset += snprintf(res.cstr() + offset, res.MAX_LENGTH, "../");
+        offset += snprintf(res.cstr() + offset, res.capacity(), "../");
     }
 
     StringBuffer<256> to_buf = CString(c_to, to.end());
-    snprintf(res.cstr() + offset, res.MAX_LENGTH, "%s", to_buf.beg());
+    snprintf(res.cstr() + offset, res.capacity(), "%s", to_buf.beg());
 
     return res;
 }
@@ -362,7 +361,7 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
     CString base_dir(abs_dir.beg(), c + 1);
     res = base_dir;
     StringBuffer<128> file = get_file(relative_file);
-    snprintf(res.cstr() + base_dir.count, res.MAX_LENGTH - base_dir.count, "/%s", file.beg());
+    snprintf(res.cstr() + base_dir.count, res.capacity() - base_dir.count, "/%s", file.beg());
 
     return res;
 }

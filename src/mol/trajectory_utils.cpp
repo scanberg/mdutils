@@ -75,9 +75,9 @@ bool read_trajectory_data(MoleculeTrajectory* traj) {
     }
 
     for (int i = 0; i < num_frames; i++) {
-        vec3* pos_data = traj->position_data.data + (i * traj->num_atoms);
-        TrajectoryFrame* frame = traj->frame_buffer.data + i;
-        frame->atom_positions.data = pos_data;
+        vec3* pos_data = traj->position_data.ptr + (i * traj->num_atoms);
+        TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
+        frame->atom_positions.ptr = pos_data;
         frame->atom_positions.count = traj->num_atoms;
         frame->index = i;
         int step;
@@ -101,9 +101,9 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
 
     // Next index to be loaded
     int i = traj->num_frames;
-    vec3* pos_data = traj->position_data.data + (i * traj->num_atoms);
-    TrajectoryFrame* frame = traj->frame_buffer.data + i;
-    frame->atom_positions.data = pos_data;
+    vec3* pos_data = traj->position_data.ptr + (i * traj->num_atoms);
+    TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
+    frame->atom_positions.ptr = pos_data;
     frame->atom_positions.count = traj->num_atoms;
     frame->index = i;
     int step;
@@ -151,7 +151,7 @@ void copy_trajectory_positions(Array<vec3> dst_array, const MoleculeTrajectory& 
     ASSERT(dst_array.count >= traj.num_atoms);
     ASSERT(frame_index < traj.num_frames);
     constexpr auto size = sizeof(vec3);
-    memcpy(dst_array.data, traj.frame_buffer.data[frame_index].atom_positions.data, traj.num_atoms * sizeof(vec3));
+    memcpy(dst_array.ptr, traj.frame_buffer.ptr[frame_index].atom_positions.ptr, traj.num_atoms * sizeof(vec3));
 }
 
 void read_trajectory_box_vectors(vec3 box_vectors[3], const MoleculeTrajectory& traj, int frame_index) {

@@ -621,7 +621,7 @@ void initialize_rnd_tex(GLuint rnd_tex, int num_direction) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-float compute_sharpness(float radius) { return 20.f * math::pow(radius, -0.5f); }
+float compute_sharpness(float radius) { return 20.f / math::sqrt(radius); }
 
 void initialize(int width, int height) {
     // @TODO: dynamically generate this

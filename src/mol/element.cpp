@@ -22,7 +22,7 @@ Element get_from_string(CString cstr) {
     const auto* c = cstr.beg();
     while (c != cstr.end() && !isalpha(*c)) c++;
     if (c == cstr.end()) return Element::Unknown;
-    cstr.data = c;
+    cstr.ptr = c;
     while (c != cstr.end() && isalpha(*c)) c++;
     cstr.count = c - cstr.beg();
 

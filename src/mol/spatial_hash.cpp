@@ -44,7 +44,7 @@ void compute_frame(Frame* frame, Array<const vec3> positions, vec3 cell_ext, vec
     frame->cell_ext = (max_box - min_box) / (vec3)frame->cell_count;
     frame->cells.resize(frame->cell_count.x * frame->cell_count.y * frame->cell_count.z);
     frame->entries.resize(positions.size());
-    memset(frame->cells.data, 0, frame->cells.size() * sizeof(Cell));
+    memset(frame->cells.ptr, 0, frame->cells.size() * sizeof(Cell));
 
     uint32* l_idx = (uint32*)TMP_MALLOC(positions.size() * sizeof(uint32));
     uint32* g_idx = (uint32*)TMP_MALLOC(positions.size() * sizeof(uint32));

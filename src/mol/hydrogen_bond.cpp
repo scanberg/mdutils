@@ -8,15 +8,14 @@ namespace hydrogen_bond {
 
 // Computes the potential donors given a set of atom labels.
 // OH and NH atoms are assumed to be donors if the concecutive atom is marked with 'H' for Hydrogen.
-int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, Array<const Element> elements, Array<const ResIdx> residue_indices,
-                     Array<const Residue> residues, Array<const Bond> covalent_bonds) {
+int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds) {
     ASSERT(donors);
     int32 pre_count = (int32)donors->count;
     for (int32 i = 0; i < (int32)elements.size(); i++) {
         if (elements[i] == Element::H) {
             // get all bonds with atom i
             const auto& res = residues[residue_indices[i]];
-            for (const auto& bond : covalent_bonds.sub_array(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg)) {
+            for (const auto& bond : covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg)) {
                 if (i == bond.idx[0] || i == bond.idx[1]) {
                     const int32 j = bond.idx[0] != i ? bond.idx[0] : bond.idx[1];
                     const auto elem = elements[j];
@@ -48,8 +47,7 @@ for (int32 i = 0; i < num_labels; i++) {
     return (int32)donors->count - pre_count;
 }
 
-DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues,
-                                               Array<const Bond> covalent_bonds) {
+DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds) {
     DynamicArray<HydrogenBondDonor> donors;
     compute_donors(&donors, elements, residue_indices, residues, covalent_bonds);
     return donors;
@@ -78,8 +76,8 @@ DynamicArray<HydrogenBondAcceptor> compute_acceptors(Array<const Element> elemen
 // The distance cutoff sets the distance from bonds to potential acceptors.
 //
 
-int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors,
-                    Array<const vec3> atom_positions, float dist_cutoff, float angle_cutoff) {
+int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, Array<const vec3> atom_positions, float dist_cutoff,
+                    float angle_cutoff) {
     const int32 num_acceptors = (int32)acceptors.count;
     if (!num_acceptors) return 0;
 
@@ -95,22 +93,20 @@ int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondD
     for (const auto& don : donors) {
         vec3 donor_pos = atom_positions[don.donor_idx];
         vec3 hydro_pos = atom_positions[don.hydro_idx];
-        spatialhash::for_each_within(frame, hydro_pos, dist_cutoff,
-                                     [bonds, &donor_pos, &hydro_pos, &acceptor_idx, &don, angle_cutoff](int32 idx, const vec3& pos) {
-                                         AtomIdx g_idx = acceptor_idx[idx];
-                                         if (g_idx == don.donor_idx) return;
-                                         const vec3 a = hydro_pos - donor_pos;
-                                         const vec3 b = pos - hydro_pos;
-                                         if (math::angle(a, b) < angle_cutoff) {
-                                             bonds->push_back({g_idx, don.donor_idx, don.hydro_idx});
-                                         }
-                                     });
+        spatialhash::for_each_within(frame, hydro_pos, dist_cutoff, [bonds, &donor_pos, &hydro_pos, &acceptor_idx, &don, angle_cutoff](int32 idx, const vec3& pos) {
+            AtomIdx g_idx = acceptor_idx[idx];
+            if (g_idx == don.donor_idx) return;
+            const vec3 a = hydro_pos - donor_pos;
+            const vec3 b = pos - hydro_pos;
+            if (math::angle(a, b) < angle_cutoff) {
+                bonds->push_back({g_idx, don.donor_idx, don.hydro_idx});
+            }
+        });
     }
     return (int32)bonds->count - pre_count;
 }
 
-DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors,
-                                         Array<const vec3> atom_positions, float dist_cutoff, float angle_cutoff) {
+DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, Array<const vec3> atom_positions, float dist_cutoff, float angle_cutoff) {
     DynamicArray<HydrogenBond> bonds;
     compute_bonds(&bonds, donors, acceptors, atom_positions, dist_cutoff, angle_cutoff);
     return bonds;
@@ -121,8 +117,7 @@ void compute_bonds_trajectory(HydrogenBondTrajectory* hbt, const MoleculeDynamic
     for (int32 i = 0; i < dyn.trajectory.num_frames; i++) {
         Array<HydrogenBond> frame_bonds{(HydrogenBond*)(hbt->bond_data.end()), int64(0)};
         Array<const vec3> atom_positions = get_trajectory_positions(dyn.trajectory, i);
-        frame_bonds.count = compute_bonds(&hbt->bond_data, dyn.molecule.hydrogen_bond.donors, dyn.molecule.hydrogen_bond.acceptors, atom_positions,
-                                          max_dist, max_angle);
+        frame_bonds.count = compute_bonds(&hbt->bond_data, dyn.molecule.hydrogen_bond.donors, dyn.molecule.hydrogen_bond.acceptors, atom_positions, max_dist, max_angle);
     }
 }
 

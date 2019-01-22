@@ -176,8 +176,7 @@ void initialize() {
 
     // From here:
     // https://stackoverflow.com/questions/28375338/cube-using-single-gl-triangle-strip
-    static const float cube_strip[] = {0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1,
-                                       0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    static const float cube_strip[] = {0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
 
     if (!vbo) {
         glGenBuffers(1, &vbo);
@@ -246,12 +245,12 @@ void save_volume_to_file(const Volume& volume, const char* file) {
     if (!fs) {
         LOG_ERROR("Could not open file %s", fs);
     }
-    fwrite(volume.voxel_data.data, sizeof(Volume::VoxelDataType), volume.voxel_data.count, fs);
+    fwrite(volume.voxel_data.ptr, sizeof(Volume::VoxelDataType), volume.voxel_data.count, fs);
     fclose(fs);
 }
 
-void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix,
-                           const mat4& proj_matrix, vec3 color, float opacity_scale) {
+void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix, const mat4& proj_matrix, vec3 color,
+                           float opacity_scale) {
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 

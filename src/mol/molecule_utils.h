@@ -39,7 +39,7 @@ inline Array<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_
     ASSERT(frame_offset < num_frames);
     ASSERT(frame_offset + frame_count <= num_frames);
 #endif
-    return backbone_angle_traj.angle_data.sub_array(frame_offset * backbone_angle_traj.num_segments, frame_count * backbone_angle_traj.num_segments);
+    return backbone_angle_traj.angle_data.subarray(frame_offset * backbone_angle_traj.num_segments, frame_count * backbone_angle_traj.num_segments);
 }
 
 inline int32 get_backbone_angles_trajectory_current_frame_count(const BackboneAnglesTrajectory& backbone_angle_traj) {
@@ -48,7 +48,7 @@ inline int32 get_backbone_angles_trajectory_current_frame_count(const BackboneAn
 }
 
 inline Array<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index, Chain chain) {
-    return get_backbone_angles(backbone_angle_traj, frame_index).sub_array(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.end);
+    return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.end);
 }
 
 void translate_positions(Array<vec3> positions, const vec3& translation);

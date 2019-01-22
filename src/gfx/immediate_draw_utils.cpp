@@ -203,10 +203,10 @@ void flush() {
     glBindVertexArray(vao);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.count * sizeof(Vertex), vertices.data, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.count * sizeof(Vertex), vertices.ptr, GL_STREAM_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.count * sizeof(Index), indices.data, GL_STREAM_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.count * sizeof(Index), indices.ptr, GL_STREAM_DRAW);
 
     glEnable(GL_PROGRAM_POINT_SIZE);
     // glEnable(GL_BLEND);

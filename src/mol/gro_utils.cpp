@@ -132,19 +132,19 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
                             (int32)donors.size(), (int32)acceptors.size());
 
     // Copy data into molecule
-    memcpy(mol->atom.positions, positions.data, positions.size_in_bytes());
-    memcpy(mol->atom.elements, elements.data, elements.size_in_bytes());
-    memcpy(mol->atom.labels, labels.data, labels.size_in_bytes());
-    memcpy(mol->atom.residue_indices, residue_indices.data, residue_indices.size_in_bytes());
+    memcpy(mol->atom.positions, positions.ptr, positions.size_in_bytes());
+    memcpy(mol->atom.elements, elements.ptr, elements.size_in_bytes());
+    memcpy(mol->atom.labels, labels.ptr, labels.size_in_bytes());
+    memcpy(mol->atom.residue_indices, residue_indices.ptr, residue_indices.size_in_bytes());
 
-    memcpy(mol->residues.data, residues.data, residues.size_in_bytes());
-    memcpy(mol->chains.data, chains.data, chains.size_in_bytes());
-    memcpy(mol->covalent_bonds.data, covalent_bonds.data, covalent_bonds.size_in_bytes());
-    memcpy(mol->backbone.segments.data, backbone_segments.data, backbone_segments.size_in_bytes());
-    memcpy(mol->backbone.angles.data, backbone_angles.data, backbone_angles.size_in_bytes());
-    memcpy(mol->backbone.sequences.data, backbone_sequences.data, backbone_sequences.size_in_bytes());
-    memcpy(mol->hydrogen_bond.donors.data, donors.data, donors.size_in_bytes());
-    memcpy(mol->hydrogen_bond.acceptors.data, acceptors.data, acceptors.size_in_bytes());
+    memcpy(mol->residues.ptr, residues.ptr, residues.size_in_bytes());
+    memcpy(mol->chains.ptr, chains.ptr, chains.size_in_bytes());
+    memcpy(mol->covalent_bonds.ptr, covalent_bonds.ptr, covalent_bonds.size_in_bytes());
+    memcpy(mol->backbone.segments.ptr, backbone_segments.ptr, backbone_segments.size_in_bytes());
+    memcpy(mol->backbone.angles.ptr, backbone_angles.ptr, backbone_angles.size_in_bytes());
+    memcpy(mol->backbone.sequences.ptr, backbone_sequences.ptr, backbone_sequences.size_in_bytes());
+    memcpy(mol->hydrogen_bond.donors.ptr, donors.ptr, donors.size_in_bytes());
+    memcpy(mol->hydrogen_bond.acceptors.ptr, acceptors.ptr, acceptors.size_in_bytes());
 
     return true;
 }

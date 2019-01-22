@@ -13,74 +13,108 @@
 
 template <typename T>
 struct Array {
-    Array() = default;
+    constexpr Array() = default;
+    constexpr Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
+    constexpr Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
+
     template <size_t N>
-    Array(T (&c_arr)[N]) : data(c_arr), count(N) {}
-    Array(T* _data, int64 _count) : data(_data), count(_count) {}
-    Array(T* _data_beg, T* _data_end) : data(_data_beg), count(_data_end - _data_beg) {}
+    constexpr Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
 
-    Array<T> sub_array(int64 _offset, int64 _count = -1) {
+    constexpr Array<T> subarray(int64 _offset, int64 _count = -1) {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
             _count = (this->count - _offset) > 0 ? (this->count - _offset) : 0;
         }
         ASSERT((_offset + _count) <= this->count);
-        return {data + _offset, _count};
+        return {ptr + _offset, _count};
     }
 
-    Array<const T> sub_array(int64 _offset, int64 _count = -1) const {
+    constexpr Array<const T> subarray(int64 _offset, int64 _count = -1) const {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
             _count = (this->count - _offset) > 0 ? (this->count - _offset) : 0;
         }
         ASSERT((_offset + _count) <= this->count);
-        return {data + _offset, _count};
+        return {ptr + _offset, _count};
     }
 
-    const T* begin() const { return data; }
-    const T* beg() const { return data; }
-    const T* end() const { return data + count; }
+    constexpr const T* data() const { return ptr; }
+    constexpr const T* begin() const { return ptr; }
+    constexpr const T* beg() const { return ptr; }
+    constexpr const T* end() const { return ptr + count; }
 
-    T* begin() { return data; }
-    T* beg() { return data; }
-    T* end() { return data + count; }
+    constexpr T* data() { return ptr; }
+    constexpr T* begin() { return ptr; }
+    constexpr T* beg() { return ptr; }
+    constexpr T* end() { return ptr + count; }
 
-    const T& front() const {
+    constexpr const T& front() const {
         ASSERT(count > 0);
-        return data[0];
+        return ptr[0];
     }
-    const T& back() const {
+    constexpr const T& back() const {
         ASSERT(count > 0);
-        return data[count - 1];
+        return ptr[count - 1];
     }
-    T& front() {
+    constexpr T& front() {
         ASSERT(count > 0);
-        return data[0];
+        return ptr[0];
     }
-    T& back() {
+    constexpr T& back() {
         ASSERT(count > 0);
-        return data[count - 1];
+        return ptr[count - 1];
     }
 
-    int64 size() const { return count; }
-    int64 size_in_bytes() const { return count * sizeof(T); }
+    constexpr int64 size() const { return count; }
+    constexpr int64 size_in_bytes() const { return count * sizeof(T); }
 
-    operator bool() const { return data != nullptr && count > 0; }
-    const T& operator[](int64 i) const {
+    constexpr operator bool() const { return ptr != nullptr && count > 0; }
+    constexpr const T& operator[](int64 i) const {
         ASSERT(i < count);
-        return data[i];
+        return ptr[i];
     }
-    T& operator[](int64 i) {
+    constexpr T& operator[](int64 i) {
         ASSERT(i < count);
-        return data[i];
+        return ptr[i];
     }
 
-    operator Array<const T>() const { return {data, count}; }
+    constexpr operator Array<const T>() const { return {ptr, count}; }
 
-    T* data;
+    T* ptr;
     int64 count;
+};
+
+// Light-weight std::array alternative
+template <typename T, int64 Size>
+struct StaticArray : Array<T> {
+    static constexpr int64 MaxSize = Size;
+    STATIC_ASSERT(Size > 0, "StaticArray must have a length of > 0");
+    StaticArray() : Array(buffer, Size) {}
+    StaticArray(int64 count) : Array(buffer, count < MaxSize ? count : MaxSize) { ASSERT(0 <= count && count <= MaxSize); }
+
+    /*
+template <int64 N>
+StaticArray(const T (&arr)[N]) : Array(buffer, N) noexcept {
+    memcpy(buffer, arr, N * sizeof(T));
+}
+    */
+
+    StaticArray(const T* first, const T* last) noexcept {
+        int64 count = last - first;
+        if (count > 0) {
+            memcpy(buffer, first, count * sizeof(T));
+        }
+        this->ptr = buffer;
+        this->count = count;
+    }
+
+    ~StaticArray() = default;
+
+    constexpr int64 capacity() const { return MaxSize; }
+
+    T buffer[Size];
 };
 
 // Light-weight std::vector alternative
@@ -90,63 +124,63 @@ struct DynamicArray : Array<T> {
     static_assert(std::is_trivially_destructible<T>::value, "DynamicArray only supports trivially destructable data types");
 
     static constexpr int64 INIT_CAPACITY = 8;
-    DynamicArray() : capacity(INIT_CAPACITY) {
-        this->data = (T*)CALLOC(capacity, sizeof(T));
+    DynamicArray() : m_capacity(INIT_CAPACITY) {
+        this->ptr = (T*)CALLOC(m_capacity, sizeof(T));
         this->count = 0;
     }
 
     DynamicArray(int64 count) {
         count < 1 ? count = 1 : count;
-        capacity = count;
-        this->data = (T*)CALLOC(capacity, sizeof(T));
-        this->count = capacity;
+        m_capacity = count;
+        this->ptr = (T*)CALLOC(m_capacity, sizeof(T));
+        this->count = m_capacity;
     }
 
-    DynamicArray(int64 count, T value) : capacity(count > INIT_CAPACITY ? count : INIT_CAPACITY) {
-        this->data = (T*)MALLOC(capacity * sizeof(T));
+    DynamicArray(int64 count, T value) : m_capacity(count > INIT_CAPACITY ? count : INIT_CAPACITY) {
+        this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
         this->count = count;
         for (int i = 0; i < count; i++) {
-            this->data[i] = value;
+            this->ptr[i] = value;
         }
     }
 
     DynamicArray(const T* first, const T* last) noexcept {
-        this->capacity = last - first;
-        this->count = capacity;
+        this->m_capacity = last - first;
+        this->count = m_capacity;
         if (this->count > 0) {
-            this->data = (T*)MALLOC(capacity * sizeof(T));
-            memcpy(this->data, first, this->count * sizeof(T));
+            this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
+            memcpy(this->ptr, first, this->count * sizeof(T));
         }
     }
 
-    DynamicArray(const Array<const T>& clone_source) : capacity(clone_source.count) {
-        this->count = capacity;
+    DynamicArray(const Array<const T>& clone_source) : m_capacity(clone_source.count) {
+        this->count = m_capacity;
         if (this->count > 0) {
-            this->data = (T*)MALLOC(capacity * sizeof(T));
-            memcpy(this->data, clone_source.data, this->count * sizeof(T));
+            this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
+            memcpy(this->ptr, clone_source.ptr, this->count * sizeof(T));
         }
     }
 
-    DynamicArray(const DynamicArray& other) : capacity(other.count) {
-        this->count = capacity;
+    DynamicArray(const DynamicArray& other) : m_capacity(other.count) {
+        this->count = m_capacity;
         if (this->count > 0) {
-            this->data = (T*)MALLOC(capacity * sizeof(T));
-            memcpy(this->data, other.data, this->count * sizeof(T));
+            this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
+            memcpy(this->ptr, other.ptr, this->count * sizeof(T));
         }
     }
 
     DynamicArray(DynamicArray&& other) {
-        this->data = other.data;
-        this->capacity = other.capacity;
+        this->ptr = other.ptr;
+        this->m_capacity = other.m_capacity;
         this->count = other.count;
-        other.data = nullptr;
-        other.capacity = 0;
+        other.ptr = nullptr;
+        other.m_capacity = 0;
         other.count = 0;
     }
 
     ~DynamicArray() {
-        if (this->data) {
-            FREE(this->data);
+        if (this->ptr) {
+            FREE(this->ptr);
         }
         this->count = 0;
     }
@@ -154,22 +188,22 @@ struct DynamicArray : Array<T> {
     DynamicArray& operator=(const Array<const T>& other) {
         // Is this ok? It probably is since we're only comparing memory adresses...
         if (&other != (const Array<const T>*)this) {
-            if (other.count > capacity) {
+            if (other.count > m_capacity) {
                 reserve(other.count);
             }
             this->count = other.count;
-            memcpy(this->data, other.data, this->count * sizeof(T));
+            memcpy(this->ptr, other.ptr, this->count * sizeof(T));
         }
         return *this;
     }
 
     DynamicArray& operator=(const DynamicArray& other) {
         if (&other != this) {
-            if (other.count > capacity) {
+            if (other.count > m_capacity) {
                 reserve(other.count);
             }
             this->count = other.count;
-            memcpy(this->data, other.data, this->count * sizeof(T));
+            memcpy(this->ptr, other.ptr, this->count * sizeof(T));
         }
         return *this;
     }
@@ -177,45 +211,47 @@ struct DynamicArray : Array<T> {
     DynamicArray& operator=(DynamicArray&& other) {
         // @NOTE: Is this check needed?
         if (&other != this) {
-            if (this->data) {
-                FREE(this->data);
+            if (this->ptr) {
+                FREE(this->ptr);
             }
-            this->data = other.data;
-            this->capacity = other.capacity;
+            this->ptr = other.ptr;
+            this->m_capacity = other.m_capacity;
             this->count = other.count;
-            other.data = nullptr;
-            other.capacity = 0;
+            other.ptr = nullptr;
+            other.m_capacity = 0;
             other.count = 0;
         }
         return *this;
     }
 
+    int64 const capacity() { return m_capacity; }
+
     inline int64 _grow_capacity(int64 sz) const {
-        int64 new_capacity = capacity ? (capacity + capacity / 2) : INIT_CAPACITY;
+        int64 new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : INIT_CAPACITY;
         return new_capacity > sz ? new_capacity : sz;
     }
 
     void append(Array<const T> arr) {
-        if (this->count + arr.count >= capacity) {
+        if (this->count + arr.count >= m_capacity) {
             reserve(_grow_capacity(this->count + arr.count));
         }
-        memcpy(this->end(), arr.data, arr.count * sizeof(T));
+        memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
     }
 
     void append(Array<T> arr) {
-        if (this->count + arr.count >= capacity) {
+        if (this->count + arr.count >= m_capacity) {
             reserve(_grow_capacity(this->count + arr.count));
         }
-        memcpy(this->end(), arr.data, arr.count * sizeof(T));
+        memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
     }
 
     T& push_back(const T& item) {
-        if (this->count == capacity) {
+        if (this->count == m_capacity) {
             reserve(_grow_capacity(this->count + 1));
         }
-        this->data[this->count] = item;
+        this->ptr[this->count] = item;
         this->count++;
         return this->back();
     }
@@ -223,18 +259,18 @@ struct DynamicArray : Array<T> {
     T pop_back() {
         ASSERT(this->count > 0);
         this->count--;
-        return this->data[this->count];
+        return this->ptr[this->count];
     }
 
     void reserve(int64 new_capacity) {
-        if (new_capacity < capacity) return;
+        if (new_capacity < m_capacity) return;
         T* new_data = (T*)CALLOC(new_capacity, sizeof(T));
-        if (this->data) {
-            memcpy(new_data, this->data, this->count * sizeof(T));
+        if (this->ptr) {
+            memcpy(new_data, this->ptr, this->count * sizeof(T));
         }
-        FREE(this->data);
-        this->data = new_data;
-        capacity = new_capacity;
+        FREE(this->ptr);
+        this->ptr = new_data;
+        m_capacity = new_capacity;
     }
 
     // Resizes the array to a new size and zeros eventual new slots
@@ -244,7 +280,7 @@ struct DynamicArray : Array<T> {
         } else if (new_count < this->count) {
             this->count = new_count;
         } else {
-            if (capacity < new_count) {
+            if (m_capacity < new_count) {
                 reserve(_grow_capacity(new_count));
                 // memset(this->data + this->count, 0, (new_count - this->count) * sizeof(T));
             }
@@ -255,9 +291,9 @@ struct DynamicArray : Array<T> {
     T* insert(T* it, const T& v) {
         ASSERT(this->beg() <= it && it <= this->end());
         const ptrdiff_t off = it - this->beg();
-        if (this->count == capacity) reserve(_grow_capacity(this->count + 1));
+        if (this->count == m_capacity) reserve(_grow_capacity(this->count + 1));
         if (off < (int64)this->count) memmove(this->beg() + off + 1, this->beg() + off, ((size_t)this->count - (size_t)off) * sizeof(T));
-        this->data[off] = v;
+        this->ptr[off] = v;
         this->count++;
         return this->beg() + off;
     }
@@ -279,21 +315,11 @@ struct DynamicArray : Array<T> {
 
     void clear() { this->count = 0; }
 
-    void set_mem_to_zero() { memset(this->data, 0, this->count * sizeof(T)); }
+    void set_mem_to_zero() { memset(this->ptr, 0, this->count * sizeof(T)); }
 
 private:
-    int64 capacity;
+    int64 m_capacity;
 };
-
-/*
-// @TODO: Implement this (like std::array ish)
-// @TODO: Make StringBuffer to use this
-
-template <typename T, int64 Length>
-struct StaticArray {
-                T data[Length];
-};
-*/
 
 template <typename T>
 Array<T> allocate_array(int64 num_elements) {
@@ -304,23 +330,23 @@ Array<T> allocate_array(int64 num_elements) {
 template <typename T>
 void free_array(Array<T>* arr) {
     ASSERT(arr);
-    if (arr->data) {
-        FREE(arr->data);
+    if (arr->ptr) {
+        FREE(arr->ptr);
     }
-    arr->data = nullptr;
+    arr->ptr = nullptr;
     arr->count = 0;
 }
 
 template <typename T>
 void zero_array(Array<T>& arr) {
-    memset(arr.data, 0, arr.size_in_bytes());
+    memset(arr.ptr, 0, arr.size_in_bytes());
 }
 
 template <typename T>
 void memset_array(Array<T>& arr, const T& val) {
     ASSERT(arr);
     for (int64 i = 0; i < arr.count; i++) {
-        *(arr.data + i) = val;
+        *(arr.ptr + i) = val;
     }
 }
 
@@ -330,7 +356,7 @@ void memset_array(Array<T>& arr, const T& val, int64 offset, int64 length) {
     ASSERT(0 <= offset && offset < arr.count);
     ASSERT(0 < length && offset + length <= arr.count);
     for (int64 i = offset; i < offset + length; i++) {
-        *(arr.data + i) = val;
+        *(arr.ptr + i) = val;
     }
 }
 
@@ -339,7 +365,7 @@ void memset_array(Array<T>& arr, const T& val, int64 offset, int64 length) {
 // [0,1,2,3]
 template <typename T>
 void remove_array_element(Array<T>& arr, int i) {
-    ASSERT(i < arr.data);
+    ASSERT(i < arr.ptr);
     ASSERT(i < arr.count);
-    memmove(arr.data + i, arr.data + (i + 1), arr.count - (i + 1));
+    memmove(arr.ptr + i, arr.ptr + (i + 1), arr.count - (i + 1));
 }

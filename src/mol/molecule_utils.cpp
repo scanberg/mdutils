@@ -70,10 +70,10 @@ void compute_bounding_box(vec3* min_box, vec3* max_box, Array<const vec3> positi
         *min_box = *max_box = vec3(0);
     }
 
-    *min_box = *max_box = positions.data[0];
+    *min_box = *max_box = positions.ptr[0];
     for (int64 i = 0; i < positions.count; i++) {
-        const vec3& p = positions.data[i];
-        const float r = radii.count > 0 ? radii.data[i] : 0.f;
+        const vec3& p = positions.ptr[i];
+        const float r = radii.count > 0 ? radii.ptr[i] : 0.f;
         *min_box = math::min(*min_box, p - r);
         *max_box = math::max(*max_box, p + r);
     }
@@ -158,8 +158,8 @@ void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
 
         for (int32 r_idx = 0; r_idx < dynamic->molecule.residues.count; r_idx++) {
             const auto& r = dynamic->molecule.residues[r_idx];
-            const auto p = positions.sub_array(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
-            const auto e = elements.sub_array(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
+            const auto p = positions.subarray(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
+            const auto e = elements.subarray(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
             com_residues[r_idx] = compute_periodic_com(p, e, box_ext);
         }
 
@@ -167,7 +167,7 @@ void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
 
         for (int32 r_idx = 0; r_idx < dynamic->molecule.residues.count; r_idx++) {
             const auto& r = dynamic->molecule.residues[r_idx];
-            auto p = positions.sub_array(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
+            auto p = positions.subarray(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
             vec3 old_com = com_residues[r_idx];
             vec3 new_com = de_periodize(box_center, old_com + delta, box_ext);
             vec3 diff = new_com - old_com;
@@ -268,7 +268,7 @@ void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, co
         const auto count = res.atom_idx.end - res.atom_idx.beg;
         const glm_vec4 scl = _mm_set_ps1(1.f / (float)count);
         glm_vec4 center = _mm_setzero_ps();
-        for (const auto& pos : positions.sub_array(res.atom_idx.beg, count)) {
+        for (const auto& pos : positions.subarray(res.atom_idx.beg, count)) {
             const glm_vec4 pos_vec = *reinterpret_cast<const glm_vec4*>(&pos);
             center = glm_vec4_add(center, pos_vec);
         }
@@ -278,7 +278,7 @@ void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, co
 
         // @TODO: if delta is zero, skip this
         // if (!all_zero(delta)) {
-        for (auto& pos : positions.sub_array(res.atom_idx.beg, count)) {
+        for (auto& pos : positions.subarray(res.atom_idx.beg, count)) {
             glm_vec4& pos_vec = *reinterpret_cast<glm_vec4*>(&pos);
             pos_vec = glm_vec4_add(pos_vec, delta);
         }
@@ -294,7 +294,7 @@ void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<co
         const auto count = end_idx - beg_idx;
         const glm_vec4 scl = _mm_set_ps1(1.f / (float)count);
         glm_vec4 center = _mm_setzero_ps();
-        for (const auto& pos : positions.sub_array(beg_idx, count)) {
+        for (const auto& pos : positions.subarray(beg_idx, count)) {
             const glm_vec4 pos_vec = *reinterpret_cast<const glm_vec4*>(&pos);
             center = glm_vec4_add(center, pos_vec);
         }
@@ -303,7 +303,7 @@ void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<co
         const glm_vec4 delta = glm_vec4_sub(pbc_cent, center);
 
         // if (!all_zero(delta)) {
-        for (auto& pos : positions.sub_array(beg_idx, count)) {
+        for (auto& pos : positions.subarray(beg_idx, count)) {
             const glm_vec4 pos_vec = *reinterpret_cast<glm_vec4*>(&pos);
             const glm_vec4 res = glm_vec4_add(pos_vec, delta);
             pos = *reinterpret_cast<const vec3*>(&res);
@@ -455,7 +455,7 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
         if (residue_chains[i] != curr_chain_idx) {
             curr_chain_idx = residue_chains[i];
             Label lbl;
-            snprintf(lbl.cstr(), Label::MAX_LENGTH, "C%i", curr_chain_idx);
+            snprintf(lbl.cstr(), lbl.capacity(), "C%i", curr_chain_idx);
             chains.push_back({lbl, (ResIdx)i, (ResIdx)i});
         }
         if (chains.size() > 0) {
@@ -495,16 +495,16 @@ bool match(const Label& lbl, const char (&cstr)[N]) {
 DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels) {
     DynamicArray<BackboneSegment> segments;
     int64 invalid_segments = 0;
-    constexpr int32 min_atom_count = 4; // Must contain at least 8 atoms to be considered as an amino acid.
+    constexpr int32 min_atom_count = 4;  // Must contain at least 8 atoms to be considered as an amino acid.
     for (auto& res : residues) {
         const int32 atom_count = res.atom_idx.end - res.atom_idx.beg;
         if (atom_count < min_atom_count) {
             segments.push_back({-1, -1, -1, -1});
             invalid_segments++;
-			continue;
-		}
-        
-		BackboneSegment seg{};
+            continue;
+        }
+
+        BackboneSegment seg{};
         // if (is_amino_acid(res)) {
         // find atoms
         for (int32 i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
@@ -680,7 +680,7 @@ DynamicArray<BackboneAngle> compute_backbone_angles(Array<const vec3> atom_pos, 
 
 void compute_backbone_angles(Array<BackboneAngle> dst, Array<const vec3> atom_pos, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences) {
     for (const auto& seq : sequences) {
-        compute_backbone_angles(dst.sub_array(seq.beg, seq.end - seq.beg), atom_pos, segments.sub_array(seq.beg, seq.end - seq.beg));
+        compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), atom_pos, segments.subarray(seq.beg, seq.end - seq.beg));
     }
 }
 
@@ -689,7 +689,7 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
     if (!dynamic.molecule || !dynamic.trajectory) return;
 
     if (data->angle_data) {
-        FREE(data->angle_data.data);
+        FREE(data->angle_data.ptr);
     }
 
     int32 alloc_count = (int32)dynamic.molecule.backbone.segments.count * (int32)dynamic.trajectory.frame_buffer.count;
@@ -701,7 +701,7 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data) {
     ASSERT(data);
     if (data->angle_data) {
-        FREE(data->angle_data.data);
+        FREE(data->angle_data.ptr);
         *data = {};
     }
 }
@@ -725,10 +725,10 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
         Array<vec2> frame_angles = get_backbone_angles(*data, f_idx);
         for (const auto& bb_seq : dynamic.molecule.backbone.sequences) {
             auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
-            auto bb_angles = frame_angles.sub_array(bb_seq.beg, bb_seq.end - bb_seq.beg);
+            auto bb_angles = frame_angles.subarray(bb_seq.beg, bb_seq.end - bb_seq.beg);
 
             if (bb_segments.size() < 2) {
-                memset(bb_angles.data, 0, bb_angles.size_in_bytes());
+                memset(bb_angles.ptr, 0, bb_angles.size_in_bytes());
             } else {
                 compute_backbone_angles(bb_angles, frame_pos, bb_segments);
             }

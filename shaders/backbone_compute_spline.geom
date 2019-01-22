@@ -11,13 +11,13 @@ out vec3 out_control_point;
 out uint out_support_vector_xy;
 out uint out_support_vector_z_tangent_vector_x;
 out uint out_tangent_vector_yz;
-out uint out_backbone_angles;
+out uint out_classification;
 out uint out_atom_index;
 
 in Vertex {
     vec3 control_point;
     vec3 support_vector;
-    vec2 backbone_angles;
+    vec4 classification;
     uint atom_index;
 } in_vert[];
 
@@ -25,6 +25,11 @@ in Vertex {
 uint packSnorm2x16(in vec2 v) {
     ivec2 iv = ivec2(round(clamp(v, -1.0f, 1.0f) * 32767.0f));
     return uint(iv.y << 16) | uint(iv.x & 0xFFFF);
+}
+
+uint packUnorm4x8(in vec4 v) {
+    ivec4 iv = ivec4(round(clamp(v, 0.0f, 1.0f) * 255.0f));
+    return uint((0xFF & iv.w) << 24) | uint((0xFF & iv.z) << 16) | ((0xFF & iv.y) << 8) | (0xFF & iv.x);
 }
 #endif
 
@@ -90,7 +95,7 @@ vec3 spline_tangent(in vec3 p0, in vec3 p1, in vec3 p2, in vec3 p3, float s) {
 void main() {
     vec3 cp[4];
     vec3 sv[4];
-    vec2 bb[2];
+    vec4 cl[2];
     uint ai[2];
 
     cp[0] = in_vert[0].control_point;
@@ -107,8 +112,8 @@ void main() {
     sv[2] *= sign(dot(sv[1], sv[2]));
     sv[3] *= sign(dot(sv[2], sv[3]));
 
-    bb[0] = mix(in_vert[0].backbone_angles, in_vert[1].backbone_angles, 1.0);
-    bb[1] = mix(in_vert[2].backbone_angles, in_vert[3].backbone_angles, 0.0);
+    cl[0] = in_vert[1].classification;
+    cl[1] = in_vert[2].classification;
 
     ai[0] = in_vert[1].atom_index;
     ai[1] = in_vert[2].atom_index;
@@ -125,7 +130,7 @@ void main() {
         out_support_vector_xy = packSnorm2x16(v.xy);
         out_support_vector_z_tangent_vector_x = packSnorm2x16(vec2(v.z, t.x));
         out_tangent_vector_yz = packSnorm2x16(t.yz);
-        out_backbone_angles = packSnorm2x16(mix(bb[0], bb[1], s));
+        out_classification = packUnorm4x8(mix(cl[0], cl[1], s));
         out_atom_index = s < 0.5 ? ai[0] : ai[1];
         
         EmitVertex();

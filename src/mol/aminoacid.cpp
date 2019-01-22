@@ -41,13 +41,13 @@ constexpr const char* symbol(AminoAcid amino) { return symbols[(int)amino]; }
 
 AminoAcid get_from_string(CString cstr) {
 
-	// Skip leading numbers and crap
-	while (cstr.count > 0 && !isalpha(*cstr.beg())) {
-		cstr.data++;
-		cstr.count--;
-	};
+    // Skip leading numbers and crap
+    while (cstr.count > 0 && !isalpha(*cstr.beg())) {
+        cstr.ptr++;
+        cstr.count--;
+    };
 
-	if (cstr.count != 3) return AminoAcid::Unknown;
+    if (cstr.count != 3) return AminoAcid::Unknown;
     const char seq[3] = {(char)toupper(cstr[0]), (char)toupper(cstr[1]), (char)toupper(cstr[2])};
 
     for (unsigned int i = 0; i < NUM_AMINO_ACIDS; i++) {
