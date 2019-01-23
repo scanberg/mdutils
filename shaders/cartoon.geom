@@ -25,9 +25,13 @@ out Fragment {
 void emit_vertex(in vec4 pos, in vec4 normal, in int idx) {
     out_frag.color = in_vert[idx].color;
     out_frag.picking_color = in_vert[idx].picking_color;
-    out_frag.view_normal = u_normal_mat * normal;
+    out_frag.view_normal = normal;
     gl_Position = pos;
     EmitVertex();
+}
+
+vec2 elipse_normal(in vec2 p, in float a, in float b) {
+    return normalize(vec2(p.x * a, p.y * b));
 }
 
 void main() {
@@ -45,17 +49,6 @@ void main() {
     y[0] = vec4(cross(z[0].xyz, x[0].xyz), 0); // To maintain right-handedness
     y[1] = vec4(cross(z[1].xyz, x[1].xyz), 0);
 
-#if 0
-    // This is to possible fix tesselation direction so it follows the curve of the segment
-    float flip_sign = sign(dot(x[1].xyz, y[0].xyz));
-    x[0].xyz *= flip_sign;
-    x[1].xyz *= flip_sign;
-    y[0].xyz *= flip_sign;
-    y[1].xyz *= flip_sign;
-    z[0].xyz *= flip_sign;
-    z[1].xyz *= flip_sign;
-#endif
-
     const float TWO_PI = 2.0 * 3.14159265;
 
     mat4 M[2];
@@ -66,70 +59,41 @@ void main() {
     N[0] = u_normal_mat * M[0];
     N[1] = u_normal_mat * M[1];
 
-    vec2 coil[12];
-    vec2 sheet[12];
-    vec2 helix[12];
-
-    for (int i = 0; i < 12; i++) {
-        float t = float(i) / 12.0 * TWO_PI;
-        coil[i] = vec2(cos(t), sin(t)) * u_scale * 0.2;
-    }
-
-    vec2 sheet_scale = u_scale * vec2(1, 0.2);
-    sheet[0] = vec2(1,-1) * sheet_scale;
-    sheet[1] = vec2(1,-1) * sheet_scale;
-    sheet[2] = vec2(1,-1) * sheet_scale;
-
-    sheet[3] = vec2(1,1) * sheet_scale;
-    sheet[4] = vec2(1,1) * sheet_scale;
-    sheet[5] = vec2(1,1) * sheet_scale;
-
-    sheet[6] = vec2(-1,1) * sheet_scale;
-    sheet[7] = vec2(-1,1) * sheet_scale;
-    sheet[8] = vec2(-1,1) * sheet_scale;
-
-    sheet[9]  = vec2(-1,-1) * sheet_scale;
-    sheet[10] = vec2(-1,-1) * sheet_scale;
-    sheet[11] = vec2(-1,-1) * sheet_scale;
-
-    for (int i = 0; i < 12; i++) {
-        float t = float(i) / 12.0 * TWO_PI;
-        helix[i] = vec2(cos(t), sin(t)) * vec2(1, 0.2) * u_scale;
-    }
+    mat4 V[2];
+    V[0] = u_view_proj_mat * M[0];
+    V[1] = u_view_proj_mat * M[1];
 
     vec4 w0 = in_vert[0].weights;
     vec4 w1 = in_vert[1].weights;
 
-    vec2 v0[12];
-    vec2 n0[12];
-    for (int i = 0; i < 12; i++) {
-        v0[i] = w0.x * coil[i] + w0.y * sheet[i] + w0.z * helix[i];
-    }
+    const vec2 coil_scale = vec2(0.2, 0.2);
+    const vec2 sheet_scale = vec2(1.5, 0.1);
+    const vec2 helix_scale = vec2(1.2, 0.2);
 
-    vec2 v1[12];
-    vec2 n1[12];
-    for (int i = 0; i < 12; i++) {
-        v1[i] = w1.x * coil[i] + w1.y * sheet[i] + w1.z * helix[i];
-    }
+    vec2 s0 = u_scale * (w0.x * coil_scale + w0.y * sheet_scale + w0.z * helix_scale);
+    vec2 s1 = u_scale * (w1.x * coil_scale + w1.y * sheet_scale + w1.z * helix_scale);
 
-    vec4 pv0[12];
-    vec4 nv0[12];
-    for (int i = 0; i < 12; i++) {
-        pv0[i] = u_view_proj_mat * M[0] * vec4(v0[i], 0, 1);
-        nv0[i] = normalize(M[0] * vec4(v0[i], 0, 0));
-    }
+    vec4 v0[12];
+    vec4 v1[12];
+    
+    vec4 n0[12];
+    vec4 n1[12];
 
-    vec4 pv1[12];
-    vec4 nv1[12];
     for (int i = 0; i < 12; i++) {
-        pv1[i] = u_view_proj_mat * M[1] * vec4(v1[i], 0, 1);
-        nv1[i] = normalize(M[1] * vec4(v1[i], 0, 0));
+        float t = float(i) / 12.0 * TWO_PI;
+        vec2 x = vec2(cos(t), sin(t));
+        vec2 v = x * s0;
+        vec2 n = x / s0;
+        v0[i] = V[0] * vec4(x * s0,0,1);
+        n0[i] = N[0] * vec4(x / s0,0,0);
+        v1[i] = V[1] * vec4(x * s1,0,1);
+        n1[i] = N[1] * vec4(x / s1,0,0);
     }
- 
+    
     for (int i = 0; i < 12; i++) {
-        emit_vertex(pv1[i], nv1[i], 1);
-        emit_vertex(pv0[i], nv0[i], 0);
+        emit_vertex(v1[i], n1[i], 1);
+        emit_vertex(v0[i], n0[i], 0);
     }
-    emit_vertex(pv1[0], nv1[0], 1);
-    emit_vertex(pv0[0], nv0[0], 0);
+    emit_vertex(v1[0], n1[0], 1);
+    emit_vertex(v0[0], n0[0], 0);
 }

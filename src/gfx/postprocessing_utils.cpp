@@ -724,163 +724,129 @@ void shutdown() {
 
 }  // namespace ssao
 
-namespace deferred {
+namespace highlight {
 
-static GLuint prog_deferred = 0;
-static GLint uniform_loc_texture_depth = -1;
-static GLint uniform_loc_texture_color = -1;
-static GLint uniform_loc_texture_normal = -1;
-static GLint uniform_loc_inv_proj_mat = -1;
-static const char* f_shader_src_deferred = R"(
-#version 150 core
-
-uniform sampler2D u_texture_depth;
-uniform sampler2D u_texture_color;
-uniform sampler2D u_texture_normal;
-
-uniform mat4 u_inv_proj_mat;
-
-in vec2 tc;
-out vec4 out_frag;
-
-vec4 depth_to_view_coord(vec2 tex_coord, float depth) {
-    vec4 clip_coord = vec4(vec3(tex_coord, depth) * 2.0 - 1.0, 1.0);
-    vec4 view_coord = u_inv_proj_mat * clip_coord;
-    return view_coord / view_coord.w;
-}
-
-float fresnel(float H_dot_V) {
-    const float n1 = 1.0;
-    const float n2 = 1.5;
-    const float R0 = pow((n1-n2)/(n1+n2), 2);
-
-    return R0 + (1.0 - R0)*pow(1.0 - H_dot_V, 5);
-}
-
-// https://aras-p.info/texts/CompactNormalStorage.html
-vec3 decode_normal(vec2 enc) {
-    vec2 fenc = enc*4-2;
-    float f = dot(fenc,fenc);
-    float g = sqrt(1-f/4.0);
-    vec3 n;
-    n.xy = fenc*g;
-    n.z = 1-f/2.0;
-    return n;
-}
-
-const vec3 bg_radiance = vec3(100);
-const vec3 env_radiance = vec3(5.0);
-const vec3 dir_radiance = vec3(5.0);
-const vec3 L = normalize(vec3(1));
-const float spec_exp = 10.0;
-
-vec3 shade(vec3 color, vec3 V, vec3 N) {
-    vec3 H = normalize(L + V);
-    float H_dot_V = max(0.0, dot(H, V));
-    float N_dot_H = max(0.0, dot(N, H));
-    float N_dot_L = max(0.0, dot(N, L));
-    float fr = fresnel(H_dot_V);
-
-    vec3 diffuse = color.rgb * (env_radiance + N_dot_L * dir_radiance);
-    vec3 specular = dir_radiance * pow(N_dot_H, spec_exp);
-
-    return mix(diffuse, specular, fr);
-}
-
-void main() {
-	float depth = texelFetch(u_texture_depth, ivec2(gl_FragCoord.xy), 0).x;
-	if (depth == 1.0) {
-		out_frag = vec4(bg_radiance,1);
-		return;
-	}
-	vec4 color = texelFetch(u_texture_color, ivec2(gl_FragCoord.xy), 0);
-	vec3 normal = decode_normal(texelFetch(u_texture_normal, ivec2(gl_FragCoord.xy), 0).xy);
-	vec4 view_coord = depth_to_view_coord(tc, depth);
-
-	vec3 N = normal;
-	vec3 V = -normalize(view_coord.xyz);
-	vec3 result = shade(color.rgb, V, N);
-	//result = N;
-
-	out_frag = vec4(result, color.a);
-}
-)";
+static struct {
+    GLuint program = 0;
+    GLuint selection_texture = 0;
+    struct {
+        GLint texture_atom_idx = -1;
+        GLint buffer_selection = -1;
+    } uniform_loc;
+} highlight;
 
 void initialize() {
-    if (!prog_deferred) setup_program(&prog_deferred, "deferred", f_shader_src_deferred);
-    uniform_loc_texture_depth = glGetUniformLocation(prog_deferred, "u_texture_depth");
-    uniform_loc_texture_color = glGetUniformLocation(prog_deferred, "u_texture_color");
-    uniform_loc_texture_normal = glGetUniformLocation(prog_deferred, "u_texture_normal");
-    uniform_loc_inv_proj_mat = glGetUniformLocation(prog_deferred, "u_inv_proj_mat");
+    String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/highlight.frag");
+    defer { FREE(f_shader_src); };
+    setup_program(&highlight.program, "highlight", f_shader_src);
+    if (!highlight.selection_texture) glGenTextures(1, &highlight.selection_texture);
+    highlight.uniform_loc.texture_atom_idx = glGetUniformLocation(highlight.program, "u_texture_atom_idx");
+    highlight.uniform_loc.buffer_selection = glGetUniformLocation(highlight.program, "u_buffer_selection");
 }
 
 void shutdown() {
-    if (prog_deferred) glDeleteProgram(prog_deferred);
+    if (highlight.program) glDeleteProgram(highlight.program);
+}
+}  // namespace highlight
+
+namespace deferred {
+
+static struct {
+    GLuint program = 0;
+    struct {
+        GLint texture_depth = -1;
+        GLint texture_color = -1;
+        GLint texture_normal = -1;
+        GLint inv_proj_mat = -1;
+    } uniform_loc;
+} deferred;
+
+void initialize() {
+    String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/deferred_shading.frag");
+    defer { FREE(f_shader_src); };
+    setup_program(&deferred.program, "deferred", f_shader_src);
+    deferred.uniform_loc.texture_depth = glGetUniformLocation(deferred.program, "u_texture_depth");
+    deferred.uniform_loc.texture_color = glGetUniformLocation(deferred.program, "u_texture_color");
+    deferred.uniform_loc.texture_normal = glGetUniformLocation(deferred.program, "u_texture_normal");
+    deferred.uniform_loc.inv_proj_mat = glGetUniformLocation(deferred.program, "u_inv_proj_mat");
+}
+
+void shutdown() {
+    if (deferred.program) glDeleteProgram(deferred.program);
 }
 }  // namespace deferred
 
 namespace tonemapping {
-static GLuint prog_tonemap = 0;
-static GLint uniform_loc_texture = -1;
-static const char* f_shader_src_tonemap = R"(
-#version 150 core
 
-uniform sampler2D u_texture;
-out vec4 out_frag;
+static struct {
+    GLuint program = 0;
+    struct {
+        GLint texture = -1;
+    } uniform_loc;
+} passthrough;
 
-vec3 passthrough(vec3 c) {
-    return c;
-}
+static struct {
+    GLuint program = 0;
+    struct {
+        GLint texture = -1;
+        GLint exposure = -1;
+        GLint gamma = -1;
+    } uniform_loc;
+} exposure_gamma;
 
-vec3 reinhard(vec3 c) {
-    c *= 1;  // Hardcoded Exposure Adjustment
-    c = c / (c + vec3(1.0));
-    return pow(c, vec3(1.0 / 2.2));
-}
+static struct {
+    GLuint program = 0;
+    struct {
+        GLint texture = -1;
+        GLint exposure = -1;
+        GLint gamma = -1;
+    } uniform_loc;
+} hejl_dawsson;
 
-vec3 uncharted_tonemap(vec3 x) {
-    const float A = 0.15;
-    const float B = 0.50;
-    const float C = 0.10;
-    const float D = 0.20;
-    const float E = 0.02;
-    const float F = 0.30;
-    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
-}
-
-vec3 uncharted(vec3 c) {
-    const float W = 11.2;
-    //c *= 2;  // Hardcoded Exposure Adjustment
-
-    float exp_bias = 0.5;
-    vec3 curr = uncharted_tonemap(exp_bias * c);
-
-    vec3 white_scale = vec3(1.0) / uncharted_tonemap(vec3(W));
-    vec3 color = curr * white_scale;
-      
-    return pow(color, vec3(1.0/1.0));
-}
-
-vec3 hejl_dawsson(vec3 c) {
-   c *= 1;  // Hardcoded Exposure Adjustment
-   vec3 x = max(vec3(0), c-vec3(0.004));
-   return (x*(6.2*x+.5))/(x*(6.2*x+1.7)+0.06);
-}
-
-void main() {
-	vec4 color = texelFetch(u_texture, ivec2(gl_FragCoord.xy), 0);
-	color.rgb = uncharted(color.rgb);
-	out_frag = color;
-}
-)";
+static struct {
+    GLuint program = 0;
+    struct {
+        GLint texture = -1;
+        GLint exposure = -1;
+        GLint gamma = -1;
+    } uniform_loc;
+} filmic;
 
 void initialize() {
-    if (!prog_tonemap) setup_program(&prog_tonemap, "tonemap", f_shader_src_tonemap);
-    uniform_loc_texture = glGetUniformLocation(prog_tonemap, "u_texture");
+    {
+        // PASSTHROUGH
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/tonemap/passthrough.frag");
+        defer { FREE(f_shader_src); };
+
+        setup_program(&passthrough.program, "tonemap_passthrough", f_shader_src);
+        passthrough.uniform_loc.texture = glGetUniformLocation(passthrough.program, "u_texture");
+    }
+    {
+        // EXPOSURE GAMMA
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/tonemap/exposure_gamma.frag");
+        defer { FREE(f_shader_src); };
+
+        setup_program(&exposure_gamma.program, "tonemap_exposure_gamma", f_shader_src);
+        exposure_gamma.uniform_loc.texture = glGetUniformLocation(exposure_gamma.program, "u_texture");
+        exposure_gamma.uniform_loc.exposure = glGetUniformLocation(exposure_gamma.program, "u_exposure");
+        exposure_gamma.uniform_loc.gamma = glGetUniformLocation(exposure_gamma.program, "u_gamma");
+    }
+    {
+        // UNCHARTED
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/tonemap/uncharted.frag");
+        defer { FREE(f_shader_src); };
+
+        setup_program(&filmic.program, "tonemap_filmic", f_shader_src);
+        filmic.uniform_loc.texture = glGetUniformLocation(filmic.program, "u_texture");
+        filmic.uniform_loc.exposure = glGetUniformLocation(filmic.program, "u_exposure");
+        filmic.uniform_loc.gamma = glGetUniformLocation(filmic.program, "u_gamma");
+    }
 }
 
 void shutdown() {
-    if (prog_tonemap) glDeleteProgram(prog_tonemap);
+    if (passthrough.program) glDeleteProgram(passthrough.program);
+    if (exposure_gamma.program) glDeleteProgram(exposure_gamma.program);
+    if (filmic.program) glDeleteProgram(filmic.program);
 }
 
 }  // namespace tonemapping
@@ -1130,6 +1096,7 @@ void initialize(int width, int height) {
 
     ssao::initialize(width, height);
     deferred::initialize();
+    highlight::initialize();
     tonemapping::initialize();
     blit::initialize();
 }
@@ -1137,6 +1104,7 @@ void initialize(int width, int height) {
 void shutdown() {
     ssao::shutdown();
     deferred::shutdown();
+    highlight::shutdown();
     tonemapping::shutdown();
     blit::shutdown();
 
@@ -1248,17 +1216,38 @@ void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(normal_tex));
 
-    glUseProgram(deferred::prog_deferred);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, color_tex);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, normal_tex);
-    glUniform1i(deferred::uniform_loc_texture_depth, 0);
-    glUniform1i(deferred::uniform_loc_texture_color, 1);
-    glUniform1i(deferred::uniform_loc_texture_normal, 2);
-    glUniformMatrix4fv(deferred::uniform_loc_inv_proj_mat, 1, GL_FALSE, &inv_proj_matrix[0][0]);
+
+    glUseProgram(deferred::deferred.program);
+    glUniform1i(deferred::deferred.uniform_loc.texture_depth, 0);
+    glUniform1i(deferred::deferred.uniform_loc.texture_color, 1);
+    glUniform1i(deferred::deferred.uniform_loc.texture_normal, 2);
+    glUniformMatrix4fv(deferred::deferred.uniform_loc.inv_proj_mat, 1, GL_FALSE, &inv_proj_matrix[0][0]);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer) {
+    ASSERT(glIsTexture(atom_idx_tex));
+    ASSERT(glIsBuffer(selection_buffer));
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, atom_idx_tex);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_BUFFER, highlight::highlight.selection_texture);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R8, selection_buffer);
+
+    glUseProgram(highlight::highlight.program);
+    glUniform1i(highlight::highlight.uniform_loc.texture_atom_idx, 0);
+    glUniform1i(highlight::highlight.uniform_loc.buffer_selection, 1);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
@@ -1334,12 +1323,32 @@ void apply_dof(GLuint depth_tex, GLuint color_tex, const mat4& proj_matrix, floa
     glActiveTexture(GL_TEXTURE0);
 }
 
-void apply_tonemapping(GLuint color_tex) {
+void apply_tonemapping(GLuint color_tex, Tonemapping tonemapping, float exposure, float gamma) {
     ASSERT(glIsTexture(color_tex));
-    glUseProgram(tonemapping::prog_tonemap);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, color_tex);
-    glUniform1i(tonemapping::uniform_loc_texture, 0);
+
+    switch (tonemapping) {
+        case Tonemapping_ExposureGamma:
+            glUseProgram(tonemapping::exposure_gamma.program);
+            glUniform1i(tonemapping::exposure_gamma.uniform_loc.texture, 0);
+            glUniform1f(tonemapping::exposure_gamma.uniform_loc.exposure, exposure);
+            glUniform1f(tonemapping::exposure_gamma.uniform_loc.gamma, gamma);
+            break;
+        case Tonemapping_Filmic:
+            glUseProgram(tonemapping::filmic.program);
+            glUniform1i(tonemapping::filmic.uniform_loc.texture, 0);
+            glUniform1f(tonemapping::filmic.uniform_loc.exposure, exposure);
+            glUniform1f(tonemapping::filmic.uniform_loc.gamma, gamma);
+            break;
+        case Tonemapping_Passthrough:
+        default:
+            glUseProgram(tonemapping::passthrough.program);
+            glUniform1i(tonemapping::passthrough.uniform_loc.texture, 0);
+            break;
+    }
+
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);

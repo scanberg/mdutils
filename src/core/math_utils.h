@@ -221,11 +221,11 @@ inline vec3 hsv_to_rgb(vec3 c) {
     return c.z * mix(vec3(K.x), clamp(p - vec3(K.x), 0.0f, 1.0f), c.y);
 }
 
-constexpr float HCLgamma = 3;
-constexpr float HCLy0 = 100;
-constexpr float HCLmaxL = 0.530454533953517f;  // == exp(HCLgamma / HCLy0) - 0.5
-
 inline vec3 hcl_to_rgb(vec3 HCL) {
+    constexpr float HCLgamma = 3;
+    constexpr float HCLy0 = 100;
+    constexpr float HCLmaxL = 0.530454533953517f;  // == exp(HCLgamma / HCLy0) - 0.5
+
     vec3 RGB = vec3(0);
     if (HCL.z != 0) {
         float H = HCL.x;
@@ -261,6 +261,10 @@ inline vec3 hcl_to_rgb(vec3 HCL) {
 }
 
 inline vec3 rgb_to_hcl(vec3 rgb) {
+    constexpr float HCLgamma = 3;
+    constexpr float HCLy0 = 100;
+    constexpr float HCLmaxL = 0.530454533953517f;  // == exp(HCLgamma / HCLy0) - 0.5
+
     vec3 HCL;
     float H = 0;
     float U = min(rgb.r, min(rgb.g, rgb.b));
@@ -277,6 +281,9 @@ inline vec3 rgb_to_hcl(vec3 rgb) {
     HCL.z = lerp(-U, V, Q) / (HCLmaxL * 2);
     return HCL;
 }
+
+inline vec3 hcl_to_rgb(float h, float c, float l) { return hcl_to_rgb({h, c, l}); }
+inline vec3 rgb_to_hcl(float r, float g, float b) { return rgb_to_hcl({r, g, b}); }
 
 inline vec4 convert_color(uint32 color) { return glm::unpackUnorm4x8(color); }
 inline uint32 convert_color(vec4 color) { return glm::packUnorm4x8(color); }
