@@ -13,14 +13,14 @@
 
 template <typename T>
 struct Array {
-    constexpr Array() = default;
-    constexpr Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
-    constexpr Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
+    Array() = default;
+    Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
+    Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
 
     template <size_t N>
-    constexpr Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
+    Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
 
-    constexpr Array<T> subarray(int64 _offset, int64 _count = -1) {
+    Array<T> subarray(int64 _offset, int64 _count = -1) {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
@@ -30,7 +30,7 @@ struct Array {
         return {ptr + _offset, _count};
     }
 
-    constexpr Array<const T> subarray(int64 _offset, int64 _count = -1) const {
+    Array<const T> subarray(int64 _offset, int64 _count = -1) const {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
@@ -40,47 +40,47 @@ struct Array {
         return {ptr + _offset, _count};
     }
 
-    constexpr const T* data() const { return ptr; }
-    constexpr const T* begin() const { return ptr; }
-    constexpr const T* beg() const { return ptr; }
-    constexpr const T* end() const { return ptr + count; }
+    const T* data() const { return ptr; }
+    const T* begin() const { return ptr; }
+    const T* beg() const { return ptr; }
+    const T* end() const { return ptr + count; }
 
-    constexpr T* data() { return ptr; }
-    constexpr T* begin() { return ptr; }
-    constexpr T* beg() { return ptr; }
-    constexpr T* end() { return ptr + count; }
+    T* data() { return ptr; }
+    T* begin() { return ptr; }
+    T* beg() { return ptr; }
+    T* end() { return ptr + count; }
 
-    constexpr const T& front() const {
+    const T& front() const {
         ASSERT(count > 0);
         return ptr[0];
     }
-    constexpr const T& back() const {
+    const T& back() const {
         ASSERT(count > 0);
         return ptr[count - 1];
     }
-    constexpr T& front() {
+    T& front() {
         ASSERT(count > 0);
         return ptr[0];
     }
-    constexpr T& back() {
+    T& back() {
         ASSERT(count > 0);
         return ptr[count - 1];
     }
 
-    constexpr int64 size() const { return count; }
-    constexpr int64 size_in_bytes() const { return count * sizeof(T); }
+    int64 size() const { return count; }
+    int64 size_in_bytes() const { return count * sizeof(T); }
 
-    constexpr operator bool() const { return ptr != nullptr && count > 0; }
-    constexpr const T& operator[](int64 i) const {
+    operator bool() const { return ptr != nullptr && count > 0; }
+    const T& operator[](int64 i) const {
         ASSERT(i < count);
         return ptr[i];
     }
-    constexpr T& operator[](int64 i) {
+    T& operator[](int64 i) {
         ASSERT(i < count);
         return ptr[i];
     }
 
-    constexpr operator Array<const T>() const { return {ptr, count}; }
+    operator Array<const T>() const { return {ptr, count}; }
 
     T* ptr;
     int64 count;
@@ -91,15 +91,13 @@ template <typename T, int64 Size>
 struct StaticArray : Array<T> {
     static constexpr int64 MaxSize = Size;
     STATIC_ASSERT(Size > 0, "StaticArray must have a length of > 0");
-    StaticArray() : Array(buffer, Size) {}
-    StaticArray(int64 count) : Array(buffer, count < MaxSize ? count : MaxSize) { ASSERT(0 <= count && count <= MaxSize); }
+    StaticArray() : Array<T>(buffer, Size) {}
+    StaticArray(int64 count) : Array<T>(buffer, count < MaxSize ? count : MaxSize) { ASSERT(0 <= count && count <= MaxSize); }
 
-    /*
-template <int64 N>
-StaticArray(const T (&arr)[N]) : Array(buffer, N) noexcept {
-    memcpy(buffer, arr, N * sizeof(T));
-}
-    */
+    template <int64 N>
+    StaticArray(const T (&arr)[N]) noexcept : Array<T>(buffer, N) {
+        memcpy(buffer, arr, N * sizeof(T));
+    }
 
     StaticArray(const T* first, const T* last) noexcept {
         int64 count = last - first;
@@ -224,7 +222,7 @@ struct DynamicArray : Array<T> {
         return *this;
     }
 
-    int64 const capacity() { return m_capacity; }
+    int64 capacity() const { return m_capacity; }
 
     inline int64 _grow_capacity(int64 sz) const {
         int64 new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : INIT_CAPACITY;
