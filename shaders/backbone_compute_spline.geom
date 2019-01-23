@@ -29,7 +29,7 @@ uint packSnorm2x16(in vec2 v) {
 
 uint packUnorm4x8(in vec4 v) {
     ivec4 iv = ivec4(round(clamp(v, 0.0f, 1.0f) * 255.0f));
-    return uint((0xFF & iv.w) << 24) | uint((0xFF & iv.z) << 16) | ((0xFF & iv.y) << 8) | (0xFF & iv.x);
+    return uint(iv.w << 24) | uint(iv.z << 16) | uint(iv.y << 8) | uint(iv.x);
 }
 #endif
 
