@@ -28,7 +28,7 @@ void main() {
     float yp1 = selected(ivec2(0,+1));
     //float yp2 = selected(ivec2(0,+2));
 
-    float line_t = max(0, xn1 + xp1 + yn1 + yp1 - 4*c);
+    float line_t = max(0, -xn1 -xp1 -yn1 -yp1 + 4*c);
     float fill_t = c;
 
     const vec3 line_color = vec3(10,10,0);

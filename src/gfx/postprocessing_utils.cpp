@@ -272,7 +272,7 @@ struct HBAOData {
 
     vec2 proj_scale;
     int proj_ortho;
-    int _pad1;
+    unsigned frame;
 };
 
 static const char* f_shader_src_hbao = R"(
@@ -317,7 +317,7 @@ struct HBAOData {
 
   vec2    proj_scale;
   int     proj_ortho;
-  int     _pad1;
+  uint    frame;
   
   //vec4    offsets[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
   //vec4    jitters[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
@@ -544,6 +544,7 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     ASSERT(ubo);
     constexpr float METERS_TO_VIEWSPACE = 1.f;
     const float* proj_data = &proj_mat[0][0];
+    static uint32 frame_number = 0;
 
     bool is_ortho = is_orthographic_proj_matrix(proj_mat);
 
@@ -586,6 +587,7 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     // @NOTE: Is one needed?
     data.proj_scale = vec2(proj_scl);
     data.proj_ortho = is_ortho ? 1 : 0;
+    data.frame = frame_number++;
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(HBAOData), &data, GL_DYNAMIC_DRAW);
@@ -594,16 +596,21 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
 
 void initialize_rnd_tex(GLuint rnd_tex, int num_direction) {
     ASSERT(AO_MAX_SAMPLES == 1);
-    constexpr int BUFFER_SIZE = AO_RANDOM_TEX_SIZE * AO_RANDOM_TEX_SIZE * AO_MAX_SAMPLES;
-    signed short buffer[BUFFER_SIZE * 4];
+    constexpr int buffer_size = AO_RANDOM_TEX_SIZE * AO_RANDOM_TEX_SIZE * AO_MAX_SAMPLES;
+    signed short buffer[buffer_size * 4];
 
-    vec2 halton23[BUFFER_SIZE];
-    math::generate_halton_sequence(halton23, BUFFER_SIZE, 2, 3);
+    vec2 rnd_vals[buffer_size];
+    math::generate_halton_sequence(rnd_vals, buffer_size, 2, 3);
+    /*
+for (int i = 0; i < buffer_size; i++) {
+    rnd_vals[i] = vec2(math::rnd(), math::rnd());
+}
+    */
 
-    for (int i = 0; i < BUFFER_SIZE; i++) {
+    for (int i = 0; i < buffer_size; i++) {
 #define SCALE ((1 << 15))
-        float rand1 = halton23[i].x;
-        float rand2 = halton23[i].y;
+        float rand1 = rnd_vals[i].x;
+        float rand2 = rnd_vals[i].y;
         float angle = 2.f * math::PI * rand1 / (float)num_direction;
 
         buffer[i * 4 + 0] = (signed short)(SCALE * math::cos(angle));
@@ -621,7 +628,7 @@ void initialize_rnd_tex(GLuint rnd_tex, int num_direction) {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-float compute_sharpness(float radius) { return 20.f / math::sqrt(radius); }
+float compute_sharpness(float radius) { return 30.f / math::sqrt(radius); }
 
 void initialize(int width, int height) {
     // @TODO: dynamically generate this
