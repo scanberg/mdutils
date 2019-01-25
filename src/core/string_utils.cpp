@@ -105,6 +105,9 @@ CString extract_line(CString& str) {
         // Step over return and new line characters
         str_beg = MIN(line_end + 1, str_end);
         while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
+
+        // Prune '/r and /n' from line
+        while (line_end != line_beg && (*(line_end - 1) == '\r' || *(line_end - 1) == '\n')) --line_end;
     }
 
     str.ptr = str_beg;
