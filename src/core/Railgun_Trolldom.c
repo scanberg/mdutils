@@ -447,6 +447,7 @@ loop below: count = PRIMALlengthCANDIDATE-4+1; while ( count > 0 && *(uint32_t *
 }
 ...
 */
+#include <stddef.h>
 #include <stdint.h>
 
 // Railgun_Swampshine_BailOut, copyleft 2014-Jan-31, Kaze.
