@@ -3,11 +3,11 @@
 #include "string_types.h"
 
 // Comparison of Strings
-bool compare(CString str_a, CString str_b, bool ignore_case = false);
-bool compare_n(CString str_a, CString str_b, int64 num_chars, bool ignore_case = false);
+bool compare(CString str_a, CString str_b);
+bool compare_ignore_case(CString str_a, CString str_b);
 
-String find_needle(CString needle, String haystack);
-CString find_needle(CString needle, CString haystack);
+bool compare_n(CString str_a, CString str_b, int64 num_chars);
+bool compare_n_ignore_case(CString str_a, CString str_b, int64 num_chars);
 
 // Copy String
 // Note: will zero terminate the dst String
@@ -92,8 +92,10 @@ CString extract_parentheses_contents(CString str);
 const uint8* find_character(CString str, uint8 c);
 bool contains_character(CString str, uint8 c);
 
-CString find_first_match(CString str, CString match);
-bool contains_string(CString big_str, CString str);
+// Attempts to find a pattern inside a target string
+// Returns empty CString if pattern is not found
+// Otherwise it returns the CString pointing to the location of the pattern inside target and has the size of the pattern.
+CString find_string(CString target, CString pattern);
 
 // Tokenizes a string into shorter strings based on some delimiter
 DynamicArray<String> tokenize(String str, uint8 delimiter = ' ');

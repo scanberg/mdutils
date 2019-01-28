@@ -9,15 +9,15 @@ namespace filter {
 static DynamicArray<FilterCommand> filter_commands;
 
 static bool is_modifier(CString str) {
-    if (compare(str, "and", true)) return true;
-    if (compare(str, "or", true)) return true;
+    if (compare_ignore_case(str, "and")) return true;
+    if (compare_ignore_case(str, "or")) return true;
     return false;
 }
 
 static bool is_keyword(CString str) {
-    if (compare(str, "and", true)) return true;
-    if (compare(str, "or", true)) return true;
-    if (compare(str, "not", true)) return true;
+    if (compare_ignore_case(str, "and")) return true;
+    if (compare_ignore_case(str, "or")) return true;
+    if (compare_ignore_case(str, "not")) return true;
     return false;
 }
 
@@ -119,11 +119,11 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
     bool state_not = false;
 
     for (const auto& chunk : chunks) {
-        if (compare(chunk, "and", true)) {
+        if (compare_ignore_case(chunk, "and")) {
             state_and = true;
-        } else if (compare(chunk, "or", true)) {
+        } else if (compare_ignore_case(chunk, "or")) {
             state_or = true;
-        } else if (compare(chunk, "not", true)) {
+        } else if (compare_ignore_case(chunk, "not")) {
             state_not = true;
         } else {
             if (chunk.front() == '(') {
@@ -140,7 +140,7 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
 
                 auto args = tokens.subarray(1);
 
-                while (args.count > 0 && compare(args[0], "not", true)) {
+                while (args.count > 0 && compare_ignore_case(args[0], "not")) {
                     state_not = !state_not;
                     args = args.subarray(1);
                 }
