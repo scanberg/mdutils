@@ -33,6 +33,15 @@
 #include <gfx/gl_utils.h>
 #include <stdio.h>
 
+#define PUSH_GPU_SECTION(lbl)                                                                       \
+    {                                                                                               \
+        if (glPushDebugGroup) glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, GL_KHR_debug, -1, lbl); \
+    };
+#define POP_GPU_SECTION()                       \
+    {                                           \
+        if (glPopDebugGroup) glPopDebugGroup(); \
+    };
+
 namespace postprocessing {
 
 // @TODO: Use half-res render targets for SSAO
@@ -69,7 +78,7 @@ static struct {
             GLint clip_info = -1;
             GLint tex_depth = -1;
         } uniform_loc;
-    } linearize_depth;
+    } linear_depth;
 
     struct {
         GLuint tex_random = 0;
@@ -272,7 +281,7 @@ struct HBAOData {
 
     vec2 proj_scale;
     int proj_ortho;
-    unsigned frame;
+    float rnd;
 };
 
 static const char* f_shader_src_hbao = R"(
@@ -317,7 +326,7 @@ struct HBAOData {
 
   vec2    proj_scale;
   int     proj_ortho;
-  uint    frame;
+  float   rnd;
   
   //vec4    offsets[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
   //vec4    jitters[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
@@ -348,8 +357,8 @@ vec3 UVToView(vec2 uv, float eye_z) {
   return vec3((uv * control.proj_info.xy + control.proj_info.zw) * (control.proj_ortho != 0 ? 1. : eye_z), eye_z);
 }
 
-vec3 FetchViewPos(vec2 uv) {
-  float ViewDepth = textureLod(u_tex_linear_depth, uv, 0).x;
+vec3 FetchViewPos(vec2 uv, float lod) {
+  float ViewDepth = textureLod(u_tex_linear_depth, uv, lod).x;
   return UVToView(uv, ViewDepth);
 }
 
@@ -357,14 +366,6 @@ vec3 MinDiff(vec3 P, vec3 Pr, vec3 Pl) {
   vec3 V1 = Pr - P;
   vec3 V2 = P - Pl;
   return (dot(V1,V1) < dot(V2,V2)) ? V1 : V2;
-}
-
-vec3 ReconstructNormal(vec2 UV, vec3 P) {
-  vec3 Pr = FetchViewPos(UV + vec2(control.inv_full_res.x, 0));
-  vec3 Pl = FetchViewPos(UV + vec2(-control.inv_full_res.x, 0));
-  vec3 Pt = FetchViewPos(UV + vec2(0, control.inv_full_res.y));
-  vec3 Pb = FetchViewPos(UV + vec2(0, -control.inv_full_res.y));
-  return normalize(cross(MinDiff(P, Pr, Pl), MinDiff(P, Pt, Pb)));
 }
 
 vec3 DecodeNormal(vec2 enc) {
@@ -436,11 +437,12 @@ float ComputeCoarseAO(vec2 FullResUV, float RadiusPixels, vec4 Rand, vec3 ViewPo
     for (float StepIndex = 0; StepIndex < NUM_STEPS; ++StepIndex)
     {
       vec2 SnappedUV = round(RayPixels * Direction) * control.inv_full_res + FullResUV;
-      vec3 S = FetchViewPos(SnappedUV);
+      vec3 S = FetchViewPos(SnappedUV, StepIndex);
+	  vec3 N = ViewNormal;
 
       RayPixels += StepSizePixels;
 
-      AO += ComputeAO(ViewPosition, ViewNormal, S);
+      AO += ComputeAO(ViewPosition, N, S);
     }
   }
 
@@ -452,7 +454,7 @@ float ComputeCoarseAO(vec2 FullResUV, float RadiusPixels, vec4 Rand, vec3 ViewPo
 //----------------------------------------------------------------------------------
 void main() {
   vec2 uv = tc;
-  vec3 ViewPosition = FetchViewPos(uv);
+  vec3 ViewPosition = FetchViewPos(uv, 0);
 
   // Reconstruct view-space normal from nearest neighbors
 #if AO_USE_NORMAL
@@ -544,7 +546,14 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     ASSERT(ubo);
     constexpr float METERS_TO_VIEWSPACE = 1.f;
     const float* proj_data = &proj_mat[0][0];
-    static uint32 frame_number = 0;
+
+    static float rnd_data[16] = {0};
+    static int idx = 0;
+    if (rnd_data[0] == 0.f) {
+        math::generate_halton_sequence(rnd_data, 16, 2);
+    }
+    idx = (idx + 1) % 16;
+    float rnd = rnd_data[idx];
 
     bool is_ortho = is_orthographic_proj_matrix(proj_mat);
 
@@ -587,7 +596,7 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     // @NOTE: Is one needed?
     data.proj_scale = vec2(proj_scl);
     data.proj_ortho = is_ortho ? 1 : 0;
-    data.frame = frame_number++;
+    data.rnd = rnd;
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(HBAOData), &data, GL_DYNAMIC_DRAW);
@@ -692,8 +701,8 @@ void initialize(int width, int height) {
 
     glBindTexture(GL_TEXTURE_2D, tex_blur);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -869,8 +878,6 @@ uniform sampler2D u_tex_color;
 uniform float u_focus_point;
 uniform float u_focus_scale;
 
-const float MAX_BLUR_SIZE = 20.0; 
-
 float getBlurSize(float d, float fp, float fs) {
 	float coc = clamp((1.0 / fp - 1.0 / d) * fs, -1.0, 1.0);
 	return abs(coc);
@@ -892,6 +899,8 @@ void main() {
 const char* f_shader_src = R"(
 #version 150 core
 
+#define USE_HALF_RES_APPROX
+
 uniform sampler2D uHalfRes; // Half res color (rgb) and coc (a)
 uniform sampler2D uColor;   // Image to be processed 
 uniform sampler2D uDepth;   // Linear depth, where 1.0 == far plane 
@@ -901,7 +910,7 @@ uniform float uFocusPoint;
 uniform float uFocusScale;
 
 const float GOLDEN_ANGLE = 2.39996323; 
-const float MAX_BLUR_SIZE = 20.0; 
+const float MAX_BLUR_SIZE = 10.0; 
 const float RAD_SCALE = 1.0; // Smaller = nicer blur, larger = faster
 
 float getBlurSize(float depth, float focusPoint, float focusScale)
@@ -936,11 +945,13 @@ vec3 depthOfField(vec2 tex_coord, float focus_point, float focus_scale)
 		color_coc_sum     += mix(color_coc_sum / contrib_sum, sample_color_coc, smoothstep(radius-0.5, radius+0.5, sample_color_coc.a));
 		contrib_sum       += 1.0;
 		radius            += RAD_SCALE/radius;
-
-		//if (color_coc_sum.a / contrib_sum > 10.0) break;
+#ifdef USE_HALF_RES_APPROX
+		if (color_coc_sum.a / contrib_sum > 2.0) break;
+#endif
 	}
 
-#if 0
+#ifdef USE_HALF_RES_APPROX
+const float APPROX_RAD_SCALE = 2.0;
 	for (; radius < MAX_BLUR_SIZE; ang += GOLDEN_ANGLE) {
 		vec2 tc = tex_coord + vec2(cos(ang), sin(ang)) * uPixelSize * radius;
 		vec4  sample_color_coc = texture(uHalfRes, tc) * vec4(1, 1, 1, MAX_BLUR_SIZE);
@@ -952,7 +963,7 @@ vec3 depthOfField(vec2 tex_coord, float focus_point, float focus_scale)
 
 		color_coc_sum     += mix(color_coc_sum / contrib_sum, sample_color_coc, smoothstep(radius-0.5, radius+0.5, sample_color_coc.a));
 		contrib_sum       += 1.0;
-		radius            += RAD_SCALE/radius;
+		radius            += APPROX_RAD_SCALE/radius;
 	}
 #endif
 	return color_coc_sum.rgb /= contrib_sum;
@@ -1026,12 +1037,12 @@ void initialize(int width, int height) {
     }
 
     // LINEARIZE DEPTH
-    if (!gl.linearize_depth.program_persp) setup_program(&gl.linearize_depth.program_persp, "linearize depth persp", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 1");
-    if (!gl.linearize_depth.program_ortho) setup_program(&gl.linearize_depth.program_ortho, "linearize depth ortho", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 0");
+    if (!gl.linear_depth.program_persp) setup_program(&gl.linear_depth.program_persp, "linearize depth persp", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 1");
+    if (!gl.linear_depth.program_ortho) setup_program(&gl.linear_depth.program_ortho, "linearize depth ortho", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 0");
 
-    if (!gl.linearize_depth.texture) glGenTextures(1, &gl.linearize_depth.texture);
+    if (!gl.linear_depth.texture) glGenTextures(1, &gl.linear_depth.texture);
 
-    glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
+    glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -1039,10 +1050,10 @@ void initialize(int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    if (!gl.linearize_depth.fbo) {
-        glGenFramebuffers(1, &gl.linearize_depth.fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.linearize_depth.texture, 0);
+    if (!gl.linear_depth.fbo) {
+        glGenFramebuffers(1, &gl.linear_depth.fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.linear_depth.texture, 0);
         GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE) {
             LOG_ERROR("Something went wrong");
@@ -1050,8 +1061,8 @@ void initialize(int width, int height) {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     }
 
-    gl.linearize_depth.uniform_loc.clip_info = glGetUniformLocation(gl.linearize_depth.program_persp, "u_clip_info");
-    gl.linearize_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linearize_depth.program_persp, "u_tex_depth");
+    gl.linear_depth.uniform_loc.clip_info = glGetUniformLocation(gl.linear_depth.program_persp, "u_clip_info");
+    gl.linear_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linear_depth.program_persp, "u_tex_depth");
 
     // HALF RES
     if (!gl.half_res.program) {
@@ -1123,17 +1134,17 @@ void shutdown() {
 void linearize_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false) {
     const vec4 clip_info(near_plane * far_plane, near_plane - far_plane, far_plane, 0);
 
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
 
     if (orthographic)
-        glUseProgram(gl.linearize_depth.program_ortho);
+        glUseProgram(gl.linear_depth.program_ortho);
     else
-        glUseProgram(gl.linearize_depth.program_persp);
-    glUniform1i(gl.linearize_depth.uniform_loc.tex_depth, 0);
-    glUniform4fv(gl.linearize_depth.uniform_loc.clip_info, 1, &clip_info[0]);
+        glUseProgram(gl.linear_depth.program_persp);
+    glUniform1i(gl.linear_depth.uniform_loc.tex_depth, 0);
+    glUniform4fv(gl.linear_depth.uniform_loc.clip_info, 1, &clip_info[0]);
 
     // ASSUME THAT THE APPROPRIATE FS_QUAD VAO IS BOUND
     glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1162,13 +1173,21 @@ void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, fl
     glViewport(0, 0, ssao::tex_width, ssao::tex_height);
 
     // LINEARIZE_DEPTH
+    PUSH_GPU_SECTION("Linearize Depth");
     linearize_depth(depth_tex, n, f, is_orthographic_proj_matrix(proj_matrix));
 
+    PUSH_GPU_SECTION("Gen Mipmaps");
+    glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    POP_GPU_SECTION()
+    POP_GPU_SECTION()
+
     // RENDER HBAO
+    PUSH_GPU_SECTION("HBAO")
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_hbao);
     glUseProgram(ssao::prog_hbao);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
+    glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, normal_tex);
     glActiveTexture(GL_TEXTURE2);
@@ -1182,7 +1201,12 @@ void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, fl
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
+    POP_GPU_SECTION()
+
+    glViewport(0, 0, ssao::tex_width, ssao::tex_height);
+
     // BLUR FIRST
+    PUSH_GPU_SECTION("BLUR 1st")
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_blur);
     glUseProgram(ssao::prog_blur_first);
     glActiveTexture(GL_TEXTURE0);
@@ -1193,12 +1217,15 @@ void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, fl
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
+    POP_GPU_SECTION()
+
     // BLEND RESULTS WITH PREVIOUSLY BOUND FBO AND ITS COLOR TEXTURE
     glEnable(GL_BLEND);
     glBlendFunc(GL_ZERO, GL_SRC_COLOR);
     glColorMask(1, 1, 1, 0);
 
     // BLUR SECOND
+    PUSH_GPU_SECTION("BLUR 2nd")
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
     // glDrawBuffers(8, (GLenum*)draw_buffers);
     glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
@@ -1216,6 +1243,7 @@ void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, fl
     glColorMask(1, 1, 1, 1);
 
     glBindVertexArray(0);
+    POP_GPU_SECTION()
 }
 
 void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix) {
@@ -1303,13 +1331,13 @@ void apply_dof(GLuint depth_tex, GLuint color_tex, const mat4& proj_matrix, floa
 
     linearize_depth(depth_tex, n, f, ortho);
 
-    half_res_color_coc(gl.linearize_depth.texture, color_tex, focus_point, focus_scale);
+    half_res_color_coc(gl.linear_depth.texture, color_tex, focus_point, focus_scale);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl.half_res.tex.color_coc);
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
+    glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
 
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, color_tex);

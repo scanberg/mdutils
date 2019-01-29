@@ -81,7 +81,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
     int num_frames = 0;
     mat3 box(0);
     CString line;
-    while ((line = extract_line(pdb_string))) {
+    while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
 
@@ -126,8 +126,8 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
             if (current_chain_id != chain_id && chain_id != ' ') {
                 current_chain_id = chain_id;
                 Chain chain;
-                chain.res_idx.beg = (ResIdx)residues.size();
-                chain.res_idx.end = (ResIdx)residues.size();
+                chain.res_idx = {(ResIdx)residues.size(), (ResIdx)residues.size()};
+                chain.atom_idx = {num_atoms, num_atoms};
                 chain.id = chain_id;
                 chains.push_back(chain);
             }
@@ -145,7 +145,8 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
                     chains.back().res_idx.end++;
                 }
             }
-            residues.back().atom_idx.end++;
+            if (residues.size() > 0) residues.back().atom_idx.end++;
+            if (chains.size() > 0) chains.back().atom_idx.end++;
 
             residue_indices.push_back((ResIdx)(residues.size() - 1));
 
@@ -249,7 +250,7 @@ bool extract_pdb_info(PdbInfo* info, CString pdb_string) {
     }
 
     CString line;
-    while ((line = extract_line(mdl_block))) {
+    while (mdl_block && (line = extract_line(mdl_block))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             const uint32 res_pattern = *(uint32*)(&line[22]);
             const uint8 chain_pattern = line[21];

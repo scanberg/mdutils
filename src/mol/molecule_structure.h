@@ -67,6 +67,11 @@ struct Chain {
         ResIdx beg = 0;
         ResIdx end = 0;
     } res_idx;
+
+    struct {
+        AtomIdx beg = 0;
+        AtomIdx end = 0;
+    } atom_idx;
 };
 
 // Interface to access molecular data
@@ -174,37 +179,37 @@ inline AtomIdx get_atom_end_idx(const MoleculeStructure& mol, Chain chain) {
     return mol.residues[chain.res_idx.end - 1].atom_idx.end;
 }
 
-inline Array<vec3> get_positions(MoleculeStructure& mol, Chain chain) {
+inline Array<vec3> get_positions(MoleculeStructure& mol, Chain& chain) {
     const auto beg = get_atom_beg_idx(mol, chain);
     const auto end = get_atom_end_idx(mol, chain);
     return get_positions(mol).subarray(beg, end - beg);
 }
 
-inline Array<const vec3> get_positions(const MoleculeStructure& mol, Chain chain) {
+inline Array<const vec3> get_positions(const MoleculeStructure& mol, const Chain& chain) {
     const auto beg = get_atom_beg_idx(mol, chain);
     const auto end = get_atom_end_idx(mol, chain);
     return get_positions(mol).subarray(beg, end - beg);
 }
 
-inline Array<Element> get_elements(MoleculeStructure& mol, Chain chain) {
+inline Array<Element> get_elements(MoleculeStructure& mol, Chain& chain) {
     const auto beg = get_atom_beg_idx(mol, chain);
     const auto end = get_atom_end_idx(mol, chain);
     return get_elements(mol).subarray(beg, end - beg);
 }
 
-inline Array<const Element> get_elements(const MoleculeStructure& mol, Chain chain) {
+inline Array<const Element> get_elements(const MoleculeStructure& mol, const Chain& chain) {
     const auto beg = get_atom_beg_idx(mol, chain);
     const auto end = get_atom_end_idx(mol, chain);
     return get_elements(mol).subarray(beg, end - beg);
 }
 
-inline Array<Label> get_labels(MoleculeStructure& mol, Chain chain) {
+inline Array<Label> get_labels(MoleculeStructure& mol, Chain& chain) {
     const auto beg = get_atom_beg_idx(mol, chain);
     const auto end = get_atom_end_idx(mol, chain);
     return get_labels(mol).subarray(beg, end - beg);
 }
 
-inline Array<const Label> get_labels(const MoleculeStructure& mol, Chain chain) {
+inline Array<const Label> get_labels(const MoleculeStructure& mol, const Chain& chain) {
     const auto beg = get_atom_beg_idx(mol, chain);
     const auto end = get_atom_end_idx(mol, chain);
     return get_labels(mol).subarray(beg, end - beg);
