@@ -1,0 +1,25 @@
+#version 150 core
+
+uniform sampler2D u_tex_depth; // Linear depth
+uniform sampler2D u_tex_color;
+
+uniform float u_focus_point;
+uniform float u_focus_scale;
+
+const float MAX_BLUR_SIZE = 20.0; 
+
+float getBlurSize(float d, float fp, float fs) {
+	float coc = clamp((1.0 / fp - 1.0 / d) * fs, -1.0, 1.0);
+	return abs(coc);
+}
+
+in vec2 tc;
+out vec4 out_frag;
+
+void main() {
+	float depth = texture(u_tex_depth, tc).r;
+	vec3  color = texture(u_tex_color, tc).rgb;
+	float coc   = getBlurSize(depth, u_focus_point, u_focus_scale);
+
+	out_frag = vec4(color, coc);
+}

@@ -33,6 +33,14 @@
 #include <gfx/gl_utils.h>
 #include <stdio.h>
 
+#ifndef OS_MAC_OSX
+#define PUSH_GPU_SECTION(lbl) glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, GL_KHR_debug, -1, lbl);
+#define POP_GPU_SECTION() glPopDebugGroup();
+#else
+#define PUSH_GPU_SECTION(lbl) {};
+#define POP_GPU_SECTION() {};
+#endif
+
 namespace postprocessing {
 
 // @TODO: Use half-res render targets for SSAO
@@ -902,7 +910,7 @@ uniform float uFocusScale;
 
 const float GOLDEN_ANGLE = 2.39996323; 
 const float MAX_BLUR_SIZE = 20.0; 
-const float RAD_SCALE = 1.0; // Smaller = nicer blur, larger = faster
+const float RAD_SCALE = 2.0; // Smaller = nicer blur, larger = faster
 
 float getBlurSize(float depth, float focusPoint, float focusScale)
 {
@@ -926,6 +934,7 @@ vec3 depthOfField(vec2 tex_coord, float focus_point, float focus_scale)
 	{
 		vec2 tc = tex_coord + vec2(cos(ang), sin(ang)) * uPixelSize * radius;
 		float sample_depth = texture(uDepth, tc).r;
+		if (sample_depth == 1.0) continue;
 		vec3  sample_color = texture(uColor, tc).rgb;
 		float sample_coc   = getBlurSize(sample_depth, focus_point, focus_scale);
 		vec4 sample_color_coc = vec4(sample_color, sample_coc);
@@ -1033,8 +1042,8 @@ void initialize(int width, int height) {
 
     glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1054,15 +1063,17 @@ void initialize(int width, int height) {
     gl.linearize_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linearize_depth.program_persp, "u_tex_depth");
 
     // HALF RES
-    if (!gl.half_res.program) {
-        setup_program(&gl.half_res.program, "half-res", bokeh_dof::f_shader_half_res_src);
+	{
+        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof_half_res_prepass.frag");
+        defer { FREE(src); };
+        setup_program(&gl.half_res.program, "half-res", src);
         if (gl.half_res.program) {
             gl.half_res.uniform_loc.tex_depth = glGetUniformLocation(gl.half_res.program, "u_tex_depth");
             gl.half_res.uniform_loc.tex_color = glGetUniformLocation(gl.half_res.program, "u_tex_color");
             gl.half_res.uniform_loc.focus_point = glGetUniformLocation(gl.half_res.program, "u_focus_point");
             gl.half_res.uniform_loc.focus_scale = glGetUniformLocation(gl.half_res.program, "u_focus_scale");
         }
-    }
+	}
 
     if (!gl.half_res.tex.color_coc) {
         glGenTextures(1, &gl.half_res.tex.color_coc);
@@ -1087,8 +1098,10 @@ void initialize(int width, int height) {
     }
 
     // DOF
-    if (!gl.bokeh_dof.program) {
-        if (setup_program(&gl.bokeh_dof.program, "bokeh dof", bokeh_dof::f_shader_src)) {
+    {
+        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof.frag");
+        defer { FREE(src); };
+        if (setup_program(&gl.bokeh_dof.program, "bokeh dof", src)) {
             gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "uHalfRes");
             gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "uColor");
             gl.bokeh_dof.uniform_loc.tex_depth = glGetUniformLocation(gl.bokeh_dof.program, "uDepth");
@@ -1121,6 +1134,7 @@ void shutdown() {
 }
 
 void linearize_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false) {
+    PUSH_GPU_SECTION("Linearize Depth");
     const vec4 clip_info(near_plane * far_plane, near_plane - far_plane, far_plane, 0);
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
@@ -1137,6 +1151,7 @@ void linearize_depth(GLuint depth_tex, float near_plane, float far_plane, bool o
 
     // ASSUME THAT THE APPROPRIATE FS_QUAD VAO IS BOUND
     glDrawArrays(GL_TRIANGLES, 0, 3);
+    POP_GPU_SECTION();
 }
 
 void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias) {
@@ -1262,6 +1277,7 @@ void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer) {
 }
 
 void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_point, float focus_scale) {
+    PUSH_GPU_SECTION("DOF Prepass");
     GLint last_viewport[4];
     glGetIntegerv(GL_VIEWPORT, last_viewport);
     glViewport(0, 0, gl.tex_width / 2, gl.tex_height / 2);
@@ -1285,6 +1301,7 @@ void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_p
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
+    POP_GPU_SECTION();
 }
 
 void apply_dof(GLuint depth_tex, GLuint color_tex, const mat4& proj_matrix, float focus_point, float focus_scale) {
