@@ -16,6 +16,7 @@ static GLuint program = 0;
 static GLint uniform_loc_view_mat = -1;
 static GLint uniform_loc_proj_mat = -1;
 static GLint uniform_loc_inv_proj_mat = -1;
+static GLint uniform_loc_curr_view_to_prev_clip_mat = -1;
 static GLint uniform_loc_radius_scale = -1;
 
 static void initialize() {
@@ -36,6 +37,7 @@ static void initialize() {
     uniform_loc_proj_mat = glGetUniformLocation(program, "u_proj_mat");
     uniform_loc_inv_proj_mat = glGetUniformLocation(program, "u_inv_proj_mat");
     uniform_loc_radius_scale = glGetUniformLocation(program, "u_radius_scale");
+	uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
 }
 
 static void shutdown() {
@@ -249,25 +251,39 @@ void shutdown() {
     backbone_spline::shutdown();
 }
 
-void draw_vdw(GLuint atom_position_radius_buffer, GLuint atom_color_buffer, int32 atom_count, const mat4& view_mat, const mat4& proj_mat, float radius_scale) {
-    mat4 inv_proj_mat = math::inverse(proj_mat);
+void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_color_buffer, GLuint atom_velocity_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale) {
+	ASSERT(glIsBuffer(atom_position_buffer));
+	ASSERT(glIsBuffer(atom_radius_buffer));
+	ASSERT(glIsBuffer(atom_color_buffer));
+	ASSERT(glIsBuffer(atom_velocity_buffer));
 
     glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, atom_position_radius_buffer);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(vec4), (const GLvoid*)0);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AtomPosition), (const GLvoid*)0);
     glEnableVertexAttribArray(0);
 
+	glBindBuffer(GL_ARRAY_BUFFER, atom_radius_buffer);
+	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(AtomRadius), (const GLvoid*)0);
+	glEnableVertexAttribArray(1);
+
     glBindBuffer(GL_ARRAY_BUFFER, atom_color_buffer);
-    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(uint32), (const GLvoid*)0);
-    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(AtomColor), (const GLvoid*)0);
+    glEnableVertexAttribArray(2);
+
+	glBindBuffer(GL_ARRAY_BUFFER, atom_velocity_buffer);
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
+	glEnableVertexAttribArray(3);
 
     glUseProgram(vdw::program);
 
+	mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
+
     // Uniforms
     glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
-    glUniformMatrix4fv(vdw::uniform_loc_view_mat, 1, GL_FALSE, &view_mat[0][0]);
-    glUniformMatrix4fv(vdw::uniform_loc_proj_mat, 1, GL_FALSE, &proj_mat[0][0]);
-    glUniformMatrix4fv(vdw::uniform_loc_inv_proj_mat, 1, GL_FALSE, &inv_proj_mat[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_proj_mat, 1, GL_FALSE, &view_param.matrix.proj[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_inv_proj_mat, 1, GL_FALSE, &view_param.matrix.inverse.proj[0][0]);
+	glUniformMatrix4fv(vdw::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
 
     glDrawArrays(GL_POINTS, 0, atom_count);
 
@@ -277,24 +293,24 @@ void draw_vdw(GLuint atom_position_radius_buffer, GLuint atom_color_buffer, int3
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void draw_licorice(GLuint atom_position_buffer, GLuint atom_color_buffer, GLuint bond_buffer, int32 bond_count, const mat4& view_mat, const mat4& proj_mat, float radius_scale) {
+void draw_licorice(GLuint atom_position_buffer, GLuint atom_color_buffer, GLuint bond_buffer, int32 bond_count, const ViewParam& view_param, float radius_scale) {
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec4), (const GLvoid*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AtomPosition), (const GLvoid*)0);
 
     glBindBuffer(GL_ARRAY_BUFFER, atom_color_buffer);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(unsigned int), (const GLvoid*)0);
+    glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(AtomColor), (const GLvoid*)0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bond_buffer);
 
     glUseProgram(licorice::program);
-    glUniformMatrix4fv(licorice::uniform_loc_view_mat, 1, GL_FALSE, &view_mat[0][0]);
-    glUniformMatrix4fv(licorice::uniform_loc_proj_mat, 1, GL_FALSE, &proj_mat[0][0]);
+    glUniformMatrix4fv(licorice::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
+    glUniformMatrix4fv(licorice::uniform_loc_proj_mat, 1, GL_FALSE, &view_param.matrix.proj[0][0]);
     glUniform1f(licorice::uniform_loc_radius, 0.25f * radius_scale);
 
-    glDrawElements(GL_LINES, bond_count * 2, GL_UNSIGNED_INT, (const void*)0);
+    glDrawElements(GL_LINES, bond_count * 2, GL_UNSIGNED_INT, 0);
     glUseProgram(0);
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -307,7 +323,7 @@ void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buf
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec4), (const GLvoid*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AtomPosition), (const GLvoid*)0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backbone_index_buffer);
 
@@ -361,7 +377,7 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
     glDisable(GL_RASTERIZER_DISCARD);
 }
 
-void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const mat4& view_proj_mat, uint32 s_color, uint32 v_color, uint32 t_color) {
+void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const ViewParam& view_param, uint32 s_color, uint32 v_color, uint32 t_color) {
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(0xFFFFFFFFU);
 
@@ -377,7 +393,7 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
 
     glUseProgram(backbone_spline::draw_spline_program);
-    glUniformMatrix4fv(backbone_spline::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
+    glUniformMatrix4fv(backbone_spline::uniform_loc_view_proj_mat, 1, GL_FALSE, &(view_param.matrix.view_proj)[0][0]);
     glUniform4fv(backbone_spline::uniform_loc_s_color, 1, &math::convert_color(s_color)[0]);
     glUniform4fv(backbone_spline::uniform_loc_v_color, 1, &math::convert_color(v_color)[0]);
     glUniform4fv(backbone_spline::uniform_loc_t_color, 1, &math::convert_color(t_color)[0]);
@@ -387,10 +403,7 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
     glDisable(GL_PRIMITIVE_RESTART);
 }
 
-void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const mat4& view_mat, const mat4& proj_mat) {
-    mat4 view_proj_mat = proj_mat * view_mat;
-    mat4 normal_mat = math::inverse(math::transpose(view_mat));
-
+void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const ViewParam& view_param) {
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(0xFFFFFFFFU);
 
@@ -411,18 +424,15 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
     glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA8, atom_color_buffer);
 
     glUseProgram(ribbon::program);
-    glUniformMatrix4fv(ribbon::uniform_loc_normal_mat, 1, GL_FALSE, &normal_mat[0][0]);
-    glUniformMatrix4fv(ribbon::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
+    glUniformMatrix4fv(ribbon::uniform_loc_normal_mat, 1, GL_FALSE, &view_param.matrix.norm[0][0]);
+    glUniformMatrix4fv(ribbon::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_param.matrix.view_proj[0][0]);
     glDrawElements(GL_LINE_STRIP, num_spline_indices, GL_UNSIGNED_INT, 0);
     glUseProgram(0);
 
     glDisable(GL_PRIMITIVE_RESTART);
 }
 
-void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const mat4& view_mat, const mat4& proj_mat) {
-    mat4 view_proj_mat = proj_mat * view_mat;
-    mat4 normal_mat = math::inverse(math::transpose(view_mat));
-
+void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const ViewParam& view_param) {
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(0xFFFFFFFFU);
 
@@ -447,8 +457,8 @@ void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
 
     glUseProgram(cartoon::program);
     glUniform1i(cartoon::uniform_loc_atom_color_tex, 0);
-    glUniformMatrix4fv(cartoon::uniform_loc_normal_mat, 1, GL_FALSE, &normal_mat[0][0]);
-    glUniformMatrix4fv(cartoon::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_proj_mat[0][0]);
+    glUniformMatrix4fv(cartoon::uniform_loc_normal_mat, 1, GL_FALSE, &view_param.matrix.norm[0][0]);
+    glUniformMatrix4fv(cartoon::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_param.matrix.view_proj[0][0]);
     glDrawElements(GL_LINE_STRIP, num_spline_indices, GL_UNSIGNED_INT, 0);
     glUseProgram(0);
 

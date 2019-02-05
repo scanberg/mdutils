@@ -81,7 +81,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
     int num_frames = 0;
     mat3 box(0);
     CString line;
-    while ((line = extract_line(pdb_string))) {
+    while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
 
@@ -126,8 +126,8 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
             if (current_chain_id != chain_id && chain_id != ' ') {
                 current_chain_id = chain_id;
                 Chain chain;
-                chain.res_idx.beg = (ResIdx)residues.size();
-                chain.res_idx.end = (ResIdx)residues.size();
+                chain.res_idx = {(ResIdx)residues.size(), (ResIdx)residues.size()};
+                chain.atom_idx = {num_atoms, num_atoms};
                 chain.id = chain_id;
                 chains.push_back(chain);
             }
@@ -145,7 +145,8 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
                     chains.back().res_idx.end++;
                 }
             }
-            residues.back().atom_idx.end++;
+            if (residues.size() > 0) residues.back().atom_idx.end++;
+            if (chains.size() > 0) chains.back().atom_idx.end++;
 
             residue_indices.push_back((ResIdx)(residues.size() - 1));
 
@@ -210,6 +211,70 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
             md->trajectory.frame_buffer[i] = {index, time, box, atom_positions};
         }
     }
+
+    return true;
+}
+
+inline CString extract_next_model(CString& pdb_string) {
+    CString beg_mdl = find_string(pdb_string, "\nMODEL ");
+    if (beg_mdl) {
+        pdb_string.count = pdb_string.end() - beg_mdl.end();
+        pdb_string.ptr = beg_mdl.end();
+
+        CString end_mdl = find_string(pdb_string, "\nENDMDL");
+        if (end_mdl) {
+            pdb_string.count = pdb_string.end() - end_mdl.end();
+            pdb_string.ptr = end_mdl.end();
+            return {beg_mdl.beg(), end_mdl.end()};
+        }
+    }
+
+    return {};
+}
+
+bool extract_pdb_info(PdbInfo* info, CString pdb_string) {
+
+    int32 num_atoms = 0;
+    int32 num_residues = 0;
+    int32 num_chains = 0;
+    int32 num_frames = 0;
+
+    uint32 curr_res_pattern = 0;
+    uint8 curr_chain_pattern = 0;
+
+    CString mdl_block = extract_next_model(pdb_string);
+    if (mdl_block) {
+        num_frames++;
+    } else {
+        mdl_block = pdb_string;
+    }
+
+    CString line;
+    while (mdl_block && (line = extract_line(mdl_block))) {
+        if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
+            const uint32 res_pattern = *(uint32*)(&line[22]);
+            const uint8 chain_pattern = line[21];
+
+            num_atoms++;
+            if (res_pattern != curr_res_pattern) {
+                num_residues++;
+                curr_res_pattern = res_pattern;
+            }
+            if (chain_pattern != curr_chain_pattern) {
+                num_chains++;
+                curr_chain_pattern = chain_pattern;
+            }
+        }
+    }
+
+    while ((mdl_block = extract_next_model(pdb_string))) {
+        num_frames++;
+    }
+
+    info->num_atoms = num_atoms;
+    info->num_residues = num_residues;
+    info->num_chains = num_chains;
+    info->num_frames = num_frames;
 
     return true;
 }

@@ -33,13 +33,17 @@
 #include <gfx/gl_utils.h>
 #include <stdio.h>
 
-#ifndef OS_MAC_OSX
-#define PUSH_GPU_SECTION(lbl) glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, GL_KHR_debug, -1, lbl);
-#define POP_GPU_SECTION() glPopDebugGroup();
-#else
-#define PUSH_GPU_SECTION(lbl) {};
-#define POP_GPU_SECTION() {};
-#endif
+#define PUSH_GPU_SECTION(lbl)                                                                       \
+    {                                                                                               \
+        if (glPushDebugGroup) glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, GL_KHR_debug, -1, lbl); \
+    }
+#define POP_GPU_SECTION()                       \
+    {                                           \
+        if (glPopDebugGroup) glPopDebugGroup(); \
+    }
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
 
 namespace postprocessing {
 
@@ -53,6 +57,21 @@ static struct {
     GLuint v_shader_fs_quad = 0;
     GLuint tex_width = 0;
     GLuint tex_height = 0;
+
+	struct {
+		GLuint fbo = 0;
+		GLuint tex_color = 0;
+		GLuint tex_final = 0;
+		GLuint tex_temporal_buffer[2] = { 0,0 };	// These are dedicated and cannot be use as intermediate buffers by other shaders
+	} targets;
+
+	struct {
+		GLuint fbo = 0;
+		GLuint tex_tilemax = 0;
+		GLuint tex_neighbormax = 0;
+		int32 tex_width = 0;
+		int32 tex_height = 0;
+	} velocity;
 
     struct {
         GLuint fbo = 0;
@@ -77,7 +96,7 @@ static struct {
             GLint clip_info = -1;
             GLint tex_depth = -1;
         } uniform_loc;
-    } linearize_depth;
+    } linear_depth;
 
     struct {
         GLuint tex_random = 0;
@@ -133,6 +152,26 @@ static struct {
         } uniform_loc;
     } tonemapping;
 
+	struct {
+		GLuint program = 0;
+		struct {
+			GLint tex_linear_depth = -1;
+			GLint tex_main = -1;
+			GLint tex_prev = -1;
+			GLint tex_vel = -1;
+			GLint tex_vel_neighbormax = -1;
+
+			GLint texel_size = -1;
+
+			GLint sin_time = -1;
+			GLint feedback_min = -1;
+			GLint feedback_max = -1;
+			GLint motion_scale = -1;
+
+			GLint jitter_uv = -1;
+		} uniform_loc;
+	} temporal;
+
 } gl;
 
 static const char* v_shader_src_fs_quad = R"(
@@ -161,9 +200,9 @@ uniform sampler2D u_tex_depth;
 
 float ReconstructCSZ(float d, vec4 clip_info) {
 #ifdef PERSPECTIVE
-    return (clip_info[0] / (clip_info[1] * d + clip_info[2]));
+    return (clip_info[0] / (d*clip_info[1] + clip_info[2]));
 #else
-    return (clipInfo[1]+clipInfo[2] - d * clipInfo[1]);
+    return (clip_info[1] + clip_info[2] - d*clip_info[1]);
 #endif
 }
 
@@ -196,8 +235,6 @@ static bool setup_program(GLuint* program, const char* name, const char* f_shade
 
     if (!*program) {
         *program = glCreateProgram();
-    } else {
-        // TODO: DETATCH ANY SHADERS?
     }
 
     glAttachShader(*program, gl.v_shader_fs_quad);
@@ -256,7 +293,8 @@ static GLint uniform_loc_hbao_tex_random = -1;
 
 static GLint uniform_loc_blur_sharpness = -1;
 static GLint uniform_loc_blur_inv_res_dir = -1;
-static GLint uniform_loc_blur_texture = -1;
+static GLint uniform_loc_blur_tex_ao = -1;
+static GLint uniform_loc_blur_tex_linear_depth = -1;
 
 static GLuint ubo_hbao_data = 0;
 
@@ -280,7 +318,7 @@ struct HBAOData {
 
     vec2 proj_scale;
     int proj_ortho;
-    unsigned frame;
+    float rnd;
 };
 
 static const char* f_shader_src_hbao = R"(
@@ -325,7 +363,7 @@ struct HBAOData {
 
   vec2    proj_scale;
   int     proj_ortho;
-  uint    frame;
+  float   rnd;
   
   //vec4    offsets[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
   //vec4    jitters[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
@@ -356,8 +394,8 @@ vec3 UVToView(vec2 uv, float eye_z) {
   return vec3((uv * control.proj_info.xy + control.proj_info.zw) * (control.proj_ortho != 0 ? 1. : eye_z), eye_z);
 }
 
-vec3 FetchViewPos(vec2 uv) {
-  float ViewDepth = textureLod(u_tex_linear_depth, uv, 0).x;
+vec3 FetchViewPos(vec2 uv, float lod) {
+  float ViewDepth = textureLod(u_tex_linear_depth, uv, lod).x;
   return UVToView(uv, ViewDepth);
 }
 
@@ -365,14 +403,6 @@ vec3 MinDiff(vec3 P, vec3 Pr, vec3 Pl) {
   vec3 V1 = Pr - P;
   vec3 V2 = P - Pl;
   return (dot(V1,V1) < dot(V2,V2)) ? V1 : V2;
-}
-
-vec3 ReconstructNormal(vec2 UV, vec3 P) {
-  vec3 Pr = FetchViewPos(UV + vec2(control.inv_full_res.x, 0));
-  vec3 Pl = FetchViewPos(UV + vec2(-control.inv_full_res.x, 0));
-  vec3 Pt = FetchViewPos(UV + vec2(0, control.inv_full_res.y));
-  vec3 Pb = FetchViewPos(UV + vec2(0, -control.inv_full_res.y));
-  return normalize(cross(MinDiff(P, Pr, Pl), MinDiff(P, Pt, Pb)));
 }
 
 vec3 DecodeNormal(vec2 enc) {
@@ -444,11 +474,12 @@ float ComputeCoarseAO(vec2 FullResUV, float RadiusPixels, vec4 Rand, vec3 ViewPo
     for (float StepIndex = 0; StepIndex < NUM_STEPS; ++StepIndex)
     {
       vec2 SnappedUV = round(RayPixels * Direction) * control.inv_full_res + FullResUV;
-      vec3 S = FetchViewPos(SnappedUV);
+      vec3 S = FetchViewPos(SnappedUV, StepIndex);
+	  vec3 N = ViewNormal;
 
       RayPixels += StepSizePixels;
 
-      AO += ComputeAO(ViewPosition, ViewNormal, S);
+      AO += ComputeAO(ViewPosition, N, S);
     }
   }
 
@@ -460,7 +491,7 @@ float ComputeCoarseAO(vec2 FullResUV, float RadiusPixels, vec4 Rand, vec3 ViewPo
 //----------------------------------------------------------------------------------
 void main() {
   vec2 uv = tc;
-  vec3 ViewPosition = FetchViewPos(uv);
+  vec3 ViewPosition = FetchViewPos(uv, 0);
 
   // Reconstruct view-space normal from nearest neighbors
 #if AO_USE_NORMAL
@@ -488,11 +519,12 @@ void main() {
 static const char* f_shader_src_hbao_blur = R"(
 #pragma optionNV(unroll all)
 
-const float KERNEL_RADIUS = 3;
+const float KERNEL_RADIUS = 5;
   
 uniform float u_sharpness;
 uniform vec2  u_inv_res_dir; // either set x to 1/width or y to 1/height
-uniform sampler2D u_texture;
+uniform sampler2D u_tex_ao;
+uniform sampler2D u_tex_linear_depth;
 
 in vec2 tc;
 out vec4 out_frag;
@@ -505,9 +537,8 @@ out vec4 out_frag;
 
 float BlurFunction(vec2 uv, float r, float center_c, float center_d, inout float w_total)
 {
-  vec2  aoz = texture( u_texture, uv ).xy;
-  float c = aoz.x;
-  float d = aoz.y;
+  float c = texture(u_tex_ao, uv).x;
+  float d = texture(u_tex_linear_depth, uv).x;
   
   const float BlurSigma = float(KERNEL_RADIUS) * 0.5;
   const float BlurFalloff = 1.0 / (2.0*BlurSigma*BlurSigma);
@@ -521,9 +552,8 @@ float BlurFunction(vec2 uv, float r, float center_c, float center_d, inout float
 
 void main()
 {
-  vec2  aoz = texture( u_texture, tc ).xy;
-  float center_c = aoz.x;
-  float center_d = aoz.y;
+  float center_c = texture(u_tex_ao, tc).x;
+  float center_d = texture(u_tex_linear_depth, tc).x;
   
   float c_total = center_c;
   float w_total = 1.0;
@@ -552,7 +582,14 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     ASSERT(ubo);
     constexpr float METERS_TO_VIEWSPACE = 1.f;
     const float* proj_data = &proj_mat[0][0];
-    static uint32 frame_number = 0;
+
+    static float rnd_data[16] = {0};
+    static int idx = 0;
+    if (rnd_data[0] == 0.f) {
+        math::generate_halton_sequence(rnd_data, 16, 2);
+    }
+    idx = (idx + 1) % 16;
+    float rnd = rnd_data[idx];
 
     bool is_ortho = is_orthographic_proj_matrix(proj_mat);
 
@@ -595,7 +632,7 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     // @NOTE: Is one needed?
     data.proj_scale = vec2(proj_scl);
     data.proj_ortho = is_ortho ? 1 : 0;
-    data.frame = frame_number++;
+    data.rnd = rnd;
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(HBAOData), &data, GL_DYNAMIC_DRAW);
@@ -676,11 +713,13 @@ void initialize(int width, int height) {
 
     uniform_loc_blur_sharpness = glGetUniformLocation(prog_blur_second, "u_sharpness");
     uniform_loc_blur_inv_res_dir = glGetUniformLocation(prog_blur_second, "u_inv_res_dir");
-    uniform_loc_blur_texture = glGetUniformLocation(prog_blur_second, "u_texture");
+    uniform_loc_blur_tex_ao = glGetUniformLocation(prog_blur_second, "u_tex_ao");
+	uniform_loc_blur_tex_linear_depth = glGetUniformLocation(prog_blur_second, "u_tex_linear_depth");
 
     ASSERT(uniform_loc_blur_sharpness != -1);
     ASSERT(uniform_loc_blur_inv_res_dir != -1);
-    ASSERT(uniform_loc_blur_texture != -1);
+    ASSERT(uniform_loc_blur_tex_ao != -1);
+	ASSERT(uniform_loc_blur_tex_linear_depth != -1);
 
     if (!fbo_hbao) glGenFramebuffers(1, &fbo_hbao);
     if (!fbo_blur) glGenFramebuffers(1, &fbo_blur);
@@ -692,16 +731,16 @@ void initialize(int width, int height) {
     initialize_rnd_tex(tex_random, AO_DIRS);
 
     glBindTexture(GL_TEXTURE_2D, tex_hbao);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glBindTexture(GL_TEXTURE_2D, tex_blur);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, width, height, 0, GL_RG, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -866,125 +905,6 @@ void shutdown() {
 
 }  // namespace tonemapping
 
-namespace bokeh_dof {
-
-const char* f_shader_half_res_src = R"(
-#version 150 core
-
-uniform sampler2D u_tex_depth; // Linear depth
-uniform sampler2D u_tex_color;
-
-uniform float u_focus_point;
-uniform float u_focus_scale;
-
-const float MAX_BLUR_SIZE = 20.0; 
-
-float getBlurSize(float d, float fp, float fs) {
-	float coc = clamp((1.0 / fp - 1.0 / d) * fs, -1.0, 1.0);
-	return abs(coc);
-}
-
-in vec2 tc;
-out vec4 out_frag;
-
-void main() {
-	float depth = texture(u_tex_depth, tc).r;
-	vec3  color = texture(u_tex_color, tc).rgb;
-	float coc   = getBlurSize(depth, u_focus_point, u_focus_scale);
-
-	out_frag = vec4(color, coc);
-}
-)";
-
-// From http://blog.tuxedolabs.com/2018/05/04/bokeh-depth-of-field-in-single-pass.html
-const char* f_shader_src = R"(
-#version 150 core
-
-uniform sampler2D uHalfRes; // Half res color (rgb) and coc (a)
-uniform sampler2D uColor;   // Image to be processed 
-uniform sampler2D uDepth;   // Linear depth, where 1.0 == far plane 
-
-uniform vec2 uPixelSize;    // The size of a pixel: vec2(1.0/width, 1.0/height) 
-uniform float uFocusPoint; 
-uniform float uFocusScale;
-
-const float GOLDEN_ANGLE = 2.39996323; 
-const float MAX_BLUR_SIZE = 20.0; 
-const float RAD_SCALE = 2.0; // Smaller = nicer blur, larger = faster
-
-float getBlurSize(float depth, float focusPoint, float focusScale)
-{
-	float coc = clamp((1.0 / focusPoint - 1.0 / depth)*focusScale, -1.0, 1.0);
-	return abs(coc) * MAX_BLUR_SIZE;
-}
-
-vec3 depthOfField(vec2 tex_coord, float focus_point, float focus_scale)
-{
-	float center_depth  = texture(uDepth, tex_coord).r;
-	vec3  center_color  = texture(uColor, tex_coord).rgb;
-	float center_coc    = getBlurSize(center_depth, focus_point, focus_scale);
-	vec4  color_coc_sum = vec4(center_color, center_coc);
-
-	float contrib_sum   = 1.0;
-	float radius        = RAD_SCALE;
-	int	  offset_idx    = 0;
-	float ang           = 0.0;
-
-	for (; radius < MAX_BLUR_SIZE; ang += GOLDEN_ANGLE)
-	{
-		vec2 tc = tex_coord + vec2(cos(ang), sin(ang)) * uPixelSize * radius;
-		float sample_depth = texture(uDepth, tc).r;
-		if (sample_depth == 1.0) continue;
-		vec3  sample_color = texture(uColor, tc).rgb;
-		float sample_coc   = getBlurSize(sample_depth, focus_point, focus_scale);
-		vec4 sample_color_coc = vec4(sample_color, sample_coc);
-
-		if (sample_depth > center_depth)
-			sample_coc = clamp(sample_coc, 0.0, center_coc*2.0);
-
-		color_coc_sum     += mix(color_coc_sum / contrib_sum, sample_color_coc, smoothstep(radius-0.5, radius+0.5, sample_color_coc.a));
-		contrib_sum       += 1.0;
-		radius            += RAD_SCALE/radius;
-
-		//if (color_coc_sum.a / contrib_sum > 10.0) break;
-	}
-
-#if 0
-	for (; radius < MAX_BLUR_SIZE; ang += GOLDEN_ANGLE) {
-		vec2 tc = tex_coord + vec2(cos(ang), sin(ang)) * uPixelSize * radius;
-		vec4  sample_color_coc = texture(uHalfRes, tc) * vec4(1, 1, 1, MAX_BLUR_SIZE);
-		
-/*
-		float sample_depth = texture(uDepth, tc).r;
-		if (sample_depth > center_depth) sample_color_coc.a = clamp(sample_color_coc.a, 0.0, center_coc*2.0);
-*/
-
-		color_coc_sum     += mix(color_coc_sum / contrib_sum, sample_color_coc, smoothstep(radius-0.5, radius+0.5, sample_color_coc.a));
-		contrib_sum       += 1.0;
-		radius            += RAD_SCALE/radius;
-	}
-#endif
-	return color_coc_sum.rgb /= contrib_sum;
-}
-
-in vec2 tc;
-out vec4 out_frag;
-
-void main() {
-	const float focus_point = 0.5;
-	const float focus_scale = 0.5;
-
-	vec3 dof = depthOfField(tc, uFocusPoint, uFocusScale);
-
-	out_frag = vec4(dof, 1);
-}
-
-)";
-
-}  // namespace bokeh_dof
-
-namespace fxaa {}
-
 namespace blit {
 static GLuint program = 0;
 static GLint uniform_loc_texture = -1;
@@ -1011,6 +931,87 @@ void shutdown() {
 }
 }  // namespace blit
 
+namespace velocity {
+#define VEL_TILE_SIZE 20
+
+	struct {
+		GLuint program = 0;
+		struct {
+			GLint curr_clip_to_prev_clip_mat = -1;
+		} uniform_loc;
+	} blit_velocity;
+
+	struct {
+		GLuint program = 0;
+		struct {
+			GLint tex_vel;
+			GLint tex_vel_texel_size;
+		} uniform_loc;
+	} blit_tilemax;
+
+	struct {
+		GLuint program = 0;
+		struct {
+			GLint tex_vel;
+			GLint tex_vel_texel_size;
+		} uniform_loc;
+	} blit_neighbormax;
+
+	void initialize() {
+		{
+			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_velocity.frag");
+			defer{ free_string(&f_shader_src); };
+			setup_program(&blit_velocity.program, "screen-space velocity", f_shader_src);
+			blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat = glGetUniformLocation(blit_velocity.program, "u_curr_clip_to_prev_clip_mat");
+		}
+		{
+			//const char* defines = { "#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE) };
+			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_tilemax.frag");
+			defer{ free_string(&f_shader_src); };
+			setup_program(&blit_tilemax.program, "tilemax", f_shader_src);
+			blit_tilemax.uniform_loc.tex_vel = glGetUniformLocation(blit_tilemax.program, "u_tex_vel");
+			blit_tilemax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_tilemax.program, "u_tex_vel_texel_size");
+		}
+		{
+			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_neighbormax.frag");
+			defer{ free_string(&f_shader_src); };
+			setup_program(&blit_neighbormax.program, "neighbormax", f_shader_src);
+			blit_neighbormax.uniform_loc.tex_vel = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel");
+			blit_neighbormax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel_texel_size");
+		}
+	}
+
+	void shutdown() {
+		if (blit_velocity.program) glDeleteProgram(blit_velocity.program);
+	}
+}
+
+namespace temporal {
+void initialize() {
+	{
+		String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/temporal.frag");
+		defer{ free_string(&f_shader_src); };
+		setup_program(&gl.temporal.program, "temporal aa + motion-blur", f_shader_src);
+
+		gl.temporal.uniform_loc.tex_linear_depth = glGetUniformLocation(gl.temporal.program, "u_tex_linear_depth");
+		gl.temporal.uniform_loc.tex_main = glGetUniformLocation(gl.temporal.program, "u_tex_main");
+		gl.temporal.uniform_loc.tex_prev = glGetUniformLocation(gl.temporal.program, "u_tex_prev");
+		gl.temporal.uniform_loc.tex_vel = glGetUniformLocation(gl.temporal.program, "u_tex_vel");
+		gl.temporal.uniform_loc.tex_vel_neighbormax = glGetUniformLocation(gl.temporal.program, "u_tex_vel_neighbormax");
+		gl.temporal.uniform_loc.texel_size = glGetUniformLocation(gl.temporal.program, "u_texel_size");
+		gl.temporal.uniform_loc.jitter_uv = glGetUniformLocation(gl.temporal.program, "u_jitter_uv");
+		gl.temporal.uniform_loc.sin_time = glGetUniformLocation(gl.temporal.program, "u_sin_time");
+		gl.temporal.uniform_loc.feedback_min = glGetUniformLocation(gl.temporal.program, "u_feedback_min");
+		gl.temporal.uniform_loc.feedback_max = glGetUniformLocation(gl.temporal.program, "u_feedback_max");
+		gl.temporal.uniform_loc.motion_scale = glGetUniformLocation(gl.temporal.program, "u_motion_scale");
+	}
+}
+
+void shutdown() {
+
+}
+};
+
 void initialize(int width, int height) {
     constexpr int BUFFER_SIZE = 1024;
     char buffer[BUFFER_SIZE];
@@ -1035,23 +1036,22 @@ void initialize(int width, int height) {
     }
 
     // LINEARIZE DEPTH
-    if (!gl.linearize_depth.program_persp) setup_program(&gl.linearize_depth.program_persp, "linearize depth persp", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 1");
-    if (!gl.linearize_depth.program_ortho) setup_program(&gl.linearize_depth.program_ortho, "linearize depth ortho", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 0");
+    if (!gl.linear_depth.program_persp) setup_program(&gl.linear_depth.program_persp, "linearize depth persp", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 1");
+    if (!gl.linear_depth.program_ortho) setup_program(&gl.linear_depth.program_ortho, "linearize depth ortho", f_shader_src_linearize_depth, "#version 150 core\n#define PERSPECTIVE 0");
 
-    if (!gl.linearize_depth.texture) glGenTextures(1, &gl.linearize_depth.texture);
-
-    glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
+    if (!gl.linear_depth.texture) glGenTextures(1, &gl.linear_depth.texture);
+    glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    if (!gl.linearize_depth.fbo) {
-        glGenFramebuffers(1, &gl.linearize_depth.fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.linearize_depth.texture, 0);
+    if (!gl.linear_depth.fbo) {
+        glGenFramebuffers(1, &gl.linear_depth.fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.linear_depth.texture, 0);
         GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE) {
             LOG_ERROR("Something went wrong");
@@ -1059,14 +1059,63 @@ void initialize(int width, int height) {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     }
 
-    gl.linearize_depth.uniform_loc.clip_info = glGetUniformLocation(gl.linearize_depth.program_persp, "u_clip_info");
-    gl.linearize_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linearize_depth.program_persp, "u_tex_depth");
+    gl.linear_depth.uniform_loc.clip_info = glGetUniformLocation(gl.linear_depth.program_persp, "u_clip_info");
+    gl.linear_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linear_depth.program_persp, "u_tex_depth");
+
+	// COLOR
+	if (!gl.targets.tex_color) glGenTextures(1, &gl.targets.tex_color);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	if (!gl.targets.tex_final) glGenTextures(1, &gl.targets.tex_final);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_final);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	if (!gl.targets.tex_temporal_buffer[0]) glGenTextures(2, gl.targets.tex_temporal_buffer);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	if (!gl.targets.fbo) {
+		glGenFramebuffers(1, &gl.targets.fbo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.targets.tex_color, 0);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.targets.tex_final, 0);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0], 0);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0], 0);
+
+		GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE) {
+			LOG_ERROR("Something went wrong");
+		}
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
 
     // HALF RES
 	{
         String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof_half_res_prepass.frag");
         defer { FREE(src); };
-        setup_program(&gl.half_res.program, "half-res", src);
+        setup_program(&gl.half_res.program, "dof pre-pass", src);
         if (gl.half_res.program) {
             gl.half_res.uniform_loc.tex_depth = glGetUniformLocation(gl.half_res.program, "u_tex_depth");
             gl.half_res.uniform_loc.tex_color = glGetUniformLocation(gl.half_res.program, "u_tex_color");
@@ -1111,6 +1160,50 @@ void initialize(int width, int height) {
         }
     }
 
+	// Velocity
+	{
+		if (!gl.velocity.tex_tilemax) {
+			glGenTextures(1, &gl.velocity.tex_tilemax);
+		}
+
+		if (!gl.velocity.tex_neighbormax) {
+			glGenTextures(1, &gl.velocity.tex_neighbormax);
+		}
+
+		gl.velocity.tex_width = width / VEL_TILE_SIZE;
+		gl.velocity.tex_height = height / VEL_TILE_SIZE;
+
+		glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_tilemax);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_neighbormax);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		if (!gl.velocity.fbo) {
+			glGenFramebuffers(1, &gl.velocity.fbo);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
+			glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.velocity.tex_tilemax, 0);
+			glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.velocity.tex_neighbormax, 0);
+			GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+			if (status != GL_FRAMEBUFFER_COMPLETE) {
+				LOG_ERROR("Something went wrong");
+			}
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		}
+
+
+	}
+
     gl.tex_width = width;
     gl.tex_height = height;
 
@@ -1118,6 +1211,8 @@ void initialize(int width, int height) {
     deferred::initialize();
     highlight::initialize();
     tonemapping::initialize();
+	velocity::initialize();
+	temporal::initialize();
     blit::initialize();
 }
 
@@ -1126,6 +1221,8 @@ void shutdown() {
     deferred::shutdown();
     highlight::shutdown();
     tonemapping::shutdown();
+	velocity::shutdown();
+	temporal::shutdown();
     blit::shutdown();
 
     if (gl.vao) glDeleteVertexArrays(1, &gl.vao);
@@ -1133,57 +1230,51 @@ void shutdown() {
     if (gl.v_shader_fs_quad) glDeleteShader(gl.v_shader_fs_quad);
 }
 
-void linearize_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false) {
+void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false) {
     PUSH_GPU_SECTION("Linearize Depth");
     const vec4 clip_info(near_plane * far_plane, near_plane - far_plane, far_plane, 0);
 
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linearize_depth.fbo);
-
-    glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
 
     if (orthographic)
-        glUseProgram(gl.linearize_depth.program_ortho);
+        glUseProgram(gl.linear_depth.program_ortho);
     else
-        glUseProgram(gl.linearize_depth.program_persp);
-    glUniform1i(gl.linearize_depth.uniform_loc.tex_depth, 0);
-    glUniform4fv(gl.linearize_depth.uniform_loc.clip_info, 1, &clip_info[0]);
+        glUseProgram(gl.linear_depth.program_persp);
+    glUniform1i(gl.linear_depth.uniform_loc.tex_depth, 0);
+    glUniform4fv(gl.linear_depth.uniform_loc.clip_info, 1, &clip_info[0]);
 
     // ASSUME THAT THE APPROPRIATE FS_QUAD VAO IS BOUND
+	glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
+	glBindVertexArray(0);
     POP_GPU_SECTION();
 }
 
-void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias) {
-    ASSERT(glIsTexture(depth_tex));
+void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias) {
+    ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(normal_tex));
+
+	const float sharpness = ssao::compute_sharpness(radius);
+	const vec2 inv_res = vec2(1.f / ssao::tex_width, 1.f / ssao::tex_height);
+
+	GLint last_fbo;
+	GLint last_viewport[4];
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
+	glGetIntegerv(GL_VIEWPORT, last_viewport);
+
+	glBindVertexArray(gl.vao);
 
     ssao::setup_ubo_hbao_data(ssao::ubo_hbao_data, ssao::tex_width, ssao::tex_height, proj_matrix, intensity, radius, bias);
 
-    const float n = proj_matrix[3][2] / (proj_matrix[2][2] - 1.f);
-    const float f = (proj_matrix[2][2] - 1.f) * n / (proj_matrix[2][2] + 1.f);
-    const vec2 inv_res = vec2(1.f) / vec2(ssao::tex_width, ssao::tex_height);
-    const float sharpness = ssao::compute_sharpness(radius);
-
-    glBindVertexArray(gl.vao);
-
-    GLint last_fbo;
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
-    GLint last_viewport[4];
-    glGetIntegerv(GL_VIEWPORT, last_viewport);
-    // GLint draw_buffers[8];
-    // for (int i = 0; i < 8; i++) glGetIntegerv(GL_DRAW_BUFFER0 + i, draw_buffers + i);
-
-    glViewport(0, 0, ssao::tex_width, ssao::tex_height);
-
-    // LINEARIZE_DEPTH
-    linearize_depth(depth_tex, n, f, is_orthographic_proj_matrix(proj_matrix));
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_hbao);
+	glViewport(0, 0, ssao::tex_width, ssao::tex_height);
 
     // RENDER HBAO
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_hbao);
+    PUSH_GPU_SECTION("HBAO")
     glUseProgram(ssao::prog_hbao);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
+    glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, normal_tex);
     glActiveTexture(GL_TEXTURE2);
@@ -1197,40 +1288,50 @@ void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_matrix, fl
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
+    POP_GPU_SECTION()
+
     // BLUR FIRST
+    PUSH_GPU_SECTION("BLUR 1st")
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_blur);
+
     glUseProgram(ssao::prog_blur_first);
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, ssao::tex_hbao);
-    glUniform1i(ssao::uniform_loc_blur_texture, 0);
+
+    glUniform1i(ssao::uniform_loc_blur_tex_linear_depth, 0);
+	glUniform1i(ssao::uniform_loc_blur_tex_ao, 1);
     glUniform1f(ssao::uniform_loc_blur_sharpness, sharpness);
     glUniform2f(ssao::uniform_loc_blur_inv_res_dir, inv_res.x, 0);
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
-    // BLEND RESULTS WITH PREVIOUSLY BOUND FBO AND ITS COLOR TEXTURE
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-    glColorMask(1, 1, 1, 0);
+    POP_GPU_SECTION()
 
     // BLUR SECOND
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
-    // glDrawBuffers(8, (GLenum*)draw_buffers);
-    glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
+    PUSH_GPU_SECTION("BLUR 2nd")
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
+	glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
     glUseProgram(ssao::prog_blur_second);
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, ssao::tex_blur);
-    glUniform1i(ssao::uniform_loc_blur_texture, 0);
+
+	glUniform1i(ssao::uniform_loc_blur_tex_linear_depth, 0);
+	glUniform1i(ssao::uniform_loc_blur_tex_ao, 1);
     glUniform1f(ssao::uniform_loc_blur_sharpness, sharpness);
     glUniform2f(ssao::uniform_loc_blur_inv_res_dir, 0, inv_res.y);
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ZERO, GL_SRC_COLOR);
+	glColorMask(1, 1, 1, 0);
+
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
-    glDisable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ZERO);
-    glColorMask(1, 1, 1, 1);
+	glDisable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE);
+	glColorMask(1, 1, 1, 1);
 
     glBindVertexArray(0);
+    POP_GPU_SECTION()
 }
 
 void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix) {
@@ -1304,8 +1405,8 @@ void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_p
     POP_GPU_SECTION();
 }
 
-void apply_dof(GLuint depth_tex, GLuint color_tex, const mat4& proj_matrix, float focus_point, float focus_scale) {
-    ASSERT(glIsTexture(depth_tex));
+void apply_dof(GLuint linear_depth_tex, GLuint color_tex, const mat4& proj_matrix, float focus_point, float focus_scale) {
+    ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
 
     const float n = proj_matrix[3][2] / (proj_matrix[2][2] - 1.f);
@@ -1318,15 +1419,13 @@ void apply_dof(GLuint depth_tex, GLuint color_tex, const mat4& proj_matrix, floa
 
     glBindVertexArray(gl.vao);
 
-    linearize_depth(depth_tex, n, f, ortho);
-
-    half_res_color_coc(gl.linearize_depth.texture, color_tex, focus_point, focus_scale);
+    half_res_color_coc(linear_depth_tex, color_tex, focus_point, focus_scale);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, gl.half_res.tex.color_coc);
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, gl.linearize_depth.texture);
+    glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
 
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, color_tex);
@@ -1379,6 +1478,119 @@ void apply_tonemapping(GLuint color_tex, Tonemapping tonemapping, float exposure
     glUseProgram(0);
 }
 
+void blit_velocity(const ViewParam& view_param) {
+	mat4 curr_clip_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view_proj;
+
+	glUseProgram(velocity::blit_velocity.program);
+	glUniformMatrix4fv(velocity::blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat, 1, GL_FALSE, &curr_clip_to_prev_clip_mat[0][0]);
+	glBindVertexArray(gl.vao);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glBindVertexArray(0);
+	glUseProgram(0);
+}
+
+void blit_tilemax(GLuint velocity_tex, int tex_width, int tex_height) {
+	ASSERT(glIsTexture(velocity_tex));
+	const vec2 texel_size = { 1.f / tex_width, 1.f / tex_height };
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocity_tex);
+
+	glUseProgram(velocity::blit_tilemax.program);
+	glUniform1i(velocity::blit_tilemax.uniform_loc.tex_vel, 0);
+	glUniform2fv(velocity::blit_tilemax.uniform_loc.tex_vel_texel_size, 1, &texel_size[0]);
+	glBindVertexArray(gl.vao);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glBindVertexArray(0);
+	glUseProgram(0);
+}
+
+void blit_neighbormax(GLuint velocity_tex, int tex_width, int tex_height) {
+	ASSERT(glIsTexture(velocity_tex));
+	const vec2 texel_size = { 1.f / tex_width, 1.f / tex_height };
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, velocity_tex);
+
+	glUseProgram(velocity::blit_neighbormax.program);
+	glUniform1i(velocity::blit_neighbormax.uniform_loc.tex_vel, 0);
+	glUniform2fv(velocity::blit_neighbormax.uniform_loc.tex_vel_texel_size, 1, &texel_size[0]);
+	glBindVertexArray(gl.vao);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glBindVertexArray(0);
+	glUseProgram(0);
+}
+
+void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, float feedback_min, float feedback_max, float motion_scale) {
+	ASSERT(glIsTexture(linear_depth_tex));
+	ASSERT(glIsTexture(color_tex));
+	ASSERT(glIsTexture(velocity_tex));
+	ASSERT(glIsTexture(velocity_neighbormax_tex));
+
+	static int target = 0;
+	target = (target + 1) % 2;
+
+	static float time = 0.f;
+	time += 0.016f;
+
+	if (time > 100.f) {
+		time -= 100.f;
+	}
+
+	static int dst_buf = target;
+	static int src_buf = (target + 1) % 2;
+
+	const vec2 res = { gl.tex_width, gl.tex_height };
+	const vec4 texel_size = vec4(1.f / res, res);
+	const vec4 jitter_uv = vec4(curr_jitter / res, 0, 0);
+	const float sin_time = time;
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, color_tex);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[src_buf]);
+
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, velocity_tex);
+
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, velocity_neighbormax_tex);
+
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
+
+	GLenum draw_buffers[2];
+	draw_buffers[0] = GL_COLOR_ATTACHMENT2 + dst_buf; // tex_temporal_buffer[0 or 1]
+	draw_buffers[1] = GL_COLOR_ATTACHMENT1; // tex_final
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+	glViewport(0, 0, gl.tex_width, gl.tex_height);
+	glDrawBuffers(2, draw_buffers);
+
+	glUseProgram(gl.temporal.program);
+
+	// Uniforms
+	glUniform1i(gl.temporal.uniform_loc.tex_main, 0);
+	glUniform1i(gl.temporal.uniform_loc.tex_prev, 1);
+	glUniform1i(gl.temporal.uniform_loc.tex_vel, 2);
+	glUniform1i(gl.temporal.uniform_loc.tex_vel_neighbormax, 3);
+	glUniform1i(gl.temporal.uniform_loc.tex_linear_depth, 4);
+
+	glUniform4fv(gl.temporal.uniform_loc.texel_size, 1, &texel_size[0]);
+	glUniform4fv(gl.temporal.uniform_loc.jitter_uv, 1, &jitter_uv[0]);
+
+	glUniform1f(gl.temporal.uniform_loc.sin_time, sin_time);
+	glUniform1f(gl.temporal.uniform_loc.feedback_min, feedback_min);
+	glUniform1f(gl.temporal.uniform_loc.feedback_max, feedback_max);
+	glUniform1f(gl.temporal.uniform_loc.motion_scale, motion_scale);
+
+	glBindVertexArray(gl.vao);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glBindVertexArray(0);
+	glUseProgram(0);
+}
+
 void blit_texture(GLuint tex) {
     ASSERT(glIsTexture(tex));
     glUseProgram(blit::program);
@@ -1389,6 +1601,92 @@ void blit_texture(GLuint tex) {
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
     glUseProgram(0);
+}
+
+void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_param, GLuint depth_tex, GLuint color_tex, GLuint normal_tex, GLuint velocity_tex) {
+	ASSERT(glIsTexture(depth_tex));
+	ASSERT(glIsTexture(color_tex));
+	ASSERT(glIsTexture(normal_tex));
+	ASSERT(glIsTexture(velocity_tex));
+
+	const auto near_dist = view_param.matrix.proj[3][2] / (view_param.matrix.proj[2][2] - 1.f);
+	const auto far_dist = (view_param.matrix.proj[2][2] - 1.f) * near_dist / (view_param.matrix.proj[2][2] + 1.f);
+	const auto ortho = is_orthographic_proj_matrix(view_param.matrix.proj);
+
+	GLint last_fbo;
+	GLint last_viewport[4];
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
+	glGetIntegerv(GL_VIEWPORT, last_viewport);
+
+	glViewport(0, 0, gl.tex_width, gl.tex_height);
+	glBindVertexArray(gl.vao);
+
+	PUSH_GPU_SECTION("Linear Depth") {
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
+		compute_linear_depth(depth_tex, near_dist, far_dist, ortho);
+
+		/*
+		PUSH_GPU_SECTION("Gen Mipmaps") {
+			glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
+			glGenerateMipmap(GL_TEXTURE_2D);
+		}
+		POP_GPU_SECTION()
+		*/
+	}
+	POP_GPU_SECTION()
+
+	if (desc.temporal_reprojection.enabled) {
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
+		glViewport(0, 0, gl.velocity.tex_width, gl.velocity.tex_height);
+
+		PUSH_GPU_SECTION("Velocity: Tilemax") {
+			glDrawBuffer(GL_COLOR_ATTACHMENT0);
+			blit_tilemax(velocity_tex, gl.tex_width, gl.tex_height);
+		}
+		POP_GPU_SECTION()
+
+		PUSH_GPU_SECTION("Velocity: Neighbormax") {
+			glDrawBuffer(GL_COLOR_ATTACHMENT1);
+			blit_neighbormax(gl.velocity.tex_tilemax, gl.velocity.tex_width, gl.velocity.tex_height);
+		}
+		POP_GPU_SECTION()
+	}
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	glViewport(0, 0, gl.tex_width, gl.tex_height);
+
+	if (desc.tonemapping.enabled) {
+		PUSH_GPU_SECTION("Tonemapping")
+		apply_tonemapping(color_tex, desc.tonemapping.mode, desc.tonemapping.exposure, desc.tonemapping.gamma);
+		POP_GPU_SECTION()
+	}
+
+	if (desc.ambient_occlusion.enabled) {
+		PUSH_GPU_SECTION("SSAO")
+		apply_ssao(gl.linear_depth.texture, normal_tex, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
+		POP_GPU_SECTION()
+	}
+
+	if (desc.temporal_reprojection.enabled) {
+		PUSH_GPU_SECTION("Temporal AA + Motion-Blur")
+		apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color, velocity_tex, gl.velocity.tex_neighbormax, view_param.jitter, desc.temporal_reprojection.feedback_min, desc.temporal_reprojection.feedback_max, desc.temporal_reprojection.motion_blur.motion_scale);
+		POP_GPU_SECTION()
+	}
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
+	glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
+	glDrawBuffer(GL_BACK);
+	blit_texture(gl.targets.tex_final);
+
+	if (desc.depth_of_field.enabled) {
+		PUSH_GPU_SECTION("DOF")
+			apply_dof(gl.linear_depth.texture, gl.targets.tex_final, view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
+		POP_GPU_SECTION()
+	}
+	else {
+		blit_texture(gl.targets.tex_final);
+	}
 }
 
 }  // namespace postprocessing

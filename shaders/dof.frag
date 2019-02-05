@@ -1,6 +1,8 @@
 #version 150 core
 #pragma optionNV(unroll all)
 
+// From http://blog.tuxedolabs.com/2018/05/04/bokeh-depth-of-field-in-single-pass.html
+
 uniform sampler2D uHalfRes; // Half res color (rgb) and coc (a)
 uniform sampler2D uColor;   // Image to be processed 
 uniform sampler2D uDepth;   // Linear depth, where 1.0 == far plane 

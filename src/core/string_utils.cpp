@@ -1,4 +1,4 @@
-#include <core/string_utils.h>
+﻿#include <core/string_utils.h>
 #include <core/common.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -10,30 +10,42 @@
 #define MIN(x, y) ((x < y) ? (x) : (y))
 #define MAX(x, y) ((x > y) ? (x) : (y))
 
-static inline bool internal_compare(const uint8* str_a, const uint8* str_b, int64 len, bool ignore_case) {
-    if (ignore_case) {
-        for (int64 i = 0; i < len; i++) {
-            if (tolower(str_a[i]) != tolower(str_b[i])) return false;
-        }
-    } else {
-        for (int64 i = 0; i < len; i++) {
-            if (str_a[i] != str_b[i]) return false;
-        }
+// Extern memmem replacement, located in Railgun_Trolldom.c
+extern "C" {
+char* Railgun_Trolldom(char* pbTarget, char* pbPattern, uint32_t cbTarget, uint32_t cbPattern);
+}
+
+static inline bool internal_compare_ignore_case(const uint8* str_a, const uint8* str_b, int64 len) {
+    for (int64 i = 0; i < len; i++) {
+        if (tolower(str_a[i]) != tolower(str_b[i])) return false;
     }
     return true;
 }
 
-bool compare(CString str_a, CString str_b, bool ignore_case) {
-    // int64 len = MIN(str_a.count, str_b.count);
+static inline bool internal_compare(const uint8* str_a, const uint8* str_b, int64 len) { return memcmp(str_a, str_b, len) == 0; }
+
+bool compare(CString str_a, CString str_b) {
     if (str_a.count != str_b.count) return false;
     if (str_a.count == 0) return false;
-    return internal_compare(str_a.ptr, str_b.ptr, str_a.count, ignore_case);
+    return internal_compare(str_a.ptr, str_b.ptr, str_a.count);
 }
 
-bool compare_n(CString str_a, CString str_b, int64 num_chars, bool ignore_case) {
-    int64 len = MIN(str_a.count, MIN(str_b.count, num_chars));
+bool compare_ignore_case(CString str_a, CString str_b) {
+    if (str_a.count != str_b.count) return false;
+    if (str_a.count == 0) return false;
+    return internal_compare_ignore_case(str_a.ptr, str_b.ptr, str_a.count);
+}
+
+bool compare_n(CString str_a, CString str_b, int64 num_chars) {
+    const int64 len = MIN(str_a.count, MIN(str_b.count, num_chars));
     if (len < num_chars) return false;
-    return internal_compare(str_a.ptr, str_b.ptr, len, ignore_case);
+    return internal_compare(str_a.ptr, str_b.ptr, len);
+}
+
+bool compare_n_ignore_case(CString str_a, CString str_b, int64 num_chars) {
+    const int64 len = MIN(str_a.count, MIN(str_b.count, num_chars));
+    if (len < num_chars) return false;
+    return internal_compare_ignore_case(str_a.ptr, str_b.ptr, len);
 }
 
 void copy(String dst, CString src) {
@@ -96,14 +108,18 @@ CString extract_line(CString& str) {
         return {};
     }
 
+    // If we start on a new line character or return character, skip these
+    while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
+
     const uint8* line_beg = str_beg;
     const uint8* line_end = (const uint8*)memchr(str_beg, '\n', str.length());
     if (!line_end) {
         line_end = str_end;
         str_beg = str_end;
     } else {
+        line_end++;
         // Step over return and new line characters
-        str_beg = MIN(line_end + 1, str_end);
+        str_beg = MIN(line_end, str_end);
         while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
 
         // Prune '/r and /n' from line
@@ -203,6 +219,10 @@ String trim(String str) {
 String allocate_and_read_textfile(CString filename) {
     StringBuffer<512> c_str_path = filename;
     FILE* file = fopen(c_str_path.cstr(), "rb");
+    defer {
+        if (file) fclose(file);
+    };
+
     if (!file) return {};
 
 // This is to handle big files. 64-bit versions
@@ -429,30 +449,32 @@ CString extract_parentheses_contents(CString str) {
     return {p.beg() + 1, p.end() - 1};
 }
 
-const uint8* find_character(CString str, uint8 c) {
-    const uint8* ptr = str.beg();
-    while (ptr < str.end() && *ptr != c) ptr++;
-    return ptr;
-}
+const uint8* find_character(CString str, uint8 c) { return (const uint8*)memchr(str.ptr, c, str.length()); }
 
 bool contains_character(CString str, uint8 c) { return find_character(str, c) != str.end(); }
 
-CString find_first_match(CString str, CString match) {
-    if (str.count == 0 || match.count == 0) return {};
+CString find_string(CString target, CString pattern) {
+    if (target.count == 0 || pattern.count == 0) return {};
 
-    const uint8* ptr = str.beg();
+    /*
+const uint8* ptr = str.beg();
 
-    while (ptr != str.end()) {
-        if (*ptr == *match.beg()) {
-            CString candidate(ptr, MIN(str.end() - ptr, match.count));
-            if (compare(candidate, match)) return candidate;
-        }
-        ptr++;
+while (ptr != str.end()) {
+    if (*ptr == *match.beg()) {
+        CString candidate(ptr, MIN(str.end() - ptr, match.count));
+        if (compare(candidate, match)) return candidate;
+    }
+    ptr++;
+}
+return {};
+    */
+
+    char* ptr = Railgun_Trolldom((char*)target.ptr, (char*)pattern.ptr, (uint32)target.count, (uint32)pattern.count);
+    if (ptr) {
+        return {(uint8*)ptr, pattern.length()};
     }
     return {};
 }
-
-bool contains_string(CString big_str, CString str) { return (bool)find_first_match(big_str, str); }
 
 DynamicArray<String> tokenize(String str, uint8 delimiter) {
     DynamicArray<String> tokens;
