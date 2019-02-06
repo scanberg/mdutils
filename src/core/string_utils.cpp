@@ -108,6 +108,9 @@ CString extract_line(CString& str) {
         return {};
     }
 
+    // If we start on a new line character or return character, skip these
+    while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
+
     const uint8* line_beg = str_beg;
     const uint8* line_end = (const uint8*)memchr(str_beg, '\n', str.length());
     if (!line_end) {
@@ -120,7 +123,7 @@ CString extract_line(CString& str) {
         while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
 
         // Prune '/r and /n' from line
-        // while (line_end != line_beg && (*(line_end - 1) == '\r' || *(line_end - 1) == '\n')) --line_end;
+        while (line_end != line_beg && (*(line_end - 1) == '\r' || *(line_end - 1) == '\n')) --line_end;
     }
 
     str.ptr = str_beg;

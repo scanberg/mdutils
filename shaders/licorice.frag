@@ -20,7 +20,8 @@ layout (depth_greater) out float gl_FragDepth;
 #endif
 layout(location = 0) out vec4 out_color_alpha;
 layout(location = 1) out vec4 out_normal;
-layout(location = 2) out vec4 out_picking_id;
+layout(location = 2) out vec2 out_velocity;
+layout(location = 3) out vec4 out_picking_id;
 
 // Source from Ingo Quilez (https://www.shadertoy.com/view/Xt3SzX)
 float intersect_capsule(in vec3 ro, in vec3 rd, in vec3 cc, in vec3 ca, float cr,

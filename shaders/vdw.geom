@@ -14,6 +14,7 @@ in VS_GS {
     flat vec2 center;
     flat float inv_aspect_ratio;
     flat float z;
+    flat vec4 view_velocity;
 } in_vert[];
 
 out GS_FS {
@@ -21,6 +22,7 @@ out GS_FS {
     flat vec4 view_sphere;
     flat vec4 picking_color;
     smooth vec4 view_coord;
+    flat vec4 view_velocity;
 } out_frag;
 
 void emit_vertex(vec2 uv) {
@@ -49,6 +51,7 @@ void main()
     out_frag.color = in_vert[0].color;
     out_frag.view_sphere = in_vert[0].view_sphere;
     out_frag.picking_color = in_vert[0].picking_color;
+    out_frag.view_velocity = in_vert[0].view_velocity;
 
     emit_vertex(vec2(-1,-1));
     emit_vertex(vec2( 1,-1));

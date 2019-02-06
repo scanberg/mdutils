@@ -8,8 +8,8 @@ struct MoleculeDynamic {
     MoleculeTrajectory trajectory{};
 
     operator bool() const {
-        bool mol_ok = molecule.operator bool();
-        bool traj_ok = trajectory.operator bool();
+        const bool mol_ok = molecule.operator bool();
+        const bool traj_ok = trajectory.operator bool();
         return mol_ok && traj_ok;
     }
 };

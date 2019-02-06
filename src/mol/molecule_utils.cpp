@@ -147,30 +147,32 @@ void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
         return;
     }
 
-    const auto elements = get_elements(dynamic->molecule);
-    DynamicArray<vec3> com_residues(dynamic->molecule.residues.count);
+    auto& mol = dynamic->molecule;
+    const auto elements = get_elements(mol);
+    const auto residues = get_residues(mol);
+    const auto chains = get_chains(mol);
+
+    const int32 res_beg = residues[center_res_idx].atom_idx.beg;
+    const int32 res_end = residues[center_res_idx].atom_idx.end;
+    const auto res_ele = elements.subarray(res_beg, res_end - res_beg);
 
     for (int32 f_idx = 0; f_idx < dynamic->trajectory.num_frames; f_idx++) {
         auto frame = get_trajectory_frame(dynamic->trajectory, f_idx);
         auto positions = frame.atom_positions;
-        auto box_ext = frame.box * vec3(1);
-        auto box_center = frame.box * vec3(0.5f);
+        const auto box_ext = frame.box * vec3(1);
+        const auto box_center = frame.box * vec3(0.5f);
 
-        for (int32 r_idx = 0; r_idx < dynamic->molecule.residues.count; r_idx++) {
-            const auto& r = dynamic->molecule.residues[r_idx];
-            const auto p = positions.subarray(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
-            const auto e = elements.subarray(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
-            com_residues[r_idx] = compute_periodic_com(p, e, box_ext);
-        }
+        const auto res_pos = positions.subarray(res_beg, res_end - res_beg);
+        const vec3 target_center = compute_periodic_com(res_pos, res_ele, box_ext);
 
-        vec3 delta = box_center - com_residues[center_res_idx];
+        const vec3 delta = box_center - target_center;
 
-        for (int32 r_idx = 0; r_idx < dynamic->molecule.residues.count; r_idx++) {
-            const auto& r = dynamic->molecule.residues[r_idx];
-            auto p = positions.subarray(r.atom_idx.beg, r.atom_idx.end - r.atom_idx.beg);
-            vec3 old_com = com_residues[r_idx];
-            vec3 new_com = de_periodize(box_center, old_com + delta, box_ext);
-            vec3 diff = new_com - old_com;
+        for (int64 i = 0; i < chains.size(); i++) {
+            const auto p = positions.subarray(chains[i].atom_idx.beg, chains[i].atom_idx.end - chains[i].atom_idx.beg);
+            const auto e = elements.subarray(chains[i].atom_idx.beg, chains[i].atom_idx.end - chains[i].atom_idx.beg);
+            const vec3 com_chain = compute_periodic_com(p, e, box_ext);
+            const vec3 new_com = de_periodize(box_center, com_chain + delta, box_ext);
+            const vec3 diff = new_com - com_chain;
             translate_positions(p, diff);
         }
     }
@@ -456,11 +458,16 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
             curr_chain_idx = residue_chains[i];
             Label lbl;
             snprintf(lbl.cstr(), lbl.capacity(), "C%i", curr_chain_idx);
-            chains.push_back({lbl, (ResIdx)i, (ResIdx)i});
+            chains.push_back({lbl, {(ResIdx)i, (ResIdx)i}});
         }
         if (chains.size() > 0) {
             chains.back().res_idx.end++;
         }
+    }
+
+    for (auto& c : chains) {
+        c.atom_idx.beg = residues[c.res_idx.beg].atom_idx.beg;
+        c.atom_idx.end = residues[c.res_idx.end - 1].atom_idx.end;
     }
 
     return chains;

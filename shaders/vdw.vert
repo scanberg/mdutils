@@ -7,8 +7,10 @@ uniform mat4 u_inv_proj_mat;
 
 uniform float u_radius_scale = 1.0;
 
-layout (location = 0) in vec4 in_pos_rad;
-layout (location = 1) in vec4 in_color;
+layout (location = 0) in vec3  in_position;
+layout (location = 1) in float in_radius;
+layout (location = 2) in vec4  in_color;
+layout (location = 3) in vec3  in_velocity;
 
 out VS_GS {
     flat vec4 view_sphere;
@@ -19,6 +21,7 @@ out VS_GS {
     flat vec2 center;
     flat float inv_aspect_ratio;
     flat float z;
+    flat vec4 view_velocity;
 } out_geom;
 
 vec4 pack_u32(uint data) {
@@ -47,12 +50,8 @@ void proj_sphere(in vec4 sphere,
 }
 
 void main() {
-    vec4 pos_rad = in_pos_rad;
-    vec4 color = in_color;
-    vec4 picking_color = pack_u32(uint(gl_VertexID));
-
-    vec3 pos = pos_rad.xyz;
-    float rad = pos_rad.w * u_radius_scale;
+    vec3 pos = in_position;
+    float rad = in_radius * u_radius_scale;
     vec4 view_coord = u_view_mat * vec4(pos, 1.0);
     vec4 view_sphere = vec4(view_coord.xyz, rad);
 
@@ -69,13 +68,14 @@ void main() {
     proj_sphere(view_sphere, fle, axis_a, axis_b, center);
 
     out_geom.view_sphere = view_sphere;
-    out_geom.color = color;
-    out_geom.picking_color = picking_color;
+    out_geom.color = in_color;
+    out_geom.picking_color = pack_u32(uint(gl_VertexID));
     out_geom.axis_a = axis_a;
     out_geom.axis_b = axis_b;
     out_geom.center = center;
     out_geom.inv_aspect_ratio = inv_ar;
     out_geom.z = z;
+    out_geom.view_velocity = u_view_mat * vec4(in_velocity, 0);
 
     gl_Position = view_coord;
 }
