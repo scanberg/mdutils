@@ -4,7 +4,7 @@
 
 uniform mat4 u_proj_mat;
 uniform mat4 u_curr_view_to_prev_clip_mat;
-uniform float u_exposure = 1.0;
+uniform vec4 u_jitter_uv;
 
 in GS_FS {
     flat vec4 color;
@@ -44,19 +44,19 @@ void main() {
 
     vec3 view_coord = d * t;
     vec3 view_normal = (view_coord - center) / radius;
+    vec3 view_vel = in_frag.view_velocity.xyz;
     vec4 clip_coord = u_proj_mat * vec4(view_coord, 1);
 
-    vec3 prev_view_coord = view_coord - in_frag.view_velocity.xyz;
+    vec3 prev_view_coord = view_coord - view_vel;
     vec4 prev_clip_coord = u_curr_view_to_prev_clip_mat * vec4(prev_view_coord, 1);
 
-    vec2 curr_uv = clip_coord.xy / clip_coord.w * 0.5 + 0.5;
-    vec2 prev_uv = prev_clip_coord.xy / prev_clip_coord.w * 0.5 + 0.5;
-    vec2 ss_vel = curr_uv - prev_uv;
+    vec2 curr_ndc = clip_coord.xy / clip_coord.w;
+    vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w;
+    vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5;
 
-    //gl_FragDepth = (-u_proj_mat[2][2] - u_proj_mat[3][2] / view_coord.z) * 0.5 + 0.5;
     gl_FragDepth = (clip_coord.z / clip_coord.w) * 0.5 + 0.5;
     out_color_alpha = in_frag.color;
     out_normal = encode_normal(view_normal);
-    out_ss_vel = vec4(ss_vel * 100, 0, 0);
+    out_ss_vel = vec4(ss_vel, 0, 0);
     out_picking_color = in_frag.picking_color;
 }

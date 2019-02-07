@@ -7,11 +7,13 @@ layout (lines) in;
 layout (triangle_strip, max_vertices = 24) out;
 
 in Vertex {
+    flat vec4 view_velocity;
     flat vec4 color;
-    flat uint picking_id;
+    flat vec4 picking_color;
 } in_vert[];
 
 out Fragment {
+    flat vec4 view_velocity[2];
     flat vec4 color[2];
     flat vec4 picking_color[2];
     smooth vec3 view_pos;
@@ -20,13 +22,7 @@ out Fragment {
     flat vec4  capsule_axis_length;
 } out_frag;
 
-vec4 pack_u32(uint data) {
-    return vec4(
-        (data & uint(0x000000FF)) >> 0,
-        (data & uint(0x0000FF00)) >> 8,
-        (data & uint(0x00FF0000)) >> 16,
-        (data & uint(0xFF000000)) >> 24) / 255.0;
-}
+
 
 vec4 view_vertices[8];
 vec4 proj_vertices[8];
@@ -69,11 +65,14 @@ void main()
     vec3 a = (p1 - p0) / l;
     vec3 c = (p0 + p1) * 0.5;
 
+    out_frag.view_velocity[0] = in_vert[0].view_velocity;
+    out_frag.view_velocity[1] = in_vert[1].view_velocity;
+
     out_frag.color[0] = in_vert[0].color;
     out_frag.color[1] = in_vert[1].color;
 
-    out_frag.picking_color[0] = pack_u32(in_vert[0].picking_id);
-    out_frag.picking_color[1] = pack_u32(in_vert[1].picking_id);
+    out_frag.picking_color[0] = in_vert[0].picking_color;
+    out_frag.picking_color[1] = in_vert[1].picking_color;
 
     out_frag.capsule_center_radius = vec4(c, r);
     out_frag.capsule_axis_length = vec4(a, l);

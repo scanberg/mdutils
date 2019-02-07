@@ -60,8 +60,7 @@ static struct {
 
 	struct {
 		GLuint fbo = 0;
-		GLuint tex_color = 0;
-		GLuint tex_final = 0;
+		GLuint tex_color[2] = { 0,0 };
 		GLuint tex_temporal_buffer[2] = { 0,0 };	// These are dedicated and cannot be use as intermediate buffers by other shaders
 	} targets;
 
@@ -458,12 +457,13 @@ float ComputeCoarseAO(vec2 FullResUV, float RadiusPixels, vec4 Rand, vec3 ViewPo
   // Divide by NUM_STEPS+1 so that the farthest samples are not fully attenuated
   float StepSizePixels = RadiusPixels / (NUM_STEPS + 1);
 
+  float AngleOffset = control.rnd * 2.0 * M_PI;
   const float Alpha = 2.0 * M_PI / NUM_DIRECTIONS;
   float AO = 0;
 
   for (float DirectionIndex = 0; DirectionIndex < NUM_DIRECTIONS; ++DirectionIndex)
   {
-    float Angle = Alpha * DirectionIndex;
+    float Angle = AngleOffset + Alpha * DirectionIndex;
 
     // Compute normalized 2D direction
     vec2 Direction = RotateDirection(vec2(cos(Angle), sin(Angle)), Rand.xy);
@@ -965,7 +965,7 @@ namespace velocity {
 			blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat = glGetUniformLocation(blit_velocity.program, "u_curr_clip_to_prev_clip_mat");
 		}
 		{
-			//const char* defines = { "#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE) };
+			//const char* defines = { "#version 150 core\n#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE) };
 			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_tilemax.frag");
 			defer{ free_string(&f_shader_src); };
 			setup_program(&blit_tilemax.program, "tilemax", f_shader_src);
@@ -1063,17 +1063,14 @@ void initialize(int width, int height) {
     gl.linear_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linear_depth.program_persp, "u_tex_depth");
 
 	// COLOR
-	if (!gl.targets.tex_color) glGenTextures(1, &gl.targets.tex_color);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color);
+	if (!gl.targets.tex_color[0]) glGenTextures(2, gl.targets.tex_color);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[0]);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	if (!gl.targets.tex_final) glGenTextures(1, &gl.targets.tex_final);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_final);
+	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[1]);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1099,10 +1096,10 @@ void initialize(int width, int height) {
 	if (!gl.targets.fbo) {
 		glGenFramebuffers(1, &gl.targets.fbo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.targets.tex_color, 0);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.targets.tex_final, 0);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.targets.tex_color[0], 0);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.targets.tex_color[1], 0);
 		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0], 0);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0], 0);
+		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1], 0);
 
 		GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
 		if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -1231,7 +1228,6 @@ void shutdown() {
 }
 
 void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false) {
-    PUSH_GPU_SECTION("Linearize Depth");
     const vec4 clip_info(near_plane * far_plane, near_plane - far_plane, far_plane, 0);
 
 	glActiveTexture(GL_TEXTURE0);
@@ -1248,7 +1244,6 @@ void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, b
 	glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 	glBindVertexArray(0);
-    POP_GPU_SECTION();
 }
 
 void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias) {
@@ -1521,7 +1516,7 @@ void blit_neighbormax(GLuint velocity_tex, int tex_width, int tex_height) {
 	glUseProgram(0);
 }
 
-void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, float feedback_min, float feedback_max, float motion_scale) {
+void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min, float feedback_max, float motion_scale) {
 	ASSERT(glIsTexture(linear_depth_tex));
 	ASSERT(glIsTexture(color_tex));
 	ASSERT(glIsTexture(velocity_tex));
@@ -1537,12 +1532,12 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 		time -= 100.f;
 	}
 
-	static int dst_buf = target;
-	static int src_buf = (target + 1) % 2;
+	int dst_buf = target;
+	int src_buf = (target + 1) % 2;
 
 	const vec2 res = { gl.tex_width, gl.tex_height };
 	const vec4 texel_size = vec4(1.f / res, res);
-	const vec4 jitter_uv = vec4(curr_jitter / res, 0, 0);
+	const vec4 jitter_uv = vec4(curr_jitter / res, prev_jitter / res);
 	const float sin_time = time;
 
 	glActiveTexture(GL_TEXTURE0);
@@ -1615,23 +1610,17 @@ void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_
 
 	GLint last_fbo;
 	GLint last_viewport[4];
+	GLint last_draw_buffer;
 	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
 	glGetIntegerv(GL_VIEWPORT, last_viewport);
+	glGetIntegerv(GL_DRAW_BUFFER, &last_draw_buffer);
 
 	glViewport(0, 0, gl.tex_width, gl.tex_height);
 	glBindVertexArray(gl.vao);
 
-	PUSH_GPU_SECTION("Linear Depth") {
+	PUSH_GPU_SECTION("Linearize Depth") {
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
 		compute_linear_depth(depth_tex, near_dist, far_dist, ortho);
-
-		/*
-		PUSH_GPU_SECTION("Gen Mipmaps") {
-			glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
-			glGenerateMipmap(GL_TEXTURE_2D);
-		}
-		POP_GPU_SECTION()
-		*/
 	}
 	POP_GPU_SECTION()
 
@@ -1667,26 +1656,26 @@ void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_
 		apply_ssao(gl.linear_depth.texture, normal_tex, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
 		POP_GPU_SECTION()
 	}
+	
+	if (desc.depth_of_field.enabled) {
+		glDrawBuffer(GL_COLOR_ATTACHMENT1);
+		PUSH_GPU_SECTION("DOF")
+		apply_dof(gl.linear_depth.texture, gl.targets.tex_color[0], view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
+		POP_GPU_SECTION()
+		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+		blit_texture(gl.targets.tex_color[1]);
+	}
 
 	if (desc.temporal_reprojection.enabled) {
 		PUSH_GPU_SECTION("Temporal AA + Motion-Blur")
-		apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color, velocity_tex, gl.velocity.tex_neighbormax, view_param.jitter, desc.temporal_reprojection.feedback_min, desc.temporal_reprojection.feedback_max, desc.temporal_reprojection.motion_blur.motion_scale);
+		apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color[0], velocity_tex, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter, desc.temporal_reprojection.feedback_min, desc.temporal_reprojection.feedback_max, desc.temporal_reprojection.motion_blur.motion_scale);
 		POP_GPU_SECTION()
 	}
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
 	glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
-	glDrawBuffer(GL_BACK);
-	blit_texture(gl.targets.tex_final);
-
-	if (desc.depth_of_field.enabled) {
-		PUSH_GPU_SECTION("DOF")
-			apply_dof(gl.linear_depth.texture, gl.targets.tex_final, view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
-		POP_GPU_SECTION()
-	}
-	else {
-		blit_texture(gl.targets.tex_final);
-	}
+	glDrawBuffer(last_draw_buffer);
+	blit_texture(gl.targets.tex_color[1]);
 }
 
 }  // namespace postprocessing

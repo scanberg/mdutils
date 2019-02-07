@@ -6,6 +6,7 @@ struct ViewParam {
 	struct {
 		mat4 view;
 		mat4 proj;
+		mat4 jitter;
 		mat4 view_proj;
 		mat4 norm;
 
@@ -22,6 +23,9 @@ struct ViewParam {
 
 	struct {
 		struct {
+			mat4 view;
+			mat4 proj;
+			mat4 jitter;
 			mat4 view_proj;
 		} matrix;
 

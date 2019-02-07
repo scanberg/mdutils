@@ -371,10 +371,10 @@ void main() {
 
 	//--- 3x3 nearest (good)
 	vec3 c_frag = find_closest_fragment_3x3(uv);
-	vec2 ss_vel = texture(u_tex_vel, c_frag.xy).xy * u_texel_size.xy;
+	vec2 ss_vel = texture(u_tex_vel, c_frag.xy).xy;
 	float vs_dist = c_frag.z;
 #else
-	vec2 ss_vel = texture(u_tex_vel, uv).xy * u_texel_size.xy;
+	vec2 ss_vel = texture(u_tex_vel, uv).xy;
 	float vs_dist = depth_sample_linear(uv);
 #endif
 
@@ -386,7 +386,7 @@ void main() {
 	
 #if USE_MOTION_BLUR
 	#if USE_MOTION_BLUR_NEIGHBORMAX
-		ss_vel = u_motion_scale * texture(u_tex_vel_neighbormax, uv).xy * u_texel_size.xy;
+		ss_vel = u_motion_scale * texture(u_tex_vel_neighbormax, uv).xy;
 	#else
 		ss_vel = u_motion_scale * ss_vel;
 	#endif
@@ -409,8 +409,8 @@ void main() {
 #endif
 
 	//// NOTE: velocity debug
-	//to_screen.g += 100.0 * length(ss_vel);
-	//to_screen = vec4(100.0 * abs(ss_vel), 0.0, 0.0);
+	//to_screen.g += 1000.0 * length(ss_vel);
+	//to_screen = vec4(1000.0 * abs(ss_vel), 0.0, 0.0);
 
 	// add noise
 	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
@@ -418,7 +418,7 @@ void main() {
 	out_buff = clamp(to_buffer + noise4, 0.0, 1.0);
 	out_frag = clamp(to_screen + noise4, 0.0, 1.0);
 
-	//out_frag = vec4(depth_sample_linear(uv));
+	//out_frag = texture(u_tex_vel_neighbormax, uv);
 
 	//out_frag = texture(u_tex_prev, uv);
 }

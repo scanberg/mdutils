@@ -1,7 +1,7 @@
 #version 150 core
 
 uniform sampler2D u_texture_atom_idx;
-uniform samplerBuffer u_buffer_selection;
+uniform usamplerBuffer u_buffer_selection;
 
 in vec2 tc;
 out vec4 out_frag;

@@ -3,10 +3,11 @@
 #extension GL_ARB_explicit_attrib_location : enable
 
 uniform mat4 u_proj_mat;
-uniform float u_exposure = 1.0;
+uniform mat4 u_curr_view_to_prev_clip_mat;
 uniform float u_radius = 1.0;
 
 in Fragment {
+    flat vec4 view_velocity[2];
     flat vec4 color[2];
     flat vec4 picking_color[2];
     smooth vec3 view_pos;
@@ -20,12 +21,12 @@ layout (depth_greater) out float gl_FragDepth;
 #endif
 layout(location = 0) out vec4 out_color_alpha;
 layout(location = 1) out vec4 out_normal;
-layout(location = 2) out vec2 out_velocity;
+layout(location = 2) out vec4 out_ss_vel;
 layout(location = 3) out vec4 out_picking_id;
 
 // Source from Ingo Quilez (https://www.shadertoy.com/view/Xt3SzX)
 float intersect_capsule(in vec3 ro, in vec3 rd, in vec3 cc, in vec3 ca, float cr,
-                      float ch, out vec3 normal, out int side)  // cc center, ca orientation axis, cr radius, ch height
+                      float ch, out vec3 normal, out float seg_t)  // cc center, ca orientation axis, cr radius, ch height
 {
     vec3 oc = ro - cc;
     ch *= 0.5;
@@ -41,7 +42,7 @@ float intersect_capsule(in vec3 ro, in vec3 rd, in vec3 cc, in vec3 ca, float cr
     float t = (-b - sqrt(h)) / a;
 
     float y = caoc + t * card;
-    side = int(y > 0);
+    seg_t = clamp(y * 0.5 + 0.5, 0.0, 1.0);
 
     // body
     if (abs(y) < ch) {
@@ -77,24 +78,33 @@ void main() {
     vec3 ca = in_frag.capsule_axis_length.xyz;
     float ch = in_frag.capsule_axis_length.w;
 
-    vec3 normal;
-    int side;
-    float t = intersect_capsule(ro, rd, cc, ca, cr, ch, normal, side);
+    vec3 view_normal;
+    float seg_t;
+    float t = intersect_capsule(ro, rd, cc, ca, cr, ch, view_normal, seg_t);
     if (t < 0.0) {
         discard;
         return;
     }
 
-    vec3 pos = ro + t*rd;
+    int side = int(seg_t + 0.5);
+
+    vec3 view_coord = rd * t;
+    vec4 view_velocity = mix(in_frag.view_velocity[0], in_frag.view_velocity[1], seg_t);
     vec4 color = in_frag.color[side];
     vec4 picking_color = in_frag.picking_color[side];
 
-    vec4 coord = vec4(0, 0, pos.z, 1);
-    coord = u_proj_mat * coord;
-    coord = coord / coord.w;
+    vec4 clip_coord = u_proj_mat * vec4(view_coord, 1);
 
-    gl_FragDepth = coord.z * 0.5 + 0.5;
+    vec3 prev_view_coord = view_coord - view_velocity.xyz;
+    vec4 prev_clip_coord = u_curr_view_to_prev_clip_mat * vec4(prev_view_coord, 1);
+
+    vec2 curr_ndc = clip_coord.xy / clip_coord.w;
+    vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w;
+    vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5;
+
+    gl_FragDepth = (clip_coord.z / clip_coord.w) * 0.5 + 0.5;
     out_color_alpha = color;
-    out_normal = encode_normal(normal);
+    out_normal = encode_normal(view_normal);
+    out_ss_vel = vec4(ss_vel, 0, 0);
     out_picking_id = picking_color;
 }
