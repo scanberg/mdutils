@@ -50,8 +50,11 @@ void main() {
     vec3 prev_view_coord = view_coord - view_vel;
     vec4 prev_clip_coord = u_curr_view_to_prev_clip_mat * vec4(prev_view_coord, 1);
 
-    vec2 curr_ndc = clip_coord.xy / clip_coord.w;
-    vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w;
+    // Remove jitter from samples to provide the actual velocity
+    // This is crucial for the temporal reprojection to work properly
+    // Otherwise the velocity will push the samples outside of the "reprojection" region
+    vec2 curr_ndc = clip_coord.xy / clip_coord.w - u_jitter_uv.xy;
+    vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w - u_jitter_uv.zw;
     vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5;
 
     gl_FragDepth = (clip_coord.z / clip_coord.w) * 0.5 + 0.5;

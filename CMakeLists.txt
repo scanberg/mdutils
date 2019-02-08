@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.5)
 
 project(libmdutils VERSION 0.7.7 LANGUAGES CXX)
 
+option(MDUTILS_USE_RELATIVE_PATHS "Use relative paths for resource directories" OFF)
+
 file(GLOB CORE_FILES src/core/*)
 file(GLOB GFX_FILES src/gfx/*)
 file(GLOB MOL_FILES src/mol/*)
@@ -29,8 +31,13 @@ target_include_directories(mdutils
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/libxdrfile/src
 )
 
+set(RESOURCE_DIR "${PROJECT_SOURCE_DIR}/")
+if (MDUTILS_USE_RELATIVE_PATHS)
+    set(RESOURCE_DIR "")
+endif()
+
 target_compile_definitions(mdutils PRIVATE
-	MDUTILS_SHADER_DIR=\"${PROJECT_SOURCE_DIR}/shaders\")
+	MDUTILS_SHADER_DIR=\"${RESOURCE_DIR}shaders\")
 
 target_compile_features(mdutils PRIVATE cxx_std_17)
 

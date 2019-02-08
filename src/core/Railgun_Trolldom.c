@@ -471,7 +471,7 @@ char *Railgun_Trolldom(char *pbTarget, char *pbPattern, uint32_t cbTarget, uint3
     // register unsigned long  ulHashPattern;
     unsigned long ulHashTarget;
     // unsigned long count;
-    unsigned long countSTATIC;
+    // unsigned long countSTATIC;
     unsigned char SINGLET;
     unsigned long Quadruplet2nd;
     unsigned long Quadruplet3rd;

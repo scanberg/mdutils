@@ -58,19 +58,19 @@ static struct {
     GLuint tex_width = 0;
     GLuint tex_height = 0;
 
-	struct {
-		GLuint fbo = 0;
-		GLuint tex_color[2] = { 0,0 };
-		GLuint tex_temporal_buffer[2] = { 0,0 };	// These are dedicated and cannot be use as intermediate buffers by other shaders
-	} targets;
+    struct {
+        GLuint fbo = 0;
+        GLuint tex_color[2] = {0, 0};
+        GLuint tex_temporal_buffer[2] = {0, 0};  // These are dedicated and cannot be use as intermediate buffers by other shaders
+    } targets;
 
-	struct {
-		GLuint fbo = 0;
-		GLuint tex_tilemax = 0;
-		GLuint tex_neighbormax = 0;
-		int32 tex_width = 0;
-		int32 tex_height = 0;
-	} velocity;
+    struct {
+        GLuint fbo = 0;
+        GLuint tex_tilemax = 0;
+        GLuint tex_neighbormax = 0;
+        int32 tex_width = 0;
+        int32 tex_height = 0;
+    } velocity;
 
     struct {
         GLuint fbo = 0;
@@ -104,7 +104,8 @@ static struct {
         struct {
             GLuint fbo = 0;
             GLuint texture = 0;
-            GLuint program = 0;
+            GLuint program_persp = 0;
+            GLuint program_ortho = 0;
 
             struct {
                 GLint control_buffer = -1;
@@ -117,12 +118,12 @@ static struct {
         struct {
             GLuint fbo = 0;
             GLuint texture = 0;
-            GLuint program_first = 0;
-            GLuint program_second = 0;
+            GLuint program = 0;
             struct {
                 GLint sharpness = -1;
                 GLint inv_res_dir = -1;
-                GLint texture = -1;
+                GLint tex_ao = -1;
+                GLint tex_linear_depth = -1;
             } uniform_loc;
         } blur;
     } ssao;
@@ -151,25 +152,25 @@ static struct {
         } uniform_loc;
     } tonemapping;
 
-	struct {
-		GLuint program = 0;
-		struct {
-			GLint tex_linear_depth = -1;
-			GLint tex_main = -1;
-			GLint tex_prev = -1;
-			GLint tex_vel = -1;
-			GLint tex_vel_neighbormax = -1;
+    struct {
+        GLuint program = 0;
+        struct {
+            GLint tex_linear_depth = -1;
+            GLint tex_main = -1;
+            GLint tex_prev = -1;
+            GLint tex_vel = -1;
+            GLint tex_vel_neighbormax = -1;
 
-			GLint texel_size = -1;
+            GLint texel_size = -1;
 
-			GLint sin_time = -1;
-			GLint feedback_min = -1;
-			GLint feedback_max = -1;
-			GLint motion_scale = -1;
+            GLint sin_time = -1;
+            GLint feedback_min = -1;
+            GLint feedback_max = -1;
+            GLint motion_scale = -1;
 
-			GLint jitter_uv = -1;
-		} uniform_loc;
-	} temporal;
+            GLint jitter_uv = -1;
+        } uniform_loc;
+    } temporal;
 
 } gl;
 
@@ -213,17 +214,22 @@ void main() {
 }
 )";
 
-static bool setup_program(GLuint* program, const char* name, const char* f_shader_src, const char* defines = nullptr) {
+static bool setup_program(GLuint* program, CString name, CString f_shader_src, CString defines = {}) {
     ASSERT(program);
     constexpr int BUFFER_SIZE = 1024;
     char buffer[BUFFER_SIZE];
 
     auto f_shader = glCreateShader(GL_FRAGMENT_SHADER);
     if (defines) {
-        const char* sources[2] = {defines, f_shader_src};
-        glShaderSource(f_shader, 2, sources, 0);
+        StringBuffer<64> version_str;
+        if (compare_n(f_shader_src, "#version", 8)) {
+            version_str = extract_line(f_shader_src);
+        }
+        const char* sources[5] = {version_str, "\n", defines, "\n", f_shader_src};
+        glShaderSource(f_shader, 5, sources, 0);
     } else {
-        glShaderSource(f_shader, 1, &f_shader_src, 0);
+        const char* sources[1] = {f_shader_src};
+        glShaderSource(f_shader, 1, sources, 0);
     }
 
     glCompileShader(f_shader);
@@ -258,344 +264,41 @@ namespace ssao {
 #define AO_RANDOM_TEX_SIZE 4
 #endif
 
-#ifndef AO_MAX_SAMPLES
-#define AO_MAX_SAMPLES 1
-#endif
-
-#ifndef AO_DIRS
-#define AO_DIRS 8
-#endif
-
-#ifndef AO_SAMPLES
-#define AO_SAMPLES 4
-#endif
-
-#ifndef AO_BLUR
-#define AO_BLUR 1
-#endif
-
-static GLuint fbo_hbao = 0;
-static GLuint fbo_blur = 0;
-
-static GLuint tex_random = 0;
-static GLuint tex_hbao = 0;
-static GLuint tex_blur = 0;
-
-static GLuint prog_hbao = 0;
-static GLuint prog_blur_first = 0;
-static GLuint prog_blur_second = 0;
-
-static GLint uniform_block_index_hbao_control_buffer = -1;
-static GLint uniform_loc_hbao_tex_linear_depth = -1;
-static GLint uniform_loc_hbao_tex_normal = -1;
-static GLint uniform_loc_hbao_tex_random = -1;
-
-static GLint uniform_loc_blur_sharpness = -1;
-static GLint uniform_loc_blur_inv_res_dir = -1;
-static GLint uniform_loc_blur_tex_ao = -1;
-static GLint uniform_loc_blur_tex_linear_depth = -1;
-
-static GLuint ubo_hbao_data = 0;
-
-static GLuint tex_width;
-static GLuint tex_height;
-
 struct HBAOData {
     float radius_to_screen;
-    float r2;
     float neg_inv_r2;
     float n_dot_v_bias;
-
-    vec2 inv_full_res;
-    vec2 inv_quarter_res;
+    float time;
 
     float ao_multiplier;
     float pow_exponent;
-    vec2 _pad0;
+    vec2 inv_full_res;
 
     vec4 proj_info;
 
-    vec2 proj_scale;
-    int proj_ortho;
-    float rnd;
+    vec4 sample_pattern[32];
 };
-
-static const char* f_shader_src_hbao = R"(
-#pragma optionNV(unroll all)
-
-#ifndef AO_BLUR
-#define AO_BLUR 0
-#endif
-
-#define M_PI 3.14159265
-
-#ifndef AO_STEPS
-#define AO_STEPS 4
-#endif
-
-#ifndef AO_DIRS
-#define AO_DIRS 8
-#endif
-
-#ifndef AO_USE_NORMAL
-#define AO_USE_NORMAL 1
-#endif
-
-#ifndef AO_RANDOM_TEX_SIZE
-#define AO_RANDOM_TEX_SIZE 4
-#endif
-
-struct HBAOData {
-  float   radius_to_screen;
-  float   r2;
-  float   neg_inv_r2;
-  float   n_dot_v_bias;
- 
-  vec2    inv_full_res;
-  vec2    inv_quarter_res;
-  
-  float   ao_multiplier;
-  float   pow_exponent;
-  vec2    _pad0;
-  
-  vec4    proj_info;
-
-  vec2    proj_scale;
-  int     proj_ortho;
-  float   rnd;
-  
-  //vec4    offsets[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
-  //vec4    jitters[AO_RANDOM_TEX_SIZE*AO_RANDOM_TEX_SIZE];
-};
-
-// tweakables
-const float NUM_STEPS = AO_STEPS;
-const float NUM_DIRECTIONS = AO_DIRS; // tex_random/jitter initialization depends on this
-
-layout(std140) uniform u_control_buffer {
-  HBAOData control;
-};
-
-uniform sampler2D u_tex_linear_depth;
-uniform sampler2D u_tex_normal;
-uniform sampler2D u_tex_random;
-
-in vec2 tc;
-out vec4 out_frag;
-
-void OutputColor(vec4 color) {
-  out_frag = color;
-}
-
-//----------------------------------------------------------------------------------
-
-vec3 UVToView(vec2 uv, float eye_z) {
-  return vec3((uv * control.proj_info.xy + control.proj_info.zw) * (control.proj_ortho != 0 ? 1. : eye_z), eye_z);
-}
-
-vec3 FetchViewPos(vec2 uv, float lod) {
-  float ViewDepth = textureLod(u_tex_linear_depth, uv, lod).x;
-  return UVToView(uv, ViewDepth);
-}
-
-vec3 MinDiff(vec3 P, vec3 Pr, vec3 Pl) {
-  vec3 V1 = Pr - P;
-  vec3 V2 = P - Pl;
-  return (dot(V1,V1) < dot(V2,V2)) ? V1 : V2;
-}
-
-vec3 DecodeNormal(vec2 enc) {
-    vec2 fenc = enc*4-2;
-    float f = dot(fenc,fenc);
-    float g = sqrt(1-f/4.0);
-    vec3 n;
-    n.xy = fenc*g;
-    n.z = 1-f/2.0;
-    return n;
-}
-
-vec3 FetchViewNormal(vec2 uv) {
-	vec2 enc = textureLod(u_tex_normal, uv, 0).xy;
-	vec3 n = DecodeNormal(enc);
-	return n * vec3(1,1,-1);
-}
-
-//----------------------------------------------------------------------------------
-float Falloff(float DistanceSquare) {
-  // 1 scalar mad instruction
-  return DistanceSquare * control.neg_inv_r2 + 1.0;
-}
-
-//----------------------------------------------------------------------------------
-// P = view-space position at the kernel center
-// N = view-space normal at the kernel center
-// S = view-space position of the current sample
-//----------------------------------------------------------------------------------
-float ComputeAO(vec3 P, vec3 N, vec3 S) {
-  vec3 V = S - P;
-  float VdotV = dot(V, V);
-  float NdotV = dot(N, V) * 1.0/sqrt(VdotV);
-
-  // Use saturate(x) instead of max(x,0.f) because that is faster on Kepler
-  return clamp(NdotV - control.n_dot_v_bias,0,1) * clamp(Falloff(VdotV),0,1);
-}
-
-//----------------------------------------------------------------------------------
-vec2 RotateDirection(vec2 Dir, vec2 CosSin) {
-  return vec2(Dir.x*CosSin.x - Dir.y*CosSin.y,
-              Dir.x*CosSin.y + Dir.y*CosSin.x);
-}
-
-//----------------------------------------------------------------------------------
-vec4 GetJitter() {
-  // (cos(Alpha),sin(Alpha),rand1,rand2)
-  return textureLod(u_tex_random, (gl_FragCoord.xy / AO_RANDOM_TEX_SIZE), 0);
-}
-
-//----------------------------------------------------------------------------------
-float ComputeCoarseAO(vec2 FullResUV, float RadiusPixels, vec4 Rand, vec3 ViewPosition, vec3 ViewNormal) {
-  // Divide by NUM_STEPS+1 so that the farthest samples are not fully attenuated
-  float StepSizePixels = RadiusPixels / (NUM_STEPS + 1);
-
-  float AngleOffset = control.rnd * 2.0 * M_PI;
-  const float Alpha = 2.0 * M_PI / NUM_DIRECTIONS;
-  float AO = 0;
-
-  for (float DirectionIndex = 0; DirectionIndex < NUM_DIRECTIONS; ++DirectionIndex)
-  {
-    float Angle = AngleOffset + Alpha * DirectionIndex;
-
-    // Compute normalized 2D direction
-    vec2 Direction = RotateDirection(vec2(cos(Angle), sin(Angle)), Rand.xy);
-
-    // Jitter starting sample within the first step
-    float RayPixels = (Rand.z * StepSizePixels + 1.0);
-
-    for (float StepIndex = 0; StepIndex < NUM_STEPS; ++StepIndex)
-    {
-      vec2 SnappedUV = round(RayPixels * Direction) * control.inv_full_res + FullResUV;
-      vec3 S = FetchViewPos(SnappedUV, StepIndex);
-	  vec3 N = ViewNormal;
-
-      RayPixels += StepSizePixels;
-
-      AO += ComputeAO(ViewPosition, N, S);
-    }
-  }
-
-  AO *= control.ao_multiplier / (NUM_DIRECTIONS * NUM_STEPS);
-
-  return clamp(1.0 - AO, 0, 1);
-}
-
-//----------------------------------------------------------------------------------
-void main() {
-  vec2 uv = tc;
-  vec3 ViewPosition = FetchViewPos(uv, 0);
-
-  // Reconstruct view-space normal from nearest neighbors
-#if AO_USE_NORMAL
-  vec3 ViewNormal = FetchViewNormal(uv);
-#else
-  vec3 ViewNormal = vec3(0,0,-1);
-#endif
-
-  // Compute projection of disk of radius control.R into screen space
-  float RadiusPixels = control.radius_to_screen / (control.proj_ortho != 0 ? 1.0 : ViewPosition.z);
-
-  // Get jitter vector for the current full-res pixel
-  vec4 Rand = GetJitter();
-
-  float AO = ComputeCoarseAO(uv, RadiusPixels, Rand, ViewPosition, ViewNormal);
-
-#if AO_BLUR
-  OutputColor(vec4(pow(AO, control.pow_exponent), ViewPosition.z, 0, 1));
-#else
-  OutputColor(vec4(vec3(pow(AO, control.pow_exponent)), 1));
-#endif 
-}
-)";
-
-static const char* f_shader_src_hbao_blur = R"(
-#pragma optionNV(unroll all)
-
-const float KERNEL_RADIUS = 5;
-  
-uniform float u_sharpness;
-uniform vec2  u_inv_res_dir; // either set x to 1/width or y to 1/height
-uniform sampler2D u_tex_ao;
-uniform sampler2D u_tex_linear_depth;
-
-in vec2 tc;
-out vec4 out_frag;
-
-#ifndef AO_BLUR_PRESENT
-#define AO_BLUR_PRESENT 1
-#endif
-
-//-------------------------------------------------------------------------
-
-float BlurFunction(vec2 uv, float r, float center_c, float center_d, inout float w_total)
-{
-  float c = texture(u_tex_ao, uv).x;
-  float d = texture(u_tex_linear_depth, uv).x;
-  
-  const float BlurSigma = float(KERNEL_RADIUS) * 0.5;
-  const float BlurFalloff = 1.0 / (2.0*BlurSigma*BlurSigma);
-  
-  float ddiff = (d - center_d) * u_sharpness;
-  float w = exp2(-r*r*BlurFalloff - ddiff*ddiff);
-  w_total += w;
-
-  return c*w;
-}
-
-void main()
-{
-  float center_c = texture(u_tex_ao, tc).x;
-  float center_d = texture(u_tex_linear_depth, tc).x;
-  
-  float c_total = center_c;
-  float w_total = 1.0;
-  
-  for (float r = 1; r <= KERNEL_RADIUS; ++r)
-  {
-    vec2 uv = tc + u_inv_res_dir * r;
-    c_total += BlurFunction(uv, r, center_c, center_d, w_total);  
-  }
-  
-  for (float r = 1; r <= KERNEL_RADIUS; ++r)
-  {
-    vec2 uv = tc - u_inv_res_dir * r;
-    c_total += BlurFunction(uv, r, center_c, center_d, w_total);  
-  }
-  
-#if AO_BLUR_PRESENT
-  out_frag = vec4(vec3(c_total/w_total), 1);
-#else
-  out_frag = vec4(c_total/w_total, center_d, 0, 1);
-#endif
-}
-)";
 
 void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat, float intensity, float radius, float bias) {
     ASSERT(ubo);
+
+    // From intel ASSAO
+    static constexpr float SAMPLE_PATTERN[] = {
+        0.78488064,  0.56661671,  1.500000, -0.126083, 0.26022232,  -0.29575172, 1.500000, -1.064030, 0.10459357,  0.08372527,  1.110000, -2.730563, -0.68286800, 0.04963045,  1.090000, -0.498827,
+        -0.13570161, -0.64190155, 1.250000, -0.532765, -0.26193795, -0.08205118, 0.670000, -1.783245, -0.61177456, 0.66664219,  0.710000, -0.044234, 0.43675563,  0.25119025,  0.610000, -1.167283,
+        0.07884444,  0.86618668,  0.640000, -0.459002, -0.12790935, -0.29869005, 0.600000, -1.729424, -0.04031125, 0.02413622,  0.600000, -4.792042, 0.16201244,  -0.52851415, 0.790000, -1.067055,
+        -0.70991218, 0.47301072,  0.640000, -0.335236, 0.03277707,  -0.22349690, 0.600000, -1.982384, 0.68921727,  0.36800742,  0.630000, -0.266718, 0.29251814,  0.37775412,  0.610000, -1.422520,
+        -0.12224089, 0.96582592,  0.600000, -0.426142, 0.11071457,  -0.16131058, 0.600000, -2.165947, 0.46562141,  -0.59747696, 0.600000, -0.189760, -0.51548797, 0.11804193,  0.600000, -1.246800,
+        0.89141309,  -0.42090443, 0.600000, 0.028192,  -0.32402530, -0.01591529, 0.600000, -1.543018, 0.60771245,  0.41635221,  0.600000, -0.605411, 0.02379565,  -0.08239821, 0.600000, -3.809046,
+        0.48951152,  -0.23657045, 0.600000, -1.189011, -0.17611565, -0.81696892, 0.600000, -0.513724, -0.33930185, -0.20732205, 0.600000, -1.698047, -0.91974425, 0.05403209,  0.600000, 0.062246,
+        -0.15064627, -0.14949332, 0.600000, -1.896062, 0.53180975,  -0.35210401, 0.600000, -0.758838, 0.41487166,  0.81442589,  0.600000, -0.505648, -0.24106961, -0.32721516, 0.600000, -1.665244};
     constexpr float METERS_TO_VIEWSPACE = 1.f;
-    const float* proj_data = &proj_mat[0][0];
-
-    static float rnd_data[16] = {0};
-    static int idx = 0;
-    if (rnd_data[0] == 0.f) {
-        math::generate_halton_sequence(rnd_data, 16, 2);
-    }
-    idx = (idx + 1) % 16;
-    float rnd = rnd_data[idx];
-
-    bool is_ortho = is_orthographic_proj_matrix(proj_mat);
 
     vec4 proj_info;
     float proj_scl;
-    if (!is_ortho) {
+
+    const float* proj_data = &proj_mat[0][0];
+    if (!is_orthographic_proj_matrix(proj_mat)) {
         proj_info = vec4(2.0f / (proj_data[4 * 0 + 0]),                          // (x) * (R - L)/N
                          2.0f / (proj_data[4 * 1 + 1]),                          // (y) * (T - B)/N
                          -(1.0f - proj_data[4 * 2 + 0]) / proj_data[4 * 0 + 0],  // L/N
@@ -616,47 +319,42 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
 
     float r = radius * METERS_TO_VIEWSPACE;
 
+    // This is to seed time random functions
+    static float time = 0.f;
+    time += 0.016f;
+
+    if (time > 100.f) {
+        time -= 100.f;
+    }
+
     HBAOData data;
     data.radius_to_screen = r * 0.5f * proj_scl;
-    data.r2 = r * r;
     data.neg_inv_r2 = -1.f / (r * r);
     data.n_dot_v_bias = math::clamp(bias, 0.f, 1.f - math::EPSILON);
-
-    data.inv_full_res = vec2(1.f / float(width), 1.f / float(height));
-    data.inv_quarter_res = vec2(1.f / float((width + 3) / 4), 1.f / float((height + 3) / 4));
-
+    data.time = time;
     data.ao_multiplier = 1.f / (1.f - data.n_dot_v_bias);
     data.pow_exponent = math::max(intensity, 0.f);
-
+    data.inv_full_res = vec2(1.f / float(width), 1.f / float(height));
     data.proj_info = proj_info;
-    // @NOTE: Is one needed?
-    data.proj_scale = vec2(proj_scl);
-    data.proj_ortho = is_ortho ? 1 : 0;
-    data.rnd = rnd;
+    memcpy(&data.sample_pattern, SAMPLE_PATTERN, sizeof(SAMPLE_PATTERN));
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(HBAOData), &data, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void initialize_rnd_tex(GLuint rnd_tex, int num_direction) {
-    ASSERT(AO_MAX_SAMPLES == 1);
-    constexpr int buffer_size = AO_RANDOM_TEX_SIZE * AO_RANDOM_TEX_SIZE * AO_MAX_SAMPLES;
+void initialize_rnd_tex(GLuint rnd_tex) {
+    constexpr int buffer_size = AO_RANDOM_TEX_SIZE * AO_RANDOM_TEX_SIZE;
     signed short buffer[buffer_size * 4];
 
     vec2 rnd_vals[buffer_size];
     math::generate_halton_sequence(rnd_vals, buffer_size, 2, 3);
-    /*
-for (int i = 0; i < buffer_size; i++) {
-    rnd_vals[i] = vec2(math::rnd(), math::rnd());
-}
-    */
 
     for (int i = 0; i < buffer_size; i++) {
 #define SCALE ((1 << 15))
         float rand1 = rnd_vals[i].x;
         float rand2 = rnd_vals[i].y;
-        float angle = 2.f * math::PI * rand1 / (float)num_direction;
+        float angle = 2.f * math::PI * rand1;
 
         buffer[i * 4 + 0] = (signed short)(SCALE * math::cos(angle));
         buffer[i * 4 + 1] = (signed short)(SCALE * math::sin(angle));
@@ -665,7 +363,6 @@ for (int i = 0; i < buffer_size; i++) {
 #undef SCALE
     }
 
-    // @TODO: If MSAA and AO_MAX_SAMPLES > 1, then this probably has to go into a texture array
     glBindTexture(GL_TEXTURE_2D, rnd_tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16_SNORM, AO_RANDOM_TEX_SIZE, AO_RANDOM_TEX_SIZE, 0, GL_RGBA, GL_SHORT, buffer);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -676,68 +373,47 @@ for (int i = 0; i < buffer_size; i++) {
 float compute_sharpness(float radius) { return 30.f / math::sqrt(radius); }
 
 void initialize(int width, int height) {
-    // @TODO: dynamically generate this
-    const char* defines_hbao = R"(
-        #version 150 core
-        #define AO_RANDOM_TEX_SIZE 4
-        #define PERSPECTIVE 1
-        #define AO_BLUR 1
-        #define AO_STEPS 4
-        #define AO_DIRS 8
-        #define AO_USE_NORMAL 1
-    )";
 
-    const char* defines_blur_first = R"(
-        #version 150 core
-        #define AO_BLUR_PRESENT 0
-    )";
+    String f_shader_src_ssao = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/ssao/ssao.frag");
+    String f_shader_src_blur = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/ssao/blur.frag");
+    defer {
+        free_string(&f_shader_src_ssao);
+        free_string(&f_shader_src_blur);
+    };
 
-    const char* defines_blur_second = R"(
-        #version 150 core
-        #define AO_BLUR_PRESENT 1
-    )";
+    setup_program(&gl.ssao.hbao.program_persp, "ssao perspective", f_shader_src_ssao, "#define AO_PERSPECTIVE 1");
+    setup_program(&gl.ssao.hbao.program_ortho, "ssao orthographic", f_shader_src_ssao, "#define AO_PERSPECTIVE 0");
+    setup_program(&gl.ssao.blur.program, "ssao blur", f_shader_src_blur);
 
-    setup_program(&prog_hbao, "hbao", f_shader_src_hbao, defines_hbao);
-    setup_program(&prog_blur_first, "hbao first blur", f_shader_src_hbao_blur, defines_blur_first);
-    setup_program(&prog_blur_second, "hbao second blur", f_shader_src_hbao_blur, defines_blur_second);
+    gl.ssao.hbao.uniform_loc.control_buffer = glGetUniformBlockIndex(gl.ssao.hbao.program_persp, "u_control_buffer");
+    gl.ssao.hbao.uniform_loc.tex_linear_depth = glGetUniformLocation(gl.ssao.hbao.program_persp, "u_tex_linear_depth");
+    gl.ssao.hbao.uniform_loc.tex_normal = glGetUniformLocation(gl.ssao.hbao.program_persp, "u_tex_normal");
+    gl.ssao.hbao.uniform_loc.tex_random = glGetUniformLocation(gl.ssao.hbao.program_persp, "u_tex_random");
 
-    uniform_block_index_hbao_control_buffer = glGetUniformBlockIndex(prog_hbao, "u_control_buffer");
-    uniform_loc_hbao_tex_linear_depth = glGetUniformLocation(prog_hbao, "u_tex_linear_depth");
-    uniform_loc_hbao_tex_normal = glGetUniformLocation(prog_hbao, "u_tex_normal");
-    uniform_loc_hbao_tex_random = glGetUniformLocation(prog_hbao, "u_tex_random");
+    gl.ssao.blur.uniform_loc.sharpness = glGetUniformLocation(gl.ssao.blur.program, "u_sharpness");
+    gl.ssao.blur.uniform_loc.inv_res_dir = glGetUniformLocation(gl.ssao.blur.program, "u_inv_res_dir");
+    gl.ssao.blur.uniform_loc.tex_ao = glGetUniformLocation(gl.ssao.blur.program, "u_tex_ao");
+    gl.ssao.blur.uniform_loc.tex_linear_depth = glGetUniformLocation(gl.ssao.blur.program, "u_tex_linear_depth");
 
-    ASSERT(uniform_block_index_hbao_control_buffer != -1);
-    ASSERT(uniform_loc_hbao_tex_linear_depth != -1);
-    ASSERT(uniform_loc_hbao_tex_normal != -1);
-    ASSERT(uniform_loc_hbao_tex_random != -1);
+    if (!gl.ssao.hbao.fbo) glGenFramebuffers(1, &gl.ssao.hbao.fbo);
+    if (!gl.ssao.blur.fbo) glGenFramebuffers(1, &gl.ssao.blur.fbo);
 
-    uniform_loc_blur_sharpness = glGetUniformLocation(prog_blur_second, "u_sharpness");
-    uniform_loc_blur_inv_res_dir = glGetUniformLocation(prog_blur_second, "u_inv_res_dir");
-    uniform_loc_blur_tex_ao = glGetUniformLocation(prog_blur_second, "u_tex_ao");
-	uniform_loc_blur_tex_linear_depth = glGetUniformLocation(prog_blur_second, "u_tex_linear_depth");
+    if (!gl.ssao.tex_random) glGenTextures(1, &gl.ssao.tex_random);
+    if (!gl.ssao.hbao.texture) glGenTextures(1, &gl.ssao.hbao.texture);
+    if (!gl.ssao.blur.texture) glGenTextures(1, &gl.ssao.blur.texture);
 
-    ASSERT(uniform_loc_blur_sharpness != -1);
-    ASSERT(uniform_loc_blur_inv_res_dir != -1);
-    ASSERT(uniform_loc_blur_tex_ao != -1);
-	ASSERT(uniform_loc_blur_tex_linear_depth != -1);
+    if (!gl.ssao.ubo_hbao_data) glGenBuffers(1, &gl.ssao.ubo_hbao_data);
 
-    if (!fbo_hbao) glGenFramebuffers(1, &fbo_hbao);
-    if (!fbo_blur) glGenFramebuffers(1, &fbo_blur);
+    initialize_rnd_tex(gl.ssao.tex_random);
 
-    if (!tex_random) glGenTextures(1, &tex_random);
-    if (!tex_hbao) glGenTextures(1, &tex_hbao);
-    if (!tex_blur) glGenTextures(1, &tex_blur);
-
-    initialize_rnd_tex(tex_random, AO_DIRS);
-
-    glBindTexture(GL_TEXTURE_2D, tex_hbao);
+    glBindTexture(GL_TEXTURE_2D, gl.ssao.hbao.texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glBindTexture(GL_TEXTURE_2D, tex_blur);
+    glBindTexture(GL_TEXTURE_2D, gl.ssao.blur.texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -746,34 +422,31 @@ void initialize(int width, int height) {
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo_hbao);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_hbao, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, gl.ssao.hbao.fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.ssao.hbao.texture, 0);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo_blur);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_blur, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, gl.ssao.blur.fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.ssao.blur.texture, 0);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    if (!ubo_hbao_data) glGenBuffers(1, &ubo_hbao_data);
-    glBindBuffer(GL_UNIFORM_BUFFER, ubo_hbao_data);
+    glBindBuffer(GL_UNIFORM_BUFFER, gl.ssao.ubo_hbao_data);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(HBAOData), nullptr, GL_DYNAMIC_DRAW);
-
-    tex_width = width;
-    tex_height = height;
 }
 
 void shutdown() {
-    if (fbo_hbao) glDeleteFramebuffers(1, &fbo_hbao);
-    if (fbo_blur) glDeleteFramebuffers(1, &fbo_blur);
+    if (gl.ssao.hbao.fbo) glDeleteFramebuffers(1, &gl.ssao.hbao.fbo);
+    if (gl.ssao.blur.fbo) glDeleteFramebuffers(1, &gl.ssao.blur.fbo);
 
-    if (tex_random) glDeleteTextures(1, &tex_random);
-    if (tex_blur) glDeleteTextures(1, &tex_blur);
+    if (gl.ssao.tex_random) glDeleteTextures(1, &gl.ssao.tex_random);
+    if (gl.ssao.hbao.texture) glDeleteTextures(1, &gl.ssao.hbao.texture);
+    if (gl.ssao.blur.texture) glDeleteTextures(1, &gl.ssao.blur.texture);
 
-    if (ubo_hbao_data) glDeleteBuffers(1, &ubo_hbao_data);
+    if (gl.ssao.ubo_hbao_data) glDeleteBuffers(1, &gl.ssao.ubo_hbao_data);
 
-    if (prog_hbao) glDeleteProgram(prog_hbao);
-    if (prog_blur_second) glDeleteProgram(prog_blur_second);
-    if (prog_blur_first) glDeleteProgram(prog_blur_first);
+    if (gl.ssao.hbao.program_persp) glDeleteProgram(gl.ssao.hbao.program_persp);
+    if (gl.ssao.hbao.program_ortho) glDeleteProgram(gl.ssao.hbao.program_ortho);
+    if (gl.ssao.blur.program) glDeleteProgram(gl.ssao.blur.program);
 }
 
 }  // namespace ssao
@@ -934,83 +607,81 @@ void shutdown() {
 namespace velocity {
 #define VEL_TILE_SIZE 20
 
-	struct {
-		GLuint program = 0;
-		struct {
-			GLint curr_clip_to_prev_clip_mat = -1;
-		} uniform_loc;
-	} blit_velocity;
+struct {
+    GLuint program = 0;
+    struct {
+        GLint curr_clip_to_prev_clip_mat = -1;
+    } uniform_loc;
+} blit_velocity;
 
-	struct {
-		GLuint program = 0;
-		struct {
-			GLint tex_vel;
-			GLint tex_vel_texel_size;
-		} uniform_loc;
-	} blit_tilemax;
+struct {
+    GLuint program = 0;
+    struct {
+        GLint tex_vel;
+        GLint tex_vel_texel_size;
+    } uniform_loc;
+} blit_tilemax;
 
-	struct {
-		GLuint program = 0;
-		struct {
-			GLint tex_vel;
-			GLint tex_vel_texel_size;
-		} uniform_loc;
-	} blit_neighbormax;
+struct {
+    GLuint program = 0;
+    struct {
+        GLint tex_vel;
+        GLint tex_vel_texel_size;
+    } uniform_loc;
+} blit_neighbormax;
 
-	void initialize() {
-		{
-			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_velocity.frag");
-			defer{ free_string(&f_shader_src); };
-			setup_program(&blit_velocity.program, "screen-space velocity", f_shader_src);
-			blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat = glGetUniformLocation(blit_velocity.program, "u_curr_clip_to_prev_clip_mat");
-		}
-		{
-			//const char* defines = { "#version 150 core\n#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE) };
-			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_tilemax.frag");
-			defer{ free_string(&f_shader_src); };
-			setup_program(&blit_tilemax.program, "tilemax", f_shader_src);
-			blit_tilemax.uniform_loc.tex_vel = glGetUniformLocation(blit_tilemax.program, "u_tex_vel");
-			blit_tilemax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_tilemax.program, "u_tex_vel_texel_size");
-		}
-		{
-			String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_neighbormax.frag");
-			defer{ free_string(&f_shader_src); };
-			setup_program(&blit_neighbormax.program, "neighbormax", f_shader_src);
-			blit_neighbormax.uniform_loc.tex_vel = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel");
-			blit_neighbormax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel_texel_size");
-		}
-	}
-
-	void shutdown() {
-		if (blit_velocity.program) glDeleteProgram(blit_velocity.program);
-	}
-}
-
-namespace temporal {
 void initialize() {
-	{
-		String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/temporal.frag");
-		defer{ free_string(&f_shader_src); };
-		setup_program(&gl.temporal.program, "temporal aa + motion-blur", f_shader_src);
-
-		gl.temporal.uniform_loc.tex_linear_depth = glGetUniformLocation(gl.temporal.program, "u_tex_linear_depth");
-		gl.temporal.uniform_loc.tex_main = glGetUniformLocation(gl.temporal.program, "u_tex_main");
-		gl.temporal.uniform_loc.tex_prev = glGetUniformLocation(gl.temporal.program, "u_tex_prev");
-		gl.temporal.uniform_loc.tex_vel = glGetUniformLocation(gl.temporal.program, "u_tex_vel");
-		gl.temporal.uniform_loc.tex_vel_neighbormax = glGetUniformLocation(gl.temporal.program, "u_tex_vel_neighbormax");
-		gl.temporal.uniform_loc.texel_size = glGetUniformLocation(gl.temporal.program, "u_texel_size");
-		gl.temporal.uniform_loc.jitter_uv = glGetUniformLocation(gl.temporal.program, "u_jitter_uv");
-		gl.temporal.uniform_loc.sin_time = glGetUniformLocation(gl.temporal.program, "u_sin_time");
-		gl.temporal.uniform_loc.feedback_min = glGetUniformLocation(gl.temporal.program, "u_feedback_min");
-		gl.temporal.uniform_loc.feedback_max = glGetUniformLocation(gl.temporal.program, "u_feedback_max");
-		gl.temporal.uniform_loc.motion_scale = glGetUniformLocation(gl.temporal.program, "u_motion_scale");
-	}
+    {
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_velocity.frag");
+        defer { free_string(&f_shader_src); };
+        setup_program(&blit_velocity.program, "screen-space velocity", f_shader_src);
+        blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat = glGetUniformLocation(blit_velocity.program, "u_curr_clip_to_prev_clip_mat");
+    }
+    {
+        const char* defines = {"#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE)};
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_tilemax.frag");
+        defer { free_string(&f_shader_src); };
+        setup_program(&blit_tilemax.program, "tilemax", f_shader_src, defines);
+        blit_tilemax.uniform_loc.tex_vel = glGetUniformLocation(blit_tilemax.program, "u_tex_vel");
+        blit_tilemax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_tilemax.program, "u_tex_vel_texel_size");
+    }
+    {
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_neighbormax.frag");
+        defer { free_string(&f_shader_src); };
+        setup_program(&blit_neighbormax.program, "neighbormax", f_shader_src);
+        blit_neighbormax.uniform_loc.tex_vel = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel");
+        blit_neighbormax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel_texel_size");
+    }
 }
 
 void shutdown() {
-
+    if (blit_velocity.program) glDeleteProgram(blit_velocity.program);
 }
-};
+}  // namespace velocity
+
+namespace temporal {
+void initialize() {
+    {
+        String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/temporal.frag");
+        defer { free_string(&f_shader_src); };
+        setup_program(&gl.temporal.program, "temporal aa + motion-blur", f_shader_src);
+
+        gl.temporal.uniform_loc.tex_linear_depth = glGetUniformLocation(gl.temporal.program, "u_tex_linear_depth");
+        gl.temporal.uniform_loc.tex_main = glGetUniformLocation(gl.temporal.program, "u_tex_main");
+        gl.temporal.uniform_loc.tex_prev = glGetUniformLocation(gl.temporal.program, "u_tex_prev");
+        gl.temporal.uniform_loc.tex_vel = glGetUniformLocation(gl.temporal.program, "u_tex_vel");
+        gl.temporal.uniform_loc.tex_vel_neighbormax = glGetUniformLocation(gl.temporal.program, "u_tex_vel_neighbormax");
+        gl.temporal.uniform_loc.texel_size = glGetUniformLocation(gl.temporal.program, "u_texel_size");
+        gl.temporal.uniform_loc.jitter_uv = glGetUniformLocation(gl.temporal.program, "u_jitter_uv");
+        gl.temporal.uniform_loc.sin_time = glGetUniformLocation(gl.temporal.program, "u_sin_time");
+        gl.temporal.uniform_loc.feedback_min = glGetUniformLocation(gl.temporal.program, "u_feedback_min");
+        gl.temporal.uniform_loc.feedback_max = glGetUniformLocation(gl.temporal.program, "u_feedback_max");
+        gl.temporal.uniform_loc.motion_scale = glGetUniformLocation(gl.temporal.program, "u_motion_scale");
+    }
+}
+
+void shutdown() {}
+};  // namespace temporal
 
 void initialize(int width, int height) {
     constexpr int BUFFER_SIZE = 1024;
@@ -1042,8 +713,8 @@ void initialize(int width, int height) {
     if (!gl.linear_depth.texture) glGenTextures(1, &gl.linear_depth.texture);
     glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1062,54 +733,54 @@ void initialize(int width, int height) {
     gl.linear_depth.uniform_loc.clip_info = glGetUniformLocation(gl.linear_depth.program_persp, "u_clip_info");
     gl.linear_depth.uniform_loc.tex_depth = glGetUniformLocation(gl.linear_depth.program_persp, "u_tex_depth");
 
-	// COLOR
-	if (!gl.targets.tex_color[0]) glGenTextures(2, gl.targets.tex_color);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[0]);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[1]);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glBindTexture(GL_TEXTURE_2D, 0);
+    // COLOR
+    if (!gl.targets.tex_color[0]) glGenTextures(2, gl.targets.tex_color);
+    glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[1]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-	if (!gl.targets.tex_temporal_buffer[0]) glGenTextures(2, gl.targets.tex_temporal_buffer);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0]);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1]);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glBindTexture(GL_TEXTURE_2D, 0);
+    if (!gl.targets.tex_temporal_buffer[0]) glGenTextures(2, gl.targets.tex_temporal_buffer);
+    glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-	if (!gl.targets.fbo) {
-		glGenFramebuffers(1, &gl.targets.fbo);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.targets.tex_color[0], 0);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.targets.tex_color[1], 0);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0], 0);
-		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1], 0);
+    if (!gl.targets.fbo) {
+        glGenFramebuffers(1, &gl.targets.fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.targets.tex_color[0], 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.targets.tex_color[1], 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0], 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1], 0);
 
-		GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE) {
-			LOG_ERROR("Something went wrong");
-		}
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	}
+        GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            LOG_ERROR("Something went wrong");
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
 
     // HALF RES
-	{
+    {
         String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof_half_res_prepass.frag");
         defer { FREE(src); };
         setup_program(&gl.half_res.program, "dof pre-pass", src);
@@ -1119,7 +790,7 @@ void initialize(int width, int height) {
             gl.half_res.uniform_loc.focus_point = glGetUniformLocation(gl.half_res.program, "u_focus_point");
             gl.half_res.uniform_loc.focus_scale = glGetUniformLocation(gl.half_res.program, "u_focus_scale");
         }
-	}
+    }
 
     if (!gl.half_res.tex.color_coc) {
         glGenTextures(1, &gl.half_res.tex.color_coc);
@@ -1157,49 +828,47 @@ void initialize(int width, int height) {
         }
     }
 
-	// Velocity
-	{
-		if (!gl.velocity.tex_tilemax) {
-			glGenTextures(1, &gl.velocity.tex_tilemax);
-		}
+    // Velocity
+    {
+        if (!gl.velocity.tex_tilemax) {
+            glGenTextures(1, &gl.velocity.tex_tilemax);
+        }
 
-		if (!gl.velocity.tex_neighbormax) {
-			glGenTextures(1, &gl.velocity.tex_neighbormax);
-		}
+        if (!gl.velocity.tex_neighbormax) {
+            glGenTextures(1, &gl.velocity.tex_neighbormax);
+        }
 
-		gl.velocity.tex_width = width / VEL_TILE_SIZE;
-		gl.velocity.tex_height = height / VEL_TILE_SIZE;
+        gl.velocity.tex_width = width / VEL_TILE_SIZE;
+        gl.velocity.tex_height = height / VEL_TILE_SIZE;
 
-		glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_tilemax);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_tilemax);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
-		glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_neighbormax);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_neighbormax);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
 
-		if (!gl.velocity.fbo) {
-			glGenFramebuffers(1, &gl.velocity.fbo);
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
-			glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.velocity.tex_tilemax, 0);
-			glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.velocity.tex_neighbormax, 0);
-			GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-			if (status != GL_FRAMEBUFFER_COMPLETE) {
-				LOG_ERROR("Something went wrong");
-			}
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		}
-
-
-	}
+        if (!gl.velocity.fbo) {
+            glGenFramebuffers(1, &gl.velocity.fbo);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.velocity.tex_tilemax, 0);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.velocity.tex_neighbormax, 0);
+            GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+            if (status != GL_FRAMEBUFFER_COMPLETE) {
+                LOG_ERROR("Something went wrong");
+            }
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        }
+    }
 
     gl.tex_width = width;
     gl.tex_height = height;
@@ -1208,8 +877,8 @@ void initialize(int width, int height) {
     deferred::initialize();
     highlight::initialize();
     tonemapping::initialize();
-	velocity::initialize();
-	temporal::initialize();
+    velocity::initialize();
+    temporal::initialize();
     blit::initialize();
 }
 
@@ -1218,8 +887,8 @@ void shutdown() {
     deferred::shutdown();
     highlight::shutdown();
     tonemapping::shutdown();
-	velocity::shutdown();
-	temporal::shutdown();
+    velocity::shutdown();
+    temporal::shutdown();
     blit::shutdown();
 
     if (gl.vao) glDeleteVertexArrays(1, &gl.vao);
@@ -1230,7 +899,7 @@ void shutdown() {
 void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false) {
     const vec4 clip_info(near_plane * far_plane, near_plane - far_plane, far_plane, 0);
 
-	glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
 
     if (orthographic)
@@ -1241,89 +910,87 @@ void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, b
     glUniform4fv(gl.linear_depth.uniform_loc.clip_info, 1, &clip_info[0]);
 
     // ASSUME THAT THE APPROPRIATE FS_QUAD VAO IS BOUND
-	glBindVertexArray(gl.vao);
+    glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
+    glBindVertexArray(0);
 }
 
 void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(normal_tex));
 
-	const float sharpness = ssao::compute_sharpness(radius);
-	const vec2 inv_res = vec2(1.f / ssao::tex_width, 1.f / ssao::tex_height);
+    const bool ortho = is_orthographic_proj_matrix(proj_matrix);
+    const float sharpness = ssao::compute_sharpness(radius);
+    const vec2 inv_res = vec2(1.f / gl.tex_width, 1.f / gl.tex_height);
 
-	GLint last_fbo;
-	GLint last_viewport[4];
-	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
-	glGetIntegerv(GL_VIEWPORT, last_viewport);
+    GLint last_fbo;
+    GLint last_viewport[4];
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
+    glGetIntegerv(GL_VIEWPORT, last_viewport);
 
-	glBindVertexArray(gl.vao);
+    glBindVertexArray(gl.vao);
 
-    ssao::setup_ubo_hbao_data(ssao::ubo_hbao_data, ssao::tex_width, ssao::tex_height, proj_matrix, intensity, radius, bias);
+    ssao::setup_ubo_hbao_data(gl.ssao.ubo_hbao_data, gl.tex_width, gl.tex_height, proj_matrix, intensity, radius, bias);
 
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_hbao);
-	glViewport(0, 0, ssao::tex_width, ssao::tex_height);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.ssao.hbao.fbo);
+    glViewport(0, 0, gl.tex_width, gl.tex_height);
 
     // RENDER HBAO
+    GLuint program = ortho ? gl.ssao.hbao.program_ortho : gl.ssao.hbao.program_persp;
+
     PUSH_GPU_SECTION("HBAO")
-    glUseProgram(ssao::prog_hbao);
+    glUseProgram(program);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, normal_tex);
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, ssao::tex_random);
+    glBindTexture(GL_TEXTURE_2D, gl.ssao.tex_random);
 
-    glBindBufferBase(GL_UNIFORM_BUFFER, 0, ssao::ubo_hbao_data);
-    glUniformBlockBinding(ssao::prog_hbao, ssao::uniform_block_index_hbao_control_buffer, 0);
-    glUniform1i(ssao::uniform_loc_hbao_tex_linear_depth, 0);
-    glUniform1i(ssao::uniform_loc_hbao_tex_normal, 1);
-    glUniform1i(ssao::uniform_loc_hbao_tex_random, 2);
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, gl.ssao.ubo_hbao_data);
+    glUniformBlockBinding(program, gl.ssao.hbao.uniform_loc.control_buffer, 0);
+    glUniform1i(gl.ssao.hbao.uniform_loc.tex_linear_depth, 0);
+    glUniform1i(gl.ssao.hbao.uniform_loc.tex_normal, 1);
+    glUniform1i(gl.ssao.hbao.uniform_loc.tex_random, 2);
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     POP_GPU_SECTION()
 
+    glUseProgram(gl.ssao.blur.program);
+
+    glUniform1i(gl.ssao.blur.uniform_loc.tex_linear_depth, 0);
+    glUniform1i(gl.ssao.blur.uniform_loc.tex_ao, 1);
+    glUniform1f(gl.ssao.blur.uniform_loc.sharpness, sharpness);
+    glUniform2f(gl.ssao.blur.uniform_loc.inv_res_dir, inv_res.x, 0);
+
+    glActiveTexture(GL_TEXTURE1);
+
     // BLUR FIRST
     PUSH_GPU_SECTION("BLUR 1st")
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, ssao::fbo_blur);
-
-    glUseProgram(ssao::prog_blur_first);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, ssao::tex_hbao);
-
-    glUniform1i(ssao::uniform_loc_blur_tex_linear_depth, 0);
-	glUniform1i(ssao::uniform_loc_blur_tex_ao, 1);
-    glUniform1f(ssao::uniform_loc_blur_sharpness, sharpness);
-    glUniform2f(ssao::uniform_loc_blur_inv_res_dir, inv_res.x, 0);
-
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.ssao.blur.fbo);
+    glBindTexture(GL_TEXTURE_2D, gl.ssao.hbao.texture);
     glDrawArrays(GL_TRIANGLES, 0, 3);
-
     POP_GPU_SECTION()
 
     // BLUR SECOND
     PUSH_GPU_SECTION("BLUR 2nd")
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
-	glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
-    glUseProgram(ssao::prog_blur_second);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
+    glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, ssao::tex_blur);
+    glBindTexture(GL_TEXTURE_2D, gl.ssao.blur.texture);
+    glUniform2f(gl.ssao.blur.uniform_loc.inv_res_dir, 0, inv_res.y);
 
-	glUniform1i(ssao::uniform_loc_blur_tex_linear_depth, 0);
-	glUniform1i(ssao::uniform_loc_blur_tex_ao, 1);
-    glUniform1f(ssao::uniform_loc_blur_sharpness, sharpness);
-    glUniform2f(ssao::uniform_loc_blur_inv_res_dir, 0, inv_res.y);
-
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-	glColorMask(1, 1, 1, 0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ZERO, GL_SRC_COLOR);
+    glColorMask(1, 1, 1, 0);
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
-	glDisable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE);
-	glColorMask(1, 1, 1, 1);
+    glDisable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    glColorMask(1, 1, 1, 1);
 
     glBindVertexArray(0);
     POP_GPU_SECTION()
@@ -1474,116 +1141,117 @@ void apply_tonemapping(GLuint color_tex, Tonemapping tonemapping, float exposure
 }
 
 void blit_velocity(const ViewParam& view_param) {
-	mat4 curr_clip_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view_proj;
+    mat4 curr_clip_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view_proj;
 
-	glUseProgram(velocity::blit_velocity.program);
-	glUniformMatrix4fv(velocity::blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat, 1, GL_FALSE, &curr_clip_to_prev_clip_mat[0][0]);
-	glBindVertexArray(gl.vao);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
-	glUseProgram(0);
+    glUseProgram(velocity::blit_velocity.program);
+    glUniformMatrix4fv(velocity::blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat, 1, GL_FALSE, &curr_clip_to_prev_clip_mat[0][0]);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
 
 void blit_tilemax(GLuint velocity_tex, int tex_width, int tex_height) {
-	ASSERT(glIsTexture(velocity_tex));
-	const vec2 texel_size = { 1.f / tex_width, 1.f / tex_height };
+    ASSERT(glIsTexture(velocity_tex));
+    const vec2 texel_size = {1.f / tex_width, 1.f / tex_height};
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocity_tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocity_tex);
 
-	glUseProgram(velocity::blit_tilemax.program);
-	glUniform1i(velocity::blit_tilemax.uniform_loc.tex_vel, 0);
-	glUniform2fv(velocity::blit_tilemax.uniform_loc.tex_vel_texel_size, 1, &texel_size[0]);
-	glBindVertexArray(gl.vao);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
-	glUseProgram(0);
+    glUseProgram(velocity::blit_tilemax.program);
+    glUniform1i(velocity::blit_tilemax.uniform_loc.tex_vel, 0);
+    glUniform2fv(velocity::blit_tilemax.uniform_loc.tex_vel_texel_size, 1, &texel_size[0]);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
 
 void blit_neighbormax(GLuint velocity_tex, int tex_width, int tex_height) {
-	ASSERT(glIsTexture(velocity_tex));
-	const vec2 texel_size = { 1.f / tex_width, 1.f / tex_height };
+    ASSERT(glIsTexture(velocity_tex));
+    const vec2 texel_size = {1.f / tex_width, 1.f / tex_height};
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, velocity_tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, velocity_tex);
 
-	glUseProgram(velocity::blit_neighbormax.program);
-	glUniform1i(velocity::blit_neighbormax.uniform_loc.tex_vel, 0);
-	glUniform2fv(velocity::blit_neighbormax.uniform_loc.tex_vel_texel_size, 1, &texel_size[0]);
-	glBindVertexArray(gl.vao);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
-	glUseProgram(0);
+    glUseProgram(velocity::blit_neighbormax.program);
+    glUniform1i(velocity::blit_neighbormax.uniform_loc.tex_vel, 0);
+    glUniform2fv(velocity::blit_neighbormax.uniform_loc.tex_vel_texel_size, 1, &texel_size[0]);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
 
-void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min, float feedback_max, float motion_scale) {
-	ASSERT(glIsTexture(linear_depth_tex));
-	ASSERT(glIsTexture(color_tex));
-	ASSERT(glIsTexture(velocity_tex));
-	ASSERT(glIsTexture(velocity_neighbormax_tex));
+void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min,
+                       float feedback_max, float motion_scale) {
+    ASSERT(glIsTexture(linear_depth_tex));
+    ASSERT(glIsTexture(color_tex));
+    ASSERT(glIsTexture(velocity_tex));
+    ASSERT(glIsTexture(velocity_neighbormax_tex));
 
-	static int target = 0;
-	target = (target + 1) % 2;
+    static int target = 0;
+    target = (target + 1) % 2;
 
-	static float time = 0.f;
-	time += 0.016f;
+    static float time = 0.f;
+    time += 0.016f;
 
-	if (time > 100.f) {
-		time -= 100.f;
-	}
+    if (time > 100.f) {
+        time -= 100.f;
+    }
 
-	int dst_buf = target;
-	int src_buf = (target + 1) % 2;
+    int dst_buf = target;
+    int src_buf = (target + 1) % 2;
 
-	const vec2 res = { gl.tex_width, gl.tex_height };
-	const vec4 texel_size = vec4(1.f / res, res);
-	const vec4 jitter_uv = vec4(curr_jitter / res, prev_jitter / res);
-	const float sin_time = time;
+    const vec2 res = {gl.tex_width, gl.tex_height};
+    const vec4 texel_size = vec4(1.f / res, res);
+    const vec4 jitter_uv = vec4(curr_jitter / res, prev_jitter / res);
+    const float sin_time = time;
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, color_tex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, color_tex);
 
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[src_buf]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[src_buf]);
 
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, velocity_tex);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, velocity_tex);
 
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, velocity_neighbormax_tex);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, velocity_neighbormax_tex);
 
-	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
 
-	GLenum draw_buffers[2];
-	draw_buffers[0] = GL_COLOR_ATTACHMENT2 + dst_buf; // tex_temporal_buffer[0 or 1]
-	draw_buffers[1] = GL_COLOR_ATTACHMENT1; // tex_final
+    GLenum draw_buffers[2];
+    draw_buffers[0] = GL_COLOR_ATTACHMENT2 + dst_buf;  // tex_temporal_buffer[0 or 1]
+    draw_buffers[1] = GL_COLOR_ATTACHMENT1;            // tex_final
 
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
-	glViewport(0, 0, gl.tex_width, gl.tex_height);
-	glDrawBuffers(2, draw_buffers);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+    glViewport(0, 0, gl.tex_width, gl.tex_height);
+    glDrawBuffers(2, draw_buffers);
 
-	glUseProgram(gl.temporal.program);
+    glUseProgram(gl.temporal.program);
 
-	// Uniforms
-	glUniform1i(gl.temporal.uniform_loc.tex_main, 0);
-	glUniform1i(gl.temporal.uniform_loc.tex_prev, 1);
-	glUniform1i(gl.temporal.uniform_loc.tex_vel, 2);
-	glUniform1i(gl.temporal.uniform_loc.tex_vel_neighbormax, 3);
-	glUniform1i(gl.temporal.uniform_loc.tex_linear_depth, 4);
+    // Uniforms
+    glUniform1i(gl.temporal.uniform_loc.tex_main, 0);
+    glUniform1i(gl.temporal.uniform_loc.tex_prev, 1);
+    glUniform1i(gl.temporal.uniform_loc.tex_vel, 2);
+    glUniform1i(gl.temporal.uniform_loc.tex_vel_neighbormax, 3);
+    glUniform1i(gl.temporal.uniform_loc.tex_linear_depth, 4);
 
-	glUniform4fv(gl.temporal.uniform_loc.texel_size, 1, &texel_size[0]);
-	glUniform4fv(gl.temporal.uniform_loc.jitter_uv, 1, &jitter_uv[0]);
+    glUniform4fv(gl.temporal.uniform_loc.texel_size, 1, &texel_size[0]);
+    glUniform4fv(gl.temporal.uniform_loc.jitter_uv, 1, &jitter_uv[0]);
 
-	glUniform1f(gl.temporal.uniform_loc.sin_time, sin_time);
-	glUniform1f(gl.temporal.uniform_loc.feedback_min, feedback_min);
-	glUniform1f(gl.temporal.uniform_loc.feedback_max, feedback_max);
-	glUniform1f(gl.temporal.uniform_loc.motion_scale, motion_scale);
+    glUniform1f(gl.temporal.uniform_loc.sin_time, sin_time);
+    glUniform1f(gl.temporal.uniform_loc.feedback_min, feedback_min);
+    glUniform1f(gl.temporal.uniform_loc.feedback_max, feedback_max);
+    glUniform1f(gl.temporal.uniform_loc.motion_scale, motion_scale);
 
-	glBindVertexArray(gl.vao);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
-	glUseProgram(0);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
 }
 
 void blit_texture(GLuint tex) {
@@ -1599,83 +1267,93 @@ void blit_texture(GLuint tex) {
 }
 
 void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_param, GLuint depth_tex, GLuint color_tex, GLuint normal_tex, GLuint velocity_tex) {
-	ASSERT(glIsTexture(depth_tex));
-	ASSERT(glIsTexture(color_tex));
-	ASSERT(glIsTexture(normal_tex));
-	ASSERT(glIsTexture(velocity_tex));
+    ASSERT(glIsTexture(depth_tex));
+    ASSERT(glIsTexture(color_tex));
+    ASSERT(glIsTexture(normal_tex));
+    ASSERT(glIsTexture(velocity_tex));
 
-	const auto near_dist = view_param.matrix.proj[3][2] / (view_param.matrix.proj[2][2] - 1.f);
-	const auto far_dist = (view_param.matrix.proj[2][2] - 1.f) * near_dist / (view_param.matrix.proj[2][2] + 1.f);
-	const auto ortho = is_orthographic_proj_matrix(view_param.matrix.proj);
+    const auto near_dist = view_param.matrix.proj[3][2] / (view_param.matrix.proj[2][2] - 1.f);
+    const auto far_dist = (view_param.matrix.proj[2][2] - 1.f) * near_dist / (view_param.matrix.proj[2][2] + 1.f);
+    const auto ortho = is_orthographic_proj_matrix(view_param.matrix.proj);
 
-	GLint last_fbo;
-	GLint last_viewport[4];
-	GLint last_draw_buffer;
-	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
-	glGetIntegerv(GL_VIEWPORT, last_viewport);
-	glGetIntegerv(GL_DRAW_BUFFER, &last_draw_buffer);
+    GLint last_fbo;
+    GLint last_viewport[4];
+    GLint last_draw_buffer;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
+    glGetIntegerv(GL_VIEWPORT, last_viewport);
+    glGetIntegerv(GL_DRAW_BUFFER, &last_draw_buffer);
 
-	glViewport(0, 0, gl.tex_width, gl.tex_height);
-	glBindVertexArray(gl.vao);
+    glViewport(0, 0, gl.tex_width, gl.tex_height);
+    glBindVertexArray(gl.vao);
 
-	PUSH_GPU_SECTION("Linearize Depth") {
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
-		compute_linear_depth(depth_tex, near_dist, far_dist, ortho);
-	}
-	POP_GPU_SECTION()
+    PUSH_GPU_SECTION("Linearize Depth") {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
+        compute_linear_depth(depth_tex, near_dist, far_dist, ortho);
+    }
+    POP_GPU_SECTION()
 
-	if (desc.temporal_reprojection.enabled) {
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
-		glViewport(0, 0, gl.velocity.tex_width, gl.velocity.tex_height);
+    PUSH_GPU_SECTION("Generate Linear Depth Mipmaps") {
+        glBindTexture(GL_TEXTURE_2D, gl.linear_depth.texture);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    POP_GPU_SECTION()
 
-		PUSH_GPU_SECTION("Velocity: Tilemax") {
-			glDrawBuffer(GL_COLOR_ATTACHMENT0);
-			blit_tilemax(velocity_tex, gl.tex_width, gl.tex_height);
-		}
-		POP_GPU_SECTION()
+    if (desc.temporal_reprojection.enabled) {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
+        glViewport(0, 0, gl.velocity.tex_width, gl.velocity.tex_height);
 
-		PUSH_GPU_SECTION("Velocity: Neighbormax") {
-			glDrawBuffer(GL_COLOR_ATTACHMENT1);
-			blit_neighbormax(gl.velocity.tex_tilemax, gl.velocity.tex_width, gl.velocity.tex_height);
-		}
-		POP_GPU_SECTION()
-	}
+        PUSH_GPU_SECTION("Velocity: Tilemax") {
+            glDrawBuffer(GL_COLOR_ATTACHMENT0);
+            blit_tilemax(velocity_tex, gl.tex_width, gl.tex_height);
+        }
+        POP_GPU_SECTION()
 
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
-	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	glViewport(0, 0, gl.tex_width, gl.tex_height);
+        PUSH_GPU_SECTION("Velocity: Neighbormax") {
+            glDrawBuffer(GL_COLOR_ATTACHMENT1);
+            blit_neighbormax(gl.velocity.tex_tilemax, gl.velocity.tex_width, gl.velocity.tex_height);
+        }
+        POP_GPU_SECTION()
+    }
 
-	if (desc.tonemapping.enabled) {
-		PUSH_GPU_SECTION("Tonemapping")
-		apply_tonemapping(color_tex, desc.tonemapping.mode, desc.tonemapping.exposure, desc.tonemapping.gamma);
-		POP_GPU_SECTION()
-	}
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glViewport(0, 0, gl.tex_width, gl.tex_height);
 
-	if (desc.ambient_occlusion.enabled) {
-		PUSH_GPU_SECTION("SSAO")
-		apply_ssao(gl.linear_depth.texture, normal_tex, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
-		POP_GPU_SECTION()
-	}
-	
-	if (desc.depth_of_field.enabled) {
-		glDrawBuffer(GL_COLOR_ATTACHMENT1);
-		PUSH_GPU_SECTION("DOF")
-		apply_dof(gl.linear_depth.texture, gl.targets.tex_color[0], view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
-		POP_GPU_SECTION()
-		glDrawBuffer(GL_COLOR_ATTACHMENT0);
-		blit_texture(gl.targets.tex_color[1]);
-	}
+    if (desc.tonemapping.enabled) {
+        PUSH_GPU_SECTION("Tonemapping")
+        apply_tonemapping(color_tex, desc.tonemapping.mode, desc.tonemapping.exposure, desc.tonemapping.gamma);
+        POP_GPU_SECTION()
+    }
 
-	if (desc.temporal_reprojection.enabled) {
-		PUSH_GPU_SECTION("Temporal AA + Motion-Blur")
-		apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color[0], velocity_tex, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter, desc.temporal_reprojection.feedback_min, desc.temporal_reprojection.feedback_max, desc.temporal_reprojection.motion_blur.motion_scale);
-		POP_GPU_SECTION()
-	}
+    if (desc.ambient_occlusion.enabled) {
+        PUSH_GPU_SECTION("SSAO")
+        apply_ssao(gl.linear_depth.texture, normal_tex, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
+        POP_GPU_SECTION()
+    }
 
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
-	glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
-	glDrawBuffer(last_draw_buffer);
-	blit_texture(gl.targets.tex_color[1]);
+    if (desc.depth_of_field.enabled) {
+        glDrawBuffer(GL_COLOR_ATTACHMENT1);
+        PUSH_GPU_SECTION("DOF")
+        apply_dof(gl.linear_depth.texture, gl.targets.tex_color[0], view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
+        POP_GPU_SECTION()
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+        blit_texture(gl.targets.tex_color[1]);
+    }
+
+    if (desc.temporal_reprojection.enabled) {
+        PUSH_GPU_SECTION("Temporal AA + Motion-Blur")
+        apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color[0], velocity_tex, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter,
+                          desc.temporal_reprojection.feedback_min, desc.temporal_reprojection.feedback_max, desc.temporal_reprojection.motion_blur.motion_scale);
+        POP_GPU_SECTION()
+    } else {
+        glDrawBuffer(GL_COLOR_ATTACHMENT1);
+        blit_texture(gl.targets.tex_color[0]);
+    }
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
+    glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
+    glDrawBuffer(last_draw_buffer);
+    blit_texture(gl.targets.tex_color[1]);
 }
 
 }  // namespace postprocessing

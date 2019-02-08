@@ -37,9 +37,9 @@ static void initialize() {
     uniform_loc_view_mat = glGetUniformLocation(program, "u_view_mat");
     uniform_loc_proj_mat = glGetUniformLocation(program, "u_proj_mat");
     uniform_loc_inv_proj_mat = glGetUniformLocation(program, "u_inv_proj_mat");
-	uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
+    uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
     uniform_loc_radius_scale = glGetUniformLocation(program, "u_radius_scale");
-	uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
+    uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
 }
 
 static void shutdown() {
@@ -55,6 +55,7 @@ static GLint uniform_loc_view_mat = -1;
 static GLint uniform_loc_proj_mat = -1;
 static GLint uniform_loc_curr_view_to_prev_clip_mat = -1;
 static GLint uniform_loc_radius = -1;
+static GLint uniform_loc_jitter_uv = -1;
 
 static void initialize() {
     GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/licorice.vert", GL_VERTEX_SHADER);
@@ -72,8 +73,9 @@ static void initialize() {
 
     uniform_loc_view_mat = glGetUniformLocation(program, "u_view_mat");
     uniform_loc_proj_mat = glGetUniformLocation(program, "u_proj_mat");
-	uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
+    uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
     uniform_loc_radius = glGetUniformLocation(program, "u_radius");
+    uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
 }
 
 static void shutdown() {
@@ -93,6 +95,7 @@ static GLint uniform_loc_normal_mat = -1;
 static GLint uniform_loc_view_proj_mat = -1;
 static GLint uniform_loc_prev_view_proj_mat = -1;
 static GLint uniform_loc_scale = -1;
+static GLint uniform_loc_jitter_uv = -1;
 
 void intitialize() {
     GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/ribbons.vert", GL_VERTEX_SHADER);
@@ -108,26 +111,27 @@ void intitialize() {
     const GLuint shaders[] = {v_shader, g_shader, f_shader};
     gl::attach_link_detach(program, shaders);
 
-	uniform_loc_atom_color_buffer = glGetUniformLocation(program, "u_atom_color_buffer");
-	uniform_loc_atom_velocity_buffer = glGetUniformLocation(program, "u_atom_velocity_buffer");
+    uniform_loc_atom_color_buffer = glGetUniformLocation(program, "u_atom_color_buffer");
+    uniform_loc_atom_velocity_buffer = glGetUniformLocation(program, "u_atom_velocity_buffer");
     uniform_loc_normal_mat = glGetUniformLocation(program, "u_normal_mat");
     uniform_loc_view_proj_mat = glGetUniformLocation(program, "u_view_proj_mat");
-	uniform_loc_prev_view_proj_mat = glGetUniformLocation(program, "u_prev_view_proj_mat");
-	uniform_loc_scale = glGetUniformLocation(program, "u_scale");
+    uniform_loc_prev_view_proj_mat = glGetUniformLocation(program, "u_prev_view_proj_mat");
+    uniform_loc_scale = glGetUniformLocation(program, "u_scale");
+    uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
 
     if (!atom_color_tex) {
         glGenTextures(1, &atom_color_tex);
     }
 
-	if (!atom_velocity_tex) {
-		glGenTextures(1, &atom_velocity_tex);
-	}
+    if (!atom_velocity_tex) {
+        glGenTextures(1, &atom_velocity_tex);
+    }
 }
 
 void shutdown() {
     if (program) glDeleteProgram(program);
     if (atom_color_tex) glDeleteTextures(1, &atom_color_tex);
-	if (atom_velocity_tex) glDeleteTextures(1, &atom_velocity_tex);
+    if (atom_velocity_tex) glDeleteTextures(1, &atom_velocity_tex);
 }
 
 }  // namespace ribbon
@@ -159,11 +163,11 @@ void intitialize() {
     const GLuint shaders[] = {v_shader, g_shader, f_shader};
     gl::attach_link_detach(program, shaders);
 
-	uniform_loc_atom_color_buffer = glGetUniformLocation(program, "u_atom_color_buffer");
-	uniform_loc_atom_velocity_buffer = glGetUniformLocation(program, "u_atom_velocity_buffer");
+    uniform_loc_atom_color_buffer = glGetUniformLocation(program, "u_atom_color_buffer");
+    uniform_loc_atom_velocity_buffer = glGetUniformLocation(program, "u_atom_velocity_buffer");
     uniform_loc_normal_mat = glGetUniformLocation(program, "u_normal_mat");
     uniform_loc_view_proj_mat = glGetUniformLocation(program, "u_view_proj_mat");
-	uniform_loc_prev_view_proj_mat = glGetUniformLocation(program, "u_prev_view_proj_mat");
+    uniform_loc_prev_view_proj_mat = glGetUniformLocation(program, "u_prev_view_proj_mat");
     uniform_loc_scale = glGetUniformLocation(program, "u_scale");
     uniform_loc_atom_color_tex = glGetUniformLocation(program, "u_atom_color_tex");
 
@@ -171,15 +175,15 @@ void intitialize() {
         glGenTextures(1, &atom_color_tex);
     }
 
-	if (!atom_velocity_tex) {
-		glGenTextures(1, &atom_velocity_tex);
-	}
+    if (!atom_velocity_tex) {
+        glGenTextures(1, &atom_velocity_tex);
+    }
 }
 
 void shutdown() {
     if (program) glDeleteProgram(program);
     if (atom_color_tex) glDeleteTextures(1, &atom_color_tex);
-	if (atom_velocity_tex) glDeleteTextures(1, &atom_velocity_tex);
+    if (atom_velocity_tex) glDeleteTextures(1, &atom_velocity_tex);
 }
 
 }  // namespace cartoon
@@ -280,45 +284,41 @@ void shutdown() {
 }
 
 void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_color_buffer, GLuint atom_velocity_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale) {
-	ASSERT(glIsBuffer(atom_position_buffer));
-	ASSERT(glIsBuffer(atom_radius_buffer));
-	ASSERT(glIsBuffer(atom_color_buffer));
-	ASSERT(glIsBuffer(atom_velocity_buffer));
+    ASSERT(glIsBuffer(atom_position_buffer));
+    ASSERT(glIsBuffer(atom_radius_buffer));
+    ASSERT(glIsBuffer(atom_color_buffer));
+    ASSERT(glIsBuffer(atom_velocity_buffer));
 
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AtomPosition), (const GLvoid*)0);
     glEnableVertexAttribArray(0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, atom_radius_buffer);
-	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(AtomRadius), (const GLvoid*)0);
-	glEnableVertexAttribArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_radius_buffer);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(AtomRadius), (const GLvoid*)0);
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ARRAY_BUFFER, atom_color_buffer);
     glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(AtomColor), (const GLvoid*)0);
     glEnableVertexAttribArray(2);
 
-	glBindBuffer(GL_ARRAY_BUFFER, atom_velocity_buffer);
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
-	glEnableVertexAttribArray(3);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_velocity_buffer);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
+    glEnableVertexAttribArray(3);
 
     glUseProgram(vdw::program);
 
-	const vec2 res = view_param.resolution;
-	//const mat4 de_jitter_curr = mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(-view_param.jitter / res, 0, 1));
-	//const mat4 de_jitter_prev = mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(-view_param.previous.jitter / res, 0, 1));
-
-	const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
-	const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
-	const mat4 proj = view_param.matrix.proj;
+    const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
+    const vec2 res = view_param.resolution;
+    const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
 
     // Uniforms
-    glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
-	glUniform4fv(vdw::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
     glUniformMatrix4fv(vdw::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
-    glUniformMatrix4fv(vdw::uniform_loc_proj_mat, 1, GL_FALSE, &proj[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_proj_mat, 1, GL_FALSE, &view_param.matrix.proj[0][0]);
     glUniformMatrix4fv(vdw::uniform_loc_inv_proj_mat, 1, GL_FALSE, &view_param.matrix.inverse.proj[0][0]);
-	glUniformMatrix4fv(vdw::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
+    glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
+    glUniform4fv(vdw::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
 
     glDrawArrays(GL_POINTS, 0, atom_count);
 
@@ -338,19 +338,22 @@ void draw_licorice(GLuint atom_position_buffer, GLuint atom_color_buffer, GLuint
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(AtomColor), (const GLvoid*)0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, atom_velocity_buffer);
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_velocity_buffer);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bond_buffer);
 
-	const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
+    const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
+    const vec2 res = view_param.resolution;
+    const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
 
     glUseProgram(licorice::program);
     glUniformMatrix4fv(licorice::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
     glUniformMatrix4fv(licorice::uniform_loc_proj_mat, 1, GL_FALSE, &view_param.matrix.proj[0][0]);
-	glUniformMatrix4fv(licorice::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
+    glUniformMatrix4fv(licorice::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
     glUniform1f(licorice::uniform_loc_radius, 0.25f * radius_scale);
+    glUniform4fv(licorice::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
 
     glDrawElements(GL_LINES, bond_count * 2, GL_UNSIGNED_INT, 0);
     glUseProgram(0);
@@ -462,20 +465,28 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, spline_index_buffer);
 
-	glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_BUFFER, ribbon::atom_color_tex);
     glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA8, atom_color_buffer);
 
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_BUFFER, ribbon::atom_velocity_tex);
-	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, atom_velocity_buffer);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_BUFFER, ribbon::atom_velocity_tex);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, atom_velocity_buffer);
+
+    const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
+    const vec2 res = view_param.resolution;
+    const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
 
     glUseProgram(ribbon::program);
-	glUniform1i(ribbon::uniform_loc_atom_color_buffer, 0);
-	glUniform1i(ribbon::uniform_loc_atom_velocity_buffer, 1);
+
+    // Uniforms
+    glUniform1i(ribbon::uniform_loc_atom_color_buffer, 0);
+    glUniform1i(ribbon::uniform_loc_atom_velocity_buffer, 1);
     glUniformMatrix4fv(ribbon::uniform_loc_normal_mat, 1, GL_FALSE, &view_param.matrix.norm[0][0]);
     glUniformMatrix4fv(ribbon::uniform_loc_view_proj_mat, 1, GL_FALSE, &view_param.matrix.view_proj[0][0]);
-	glUniformMatrix4fv(ribbon::uniform_loc_prev_view_proj_mat, 1, GL_FALSE, &view_param.previous.matrix.view_proj[0][0]);
+    glUniformMatrix4fv(ribbon::uniform_loc_prev_view_proj_mat, 1, GL_FALSE, &view_param.previous.matrix.view_proj[0][0]);
+    glUniform4fv(ribbon::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
+
     glDrawElements(GL_LINE_STRIP, num_spline_indices, GL_UNSIGNED_INT, 0);
     glUseProgram(0);
 
