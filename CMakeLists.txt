@@ -14,6 +14,7 @@ source_group("mol" FILES ${MOL_FILES})
 
 add_subdirectory(ext/gl3w)
 add_subdirectory(ext/libxdrfile)
+add_subdirectory(ext/stb)
 
 add_library(mdutils ${CORE_FILES} ${GFX_FILES} ${MOL_FILES})
 
@@ -37,7 +38,8 @@ if (MDUTILS_USE_RELATIVE_PATHS)
 endif()
 
 target_compile_definitions(mdutils PRIVATE
-	MDUTILS_SHADER_DIR=\"${RESOURCE_DIR}shaders\")
+	MDUTILS_SHADER_DIR=\"${RESOURCE_DIR}shaders\"
+	MDUTILS_IMAGE_DIR=\"${RESOURCE_DIR}images\")
 
 target_compile_features(mdutils PRIVATE cxx_std_17)
 
@@ -46,4 +48,5 @@ target_link_libraries(mdutils
 		gl3w
     PRIVATE
 		libxdrfile
+		stb
 )

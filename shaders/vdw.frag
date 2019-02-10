@@ -2,9 +2,12 @@
 #extension GL_ARB_conservative_depth : enable
 #extension GL_ARB_explicit_attrib_location : enable
 
+uniform sampler2D u_tex_noise;
+
 uniform mat4 u_proj_mat;
 uniform mat4 u_curr_view_to_prev_clip_mat;
 uniform vec4 u_jitter_uv;
+uniform uint u_frame;
 
 in GS_FS {
     flat vec4 color;
@@ -12,6 +15,7 @@ in GS_FS {
     flat vec4 picking_color;
     smooth vec4 view_coord;
     flat vec4 view_velocity;
+    flat uint atom_idx;
 } in_frag;
 
 #ifdef GL_EXT_conservative_depth
@@ -22,6 +26,8 @@ layout(location = 1) out vec4 out_normal;
 layout(location = 2) out vec4 out_ss_vel;
 layout(location = 3) out vec4 out_picking_color;
 
+const float GOLDEN_RATIO = 1.61803398875;
+
 // https://aras-p.info/texts/CompactNormalStorage.html
 vec4 encode_normal (vec3 n) {
     float p = sqrt(n.z*8+8);
@@ -29,6 +35,19 @@ vec4 encode_normal (vec3 n) {
 }
 
 void main() {
+    /*
+    vec2 coord = gl_FragCoord.xy / 512;
+    vec4 noise = textureLod(u_tex_noise, coord, 0);
+    uint idx = in_frag.atom_idx;
+    noise = mod(noise + GOLDEN_RATIO * ((u_frame) % 100U), 1.0);
+
+    float val = mod(gl_FragCoord.x + gl_FragCoord.y, 2.0);
+    bool mask = val > 0.0;
+    //bool mask = noise.x > 0.5;
+
+    if (u_frame % 2U == 0U) mask = !mask;
+    */
+
     vec3 center = in_frag.view_sphere.xyz;
     float radius = in_frag.view_sphere.w;
     vec3 view_dir = -normalize(in_frag.view_coord.xyz);
@@ -57,9 +76,20 @@ void main() {
     vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w - u_jitter_uv.zw;
     vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5;
 
+    vec4 color = in_frag.color;
+    vec4 picking_color = in_frag.picking_color;
+
+/*
+    if (in_frag.atom_idx < 5000U) {
+        if (mask) discard;
+        ss_vel = vec2(0,0);
+        picking_color = vec4(1,1,1,1);
+    }
+    */
+
     gl_FragDepth = (clip_coord.z / clip_coord.w) * 0.5 + 0.5;
-    out_color_alpha = in_frag.color;
+    out_color_alpha = color;
     out_normal = encode_normal(view_normal);
     out_ss_vel = vec4(ss_vel, 0, 0);
-    out_picking_color = in_frag.picking_color;
+    out_picking_color = picking_color;
 }

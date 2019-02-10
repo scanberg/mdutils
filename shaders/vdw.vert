@@ -22,6 +22,7 @@ out VS_GS {
     flat float inv_aspect_ratio;
     flat float z;
     flat vec4 view_velocity;
+    flat uint atom_idx;
 } out_geom;
 
 vec4 pack_u32(uint data) {
@@ -76,6 +77,7 @@ void main() {
     out_geom.inv_aspect_ratio = inv_ar;
     out_geom.z = z;
     out_geom.view_velocity = u_view_mat * vec4(in_velocity, 0);
+    out_geom.atom_idx = uint(gl_VertexID);
 
     gl_Position = view_coord;
 }
