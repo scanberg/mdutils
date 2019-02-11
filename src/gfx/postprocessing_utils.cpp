@@ -1205,7 +1205,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
     const vec2 res = {gl.tex_width, gl.tex_height};
     const vec4 texel_size = vec4(1.f / res, res);
-    const vec4 jitter_uv = vec4(curr_jitter / res, prev_jitter / res);
+    const vec4 jitter_uv = -vec4(curr_jitter / res, prev_jitter / res) * 0.5f;
     const float sin_time = time;
 
     glActiveTexture(GL_TEXTURE0);

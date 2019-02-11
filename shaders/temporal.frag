@@ -5,11 +5,11 @@
 
 #pragma optionNV(unroll all)
 
-#define UNJITTER_COLORSAMPLES 0
+#define UNJITTER_COLORSAMPLES 1
 #define UNJITTER_NEIGHBORHOOD 0
 #define UNJITTER_REPROJECTION 0
 
-#define USE_YCOCG 0
+#define USE_YCOCG 1
 #define USE_CLIPPING 1
 #define USE_DILATION 1
 #define USE_MOTION_BLUR 1
