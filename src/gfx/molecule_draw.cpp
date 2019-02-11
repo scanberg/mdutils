@@ -504,7 +504,6 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
     glBindTexture(GL_TEXTURE_BUFFER, ribbon::atom_velocity_tex);
     glTexBuffer(GL_TEXTURE_BUFFER, GL_RGB32F, atom_velocity_buffer);
 
-    const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
     const vec2 res = view_param.resolution;
     const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
 

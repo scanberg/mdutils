@@ -778,7 +778,7 @@ void cone_trace_scene(GLuint depth_tex, GLuint normal_tex, GLuint color_alpha_te
     vec3 voxel_grid_ext = vol.max_box - vol.min_box;
     float voxel_ext = math::max(math::max(vol.voxel_ext.x, vol.voxel_ext.y), vol.voxel_ext.z);
 
-    const float cone_angle = 0.07;  // 0.2 = 22.6 degrees, 0.1 = 11.4 degrees, 0.07 = 8 degrees angle
+    //const float cone_angle = 0.07;  // 0.2 = 22.6 degrees, 0.1 = 11.4 degrees, 0.07 = 8 degrees angle
 
     glUseProgram(cone_trace::gl.program);
 

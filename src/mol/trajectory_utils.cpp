@@ -150,7 +150,6 @@ void copy_trajectory_positions(Array<vec3> dst_array, const MoleculeTrajectory& 
     ASSERT(dst_array);
     ASSERT(dst_array.count >= traj.num_atoms);
     ASSERT(frame_index < traj.num_frames);
-    constexpr auto size = sizeof(vec3);
     memcpy(dst_array.ptr, traj.frame_buffer.ptr[frame_index].atom_positions.ptr, traj.num_atoms * sizeof(vec3));
 }
 

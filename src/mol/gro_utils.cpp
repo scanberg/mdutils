@@ -40,6 +40,7 @@ const char* get_format(CString line) {
 bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_string) {
     CString header = extract_line(gro_string);
     CString length = extract_line(gro_string);
+    (void)header;
 
     int num_atoms = to_int(length);
     if (num_atoms == 0) {

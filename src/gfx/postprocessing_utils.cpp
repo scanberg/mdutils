@@ -528,15 +528,6 @@ static struct {
         GLint exposure = -1;
         GLint gamma = -1;
     } uniform_loc;
-} hejl_dawsson;
-
-static struct {
-    GLuint program = 0;
-    struct {
-        GLint texture = -1;
-        GLint exposure = -1;
-        GLint gamma = -1;
-    } uniform_loc;
 } filmic;
 
 void initialize() {
@@ -1071,9 +1062,6 @@ void apply_dof(GLuint linear_depth_tex, GLuint color_tex, const mat4& proj_matri
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
 
-    const float n = proj_matrix[3][2] / (proj_matrix[2][2] - 1.f);
-    const float f = (proj_matrix[2][2] - 1.f) * n / (proj_matrix[2][2] + 1.f);
-    const bool ortho = is_orthographic_proj_matrix(proj_matrix);
     const vec2 pixel_size = vec2(1.f / gl.tex_width, 1.f / gl.tex_height);
 
     GLint last_fbo;

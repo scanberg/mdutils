@@ -357,7 +357,7 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
             spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length, [&bonds, &res, atom_pos, atom_elem, atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
                 (void)atom_j_pos;
                 if (atom_i < atom_j && atom_res_idx[atom_i] == atom_res_idx[atom_j] && covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-                    bonds.push_back({atom_i, atom_j});
+                    bonds.push_back({{atom_i, atom_j}});
                     res.bond_idx.end++;
                 }
             });
@@ -370,7 +370,7 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, Array<const R
                 (void)atom_j_pos;
                 if (atom_i < atom_j && math::abs(atom_res_idx[atom_i] - atom_res_idx[atom_j]) == 1 &&  // consecutive
                     covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-                    bonds.push_back({atom_i, atom_j});
+                    bonds.push_back({{atom_i, atom_j}});
                     res.bond_idx.end++;
                 }
             });
@@ -406,7 +406,7 @@ DynamicArray<Bond> compute_covalent_bonds(Array<const vec3> atom_pos, Array<cons
         spatialhash::for_each_within(frame, atom_pos[atom_i], max_covelent_bond_length, [&bonds, atom_pos, atom_elem, atom_i](int atom_j, const vec3& atom_j_pos) {
             (void)atom_j_pos;
             if (atom_i < atom_j && covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-                bonds.push_back({atom_i, atom_j});
+                bonds.push_back({{atom_i, atom_j}});
             }
         });
     }
@@ -425,7 +425,7 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
     DynamicArray<Bond> residue_bonds;
     for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
         if (has_covalent_bond(residues[i], residues[i + 1])) {
-            residue_bonds.push_back({i, i + 1});
+            residue_bonds.push_back({{i, i + 1}});
         }
     }
 
@@ -458,7 +458,7 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
             curr_chain_idx = residue_chains[i];
             Label lbl;
             snprintf(lbl.cstr(), lbl.capacity(), "C%i", curr_chain_idx);
-            chains.push_back({lbl, {(ResIdx)i, (ResIdx)i}});
+            chains.push_back({lbl, {(ResIdx)i, (ResIdx)i}, {}});
         }
         if (chains.size() > 0) {
             chains.back().res_idx.end++;
