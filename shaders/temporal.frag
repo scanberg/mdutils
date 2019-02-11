@@ -1,30 +1,56 @@
-#version 330 core
+#version 150 core
+
+#extension GL_ARB_explicit_attrib_location : enable
+#pragma optionNV(unroll all)
 
 // This is ported straight from the implementation given by playdeadgames (MIT License)
 // https://github.com/playdeadgames/temporal/blob/master/Assets/Shaders/TemporalReprojection.shader
 
-#pragma optionNV(unroll all)
 
-#define UNJITTER_COLORSAMPLES 0
+#ifndef UNJITTER_COLORSAMPLES
+#define UNJITTER_COLORSAMPLES 1
+#endif
+#ifndef UNJITTER_NEIGHBORHOOD
 #define UNJITTER_NEIGHBORHOOD 0
+#endif
+#ifndef UNJITTER_REPROJECTION
 #define UNJITTER_REPROJECTION 0
+#endif
 
-#define USE_YCOCG 0
+#ifndef USE_YCOCG
+#define USE_YCOCG 1
+#endif
+#ifndef USE_CLIPPING
 #define USE_CLIPPING 1
+#endif
+#ifndef USE_DILATION
 #define USE_DILATION 1
+#endif
+#ifndef USE_MOTION_BLUR
 #define USE_MOTION_BLUR 1
+#endif
+#ifndef USE_MOTION_BLUR_NEIGHBORMAX
 #define USE_MOTION_BLUR_NEIGHBORMAX 1
+#endif
+#ifndef USE_OPTIMIZATIONS
 #define USE_OPTIMIZATIONS 1
+#endif
 
+#ifndef MINMAX_3X3
 #define MINMAX_3X3 0
+#endif
+#ifndef MINMAX_3X3_ROUNDED
 #define MINMAX_3X3_ROUNDED 1
+#endif
+#ifndef MINMAX_4TAP_VARYING
 #define MINMAX_4TAP_VARYING 0
+#endif
 
 uniform sampler2D u_tex_main;
 uniform sampler2D u_tex_prev;
+uniform sampler2D u_tex_linear_depth;
 uniform sampler2D u_tex_vel;
 uniform sampler2D u_tex_vel_neighbormax;
-uniform sampler2D u_tex_linear_depth;
 
 uniform vec4 u_texel_size;
 uniform vec4 u_jitter_uv;
@@ -413,7 +439,7 @@ void main() {
 	//to_screen = vec4(1000.0 * abs(ss_vel), 0.0, 0.0);
 
 	// add noise
-	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
+	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0 * 0;
 
 	out_buff = clamp(to_buffer + noise4, 0.0, 1.0);
 	out_frag = clamp(to_screen + noise4, 0.0, 1.0);
