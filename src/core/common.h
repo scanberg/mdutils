@@ -29,7 +29,11 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define MEGABYTES(x) (KILOBYTES(x) << 10)
 #define GIGABYTES(x) (MEGABYTES(x) << 10)
 
-#define BIT(x) (1 << x)
+#define BIT(bit) (1U << bit)
+#define SET_BIT(field, bit) (field |= (1U << bit))
+#define CLEAR_BIT(field, bit) (field &= ~(1U << bit))
+#define CHECK_BIT(field, bit) ((field & (1U << bit)) != 0U)
+
 #define UNUSED(x) (void)(x)
 
 // @TODO: This has to be changed so that the default version is only used when neither malloc nor free is defined

@@ -2,6 +2,19 @@
 #include <core/common.h>
 #include <core/math_utils.h>
 
+static vec4 projection_extents(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
+	const float aspect_ratio = (float)width / (float)height;
+	const float half_h = math::tan(camera.fov_y * 0.5f);
+	const float half_w = aspect_ratio * half_h;
+	const float texel_size_x = half_w / (float)(0.5f * width);
+	const float texel_size_y = half_h / (float)(0.5f * height);
+	const float jitter_x = texel_size_x * texel_offset_x;
+	const float jitter_y = texel_size_y * texel_offset_y;
+
+	// xy = frustum extents at distance 1, zw = jitter at distance 1
+	return vec4(half_w, half_h, jitter_x, jitter_y);
+}
+
 mat4 compute_view_to_world_matrix(const Camera& camera) {
     auto m = math::mat4_cast(camera.orientation);
     m[3] = vec4(camera.orientation * camera.position, 1);
@@ -11,14 +24,27 @@ mat4 compute_view_to_world_matrix(const Camera& camera) {
 }
 
 mat4 compute_world_to_view_matrix(const Camera& camera) {
-    auto r = glm::mat4_cast(glm::conjugate(camera.orientation));
-    auto t = glm::translate(mat4(1), -camera.position);
-    return r * t;
+    const mat4 R = glm::mat4_cast(glm::conjugate(camera.orientation));
+    const mat4 T = glm::translate(mat4(1), -camera.position);
+    return R * T;
 }
 
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height) {
-    float aspect = (float)width / (float)height;
-    return glm::perspective(camera.fov_y, aspect, camera.near_plane, camera.far_plane);
+    const float aspect_ratio = (float)width / (float)height;
+    return glm::perspective(camera.fov_y, aspect_ratio, camera.near_plane, camera.far_plane);
+}
+
+mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
+	const vec4 ext = projection_extents(camera, width, height, texel_offset_x, texel_offset_y);
+
+	const float cn = camera.near_plane;
+	const float cf = camera.far_plane;
+	const float xm = ext.z - ext.x;
+	const float xp = ext.z + ext.x;
+	const float ym = ext.w - ext.y;
+	const float yp = ext.w + ext.y;
+
+	return glm::frustum(xm * cn, xp * cn, ym * cn, yp * cn, cn, cf);
 }
 
 // @TODO: This is messed up... what values should one use to control the zoomlevel?

@@ -21,9 +21,9 @@ vec4 encode_normal (vec3 n) {
 }
 
 void main() {
-	vec2 curr_ndc = in_frag.curr_clip_coord.xy / in_frag.curr_clip_coord.w - u_jitter_uv.xy;
-	vec2 prev_ndc = in_frag.prev_clip_coord.xy / in_frag.prev_clip_coord.w - u_jitter_uv.zw;
-    vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5;
+	vec2 curr_ndc = in_frag.curr_clip_coord.xy / in_frag.curr_clip_coord.w;
+	vec2 prev_ndc = in_frag.prev_clip_coord.xy / in_frag.prev_clip_coord.w;
+    vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5 + (u_jitter_uv.xy - u_jitter_uv.zw);
 
     out_color_alpha = in_frag.color;
     out_normal = encode_normal(normalize(in_frag.view_normal.xyz));

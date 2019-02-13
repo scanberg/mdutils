@@ -1219,8 +1219,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
     const vec2 res = {gl.tex_width, gl.tex_height};
     const vec4 texel_size = vec4(1.f / res, res);
-    const vec4 jitter_uv =
-        vec4(curr_jitter / res, 0, 0) * (-0.5f);  // (jitter / res) is in NDC[-1,1] and we need it in UV[0,1], the negation is just due to the convention of direction used in the shader.
+    const vec4 jitter_uv = vec4(curr_jitter / res, 0, 0);
     const float sin_time = time;
 
     glActiveTexture(GL_TEXTURE0);

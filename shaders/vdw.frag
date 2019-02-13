@@ -72,9 +72,9 @@ void main() {
     // Remove jitter from samples to provide the actual velocity
     // This is crucial for the temporal reprojection to work properly
     // Otherwise the velocity will push the samples outside of the "reprojection" region
-    vec2 curr_ndc = clip_coord.xy / clip_coord.w - u_jitter_uv.xy;
-    vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w - u_jitter_uv.zw;
-    vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5;
+    vec2 curr_ndc = clip_coord.xy / clip_coord.w;
+    vec2 prev_ndc = prev_clip_coord.xy / prev_clip_coord.w;
+    vec2 ss_vel = (curr_ndc - prev_ndc) * 0.5 + (u_jitter_uv.xy - u_jitter_uv.zw);
 
     vec4 color = in_frag.color;
     vec4 picking_color = in_frag.picking_color;

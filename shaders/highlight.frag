@@ -1,7 +1,7 @@
 #version 150 core
 
 uniform sampler2D u_texture_atom_idx;
-uniform usamplerBuffer u_buffer_selection;
+uniform samplerBuffer u_buffer_selection;
 
 in vec2 tc;
 out vec4 out_frag;
@@ -32,7 +32,7 @@ void main() {
     float fill_t = c;
 
     const vec3 line_color = vec3(10,10,0);
-    const vec3 fill_color = vec3(2,2,2);
+    const vec3 fill_color = vec3(5,5,5);
 
     vec3 color = mix(vec3(0), line_color, line_t) + mix(vec3(0), fill_color, fill_t);
     out_frag = vec4(color, 0);
