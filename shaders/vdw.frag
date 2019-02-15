@@ -24,9 +24,14 @@ layout (depth_greater) out float gl_FragDepth;
 layout(location = 0) out vec4 out_color_alpha;
 layout(location = 1) out vec4 out_normal;
 layout(location = 2) out vec4 out_ss_vel;
-layout(location = 3) out vec4 out_picking_color;
+layout(location = 3) out vec4 out_emission;
+layout(location = 4) out vec4 out_picking_color;
 
 const float GOLDEN_RATIO = 1.61803398875;
+
+float PDnrand( vec2 n ) {
+    return fract( sin(dot(n.xy, vec2(12.9898, 78.233)))* 43758.5453 );
+}
 
 // https://aras-p.info/texts/CompactNormalStorage.html
 vec4 encode_normal (vec3 n) {
@@ -35,18 +40,23 @@ vec4 encode_normal (vec3 n) {
 }
 
 void main() {
-    /*
-    vec2 coord = gl_FragCoord.xy / 512;
-    vec4 noise = textureLod(u_tex_noise, coord, 0);
-    uint idx = in_frag.atom_idx;
-    noise = mod(noise + GOLDEN_RATIO * ((u_frame) % 100U), 1.0);
+    
+    //vec2 coord = gl_FragCoord.xy / 512;
+    //vec4 noise = textureLod(u_tex_noise, coord, 0);
+    //uint idx = in_frag.atom_idx;
+    //noise = vec4(PDnrand(gl_FragCoord.xy * gl_FragCoord.z));
 
-    float val = mod(gl_FragCoord.x + gl_FragCoord.y, 2.0);
-    bool mask = val > 0.0;
-    //bool mask = noise.x > 0.5;
+    //float val = mod(gl_FragCoord.x + gl_FragCoord.y, 2.0);
+    //bool mask = val > 0.0;
+    //bool mask = noise.x > 0.125;
 
-    if (u_frame % 2U == 0U) mask = !mask;
-    */
+    //if (u_frame % 2U == 0U) mask = !mask;
+
+/*
+    if (in_frag.atom_idx < 5000U) {
+        if (mask) discard;
+    }
+    */   
 
     vec3 center = in_frag.view_sphere.xyz;
     float radius = in_frag.view_sphere.w;
@@ -78,14 +88,6 @@ void main() {
 
     vec4 color = in_frag.color;
     vec4 picking_color = in_frag.picking_color;
-
-/*
-    if (in_frag.atom_idx < 5000U) {
-        if (mask) discard;
-        ss_vel = vec2(0,0);
-        picking_color = vec4(1,1,1,1);
-    }
-    */
 
     gl_FragDepth = (clip_coord.z / clip_coord.w) * 0.5 + 0.5;
     out_color_alpha = color;

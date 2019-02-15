@@ -27,7 +27,7 @@
 #define USE_DILATION 1
 #endif
 #ifndef USE_MOTION_BLUR
-#define USE_MOTION_BLUR 0
+#define USE_MOTION_BLUR 1
 #endif
 #ifndef USE_MOTION_BLUR_NEIGHBORMAX
 #define USE_MOTION_BLUR_NEIGHBORMAX 1
@@ -404,6 +404,8 @@ void main() {
 	float vs_dist = depth_sample_linear(uv);
 #endif
 
+ss_vel = vec2(0,0);
+
 	// temporal resolve
 	vec4 color_temporal = temporal_reprojection(uv, ss_vel, vs_dist);
 
@@ -439,7 +441,7 @@ void main() {
 	//to_screen = vec4(1000.0 * abs(ss_vel), 0.0, 0.0);
 
 	// add noise
-	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0 * 0;
+	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
 
 	out_buff = clamp(to_buffer + noise4, 0.0, 1.0);
 	out_frag = clamp(to_screen + noise4, 0.0, 1.0);

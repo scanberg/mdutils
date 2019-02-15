@@ -753,13 +753,13 @@ void initialize(int width, int height) {
     // COLOR
     if (!gl.targets.tex_color[0]) glGenTextures(2, gl.targets.tex_color);
     glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[0]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, gl.targets.tex_color[1]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -769,14 +769,14 @@ void initialize(int width, int height) {
     if (!gl.targets.tex_temporal_buffer[0]) glGenTextures(2, gl.targets.tex_temporal_buffer);
     glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[0]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, gl.targets.tex_temporal_buffer[1]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1239,7 +1239,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
     GLenum draw_buffers[2];
     draw_buffers[0] = GL_COLOR_ATTACHMENT2 + dst_buf;  // tex_temporal_buffer[0 or 1]
-    draw_buffers[1] = GL_COLOR_ATTACHMENT1;            // tex_final
+    draw_buffers[1] = GL_COLOR_ATTACHMENT1;            // tex_color[1]
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
     glViewport(0, 0, gl.tex_width, gl.tex_height);
@@ -1294,11 +1294,11 @@ void blit_texture(GLuint tex) {
     glUseProgram(0);
 }
 
-void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_param, GLuint depth_tex, GLuint color_tex, GLuint normal_tex, GLuint velocity_tex) {
-    ASSERT(glIsTexture(depth_tex));
-    ASSERT(glIsTexture(color_tex));
-    ASSERT(glIsTexture(normal_tex));
-    ASSERT(glIsTexture(velocity_tex));
+void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) {
+    ASSERT(glIsTexture(desc.input_textures.depth));
+    ASSERT(glIsTexture(desc.input_textures.color));
+    ASSERT(glIsTexture(desc.input_textures.normal));
+    ASSERT(glIsTexture(desc.input_textures.velocity));
 
     const auto near_dist = view_param.matrix.proj[3][2] / (view_param.matrix.proj[2][2] - 1.f);
     const auto far_dist = (view_param.matrix.proj[2][2] - 1.f) * near_dist / (view_param.matrix.proj[2][2] + 1.f);
@@ -1316,7 +1316,7 @@ void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_
 
     PUSH_GPU_SECTION("Linearize Depth") {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.linear_depth.fbo);
-        compute_linear_depth(depth_tex, near_dist, far_dist, ortho);
+        compute_linear_depth(desc.input_textures.depth, near_dist, far_dist, ortho);
     }
     POP_GPU_SECTION()
 
@@ -1332,7 +1332,7 @@ void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_
 
         PUSH_GPU_SECTION("Velocity: Tilemax") {
             glDrawBuffer(GL_COLOR_ATTACHMENT0);
-            blit_tilemax(velocity_tex, gl.tex_width, gl.tex_height);
+            blit_tilemax(desc.input_textures.velocity, gl.tex_width, gl.tex_height);
         }
         POP_GPU_SECTION()
 
@@ -1347,39 +1347,58 @@ void apply_postprocessing(const PostProcessingDesc& desc, const ViewParam& view_
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     glViewport(0, 0, gl.tex_width, gl.tex_height);
 
-    if (desc.tonemapping.enabled) {
-        PUSH_GPU_SECTION("Tonemapping")
-        apply_tonemapping(color_tex, desc.tonemapping.mode, desc.tonemapping.exposure, desc.tonemapping.gamma);
-        POP_GPU_SECTION()
-    }
+	PUSH_GPU_SECTION("Clear HDR")
+	glClearColor(25.f, 25.f, 25.f, 1.f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	POP_GPU_SECTION()
 
-    if (desc.ambient_occlusion.enabled) {
-        PUSH_GPU_SECTION("SSAO")
-        apply_ssao(gl.linear_depth.texture, normal_tex, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
-        POP_GPU_SECTION()
-    }
+	PUSH_GPU_SECTION("Shade")
+	shade_deferred(desc.input_textures.depth, desc.input_textures.color, desc.input_textures.normal, view_param.matrix.inverse.proj);
+	POP_GPU_SECTION()
 
-    if (desc.depth_of_field.enabled) {
-        glDrawBuffer(GL_COLOR_ATTACHMENT1);
-        PUSH_GPU_SECTION("DOF")
-        apply_dof(gl.linear_depth.texture, gl.targets.tex_color[0], view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
-        POP_GPU_SECTION()
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
-        blit_texture(gl.targets.tex_color[1]);
-    }
+	if (desc.ambient_occlusion.enabled) {
+		PUSH_GPU_SECTION("SSAO")
+		apply_ssao(gl.linear_depth.texture, desc.input_textures.normal, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
+		POP_GPU_SECTION()
+	}
 
-    if (desc.temporal_reprojection.enabled) {
-        const float motion_scale = desc.temporal_reprojection.motion_blur.enabled ? desc.temporal_reprojection.motion_blur.motion_scale : 0.f;
-        const float f_min = desc.temporal_reprojection.feedback_min;
-        const float f_max = desc.temporal_reprojection.feedback_max;
+	if (desc.input_textures.emissive) {
+		PUSH_GPU_SECTION("Add Emissive")
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE);
+		blit_texture(desc.input_textures.emissive);
+		glDisable(GL_BLEND);
+		POP_GPU_SECTION()
+	}
 
-        PUSH_GPU_SECTION("Temporal AA & [Motion-Blur]")
-        apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color[0], velocity_tex, gl.velocity.tex_neighbormax, view_param.jitter, f_min, f_max, motion_scale);
-        POP_GPU_SECTION()
-    } else {
-        glDrawBuffer(GL_COLOR_ATTACHMENT1);
-        blit_texture(gl.targets.tex_color[0]);
-    }
+	if (desc.depth_of_field.enabled) {
+		glDrawBuffer(GL_COLOR_ATTACHMENT1);
+		PUSH_GPU_SECTION("DOF")
+		apply_dof(gl.linear_depth.texture, gl.targets.tex_color[0], view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
+		POP_GPU_SECTION()
+	}
+	else {
+		glDrawBuffer(GL_COLOR_ATTACHMENT1);
+		blit_texture(gl.targets.tex_color[0]);
+	}
+
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+	PUSH_GPU_SECTION("Tonemapping")
+	apply_tonemapping(gl.targets.tex_color[1], desc.tonemapping.mode, desc.tonemapping.exposure, desc.tonemapping.gamma);
+	POP_GPU_SECTION()
+
+	if (desc.temporal_reprojection.enabled) {
+		const float feedback_min = desc.temporal_reprojection.feedback_min;
+		const float feedback_max = desc.temporal_reprojection.feedback_max;
+		const float motion_scale = desc.temporal_reprojection.motion_blur.enabled ? desc.temporal_reprojection.motion_blur.motion_scale : 0.f;
+		if (motion_scale != 0.f)
+			PUSH_GPU_SECTION("Temporal AA + Motion Blur")
+		else
+			PUSH_GPU_SECTION("Temporal AA")
+		apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color[0], desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, feedback_min, feedback_max, motion_scale);
+		POP_GPU_SECTION()
+	}
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
     glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);

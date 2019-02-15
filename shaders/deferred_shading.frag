@@ -9,6 +9,8 @@ uniform mat4 u_inv_proj_mat;
 in vec2 tc;
 out vec4 out_frag;
 
+// TODO: Use linear depth instead and use uniform vec4 for unpacking to view coords.
+
 vec4 depth_to_view_coord(vec2 tex_coord, float depth) {
     vec4 clip_coord = vec4(vec3(tex_coord, depth) * 2.0 - 1.0, 1.0);
     vec4 view_coord = u_inv_proj_mat * clip_coord;
