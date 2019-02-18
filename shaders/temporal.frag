@@ -81,11 +81,11 @@ vec3 ycocg_to_rgb(vec3 c)
 	// R = Y + Co - Cg
 	// G = Y + Cg
 	// B = Y - Co - Cg
-	return clamp(vec3(
+	return vec3(
 		c.x + c.y - c.z,
 		c.x + c.z,
 		c.x - c.y - c.z
-	), 0, 1);
+	);
 }
 
 float luminance(vec3 c) {
@@ -443,8 +443,8 @@ ss_vel = vec2(0,0);
 	// add noise
 	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
 
-	out_buff = clamp(to_buffer + noise4, 0.0, 1.0);
-	out_frag = clamp(to_screen + noise4, 0.0, 1.0);
+	out_buff = to_buffer + noise4;
+	out_frag = to_screen + noise4;
 
 	//out_frag = texture(u_tex_vel_neighbormax, uv);
 
