@@ -66,6 +66,7 @@ inline float distance2(const T& a, const T& b) {
     T c = a - b;
     return dot(c, c);
 }
+
 using glm::normalize;
 
 template <int N, typename T, glm::qualifier Q>

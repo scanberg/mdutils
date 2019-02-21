@@ -3,16 +3,16 @@
 #include <core/math_utils.h>
 
 static vec4 projection_extents(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
-	const float aspect_ratio = (float)width / (float)height;
-	const float half_h = math::tan(camera.fov_y * 0.5f);
-	const float half_w = aspect_ratio * half_h;
-	const float texel_size_x = half_w / (float)(0.5f * width);
-	const float texel_size_y = half_h / (float)(0.5f * height);
-	const float jitter_x = texel_size_x * texel_offset_x;
-	const float jitter_y = texel_size_y * texel_offset_y;
+    const float aspect_ratio = (float)width / (float)height;
+    const float half_h = math::tan(camera.fov_y * 0.5f);
+    const float half_w = aspect_ratio * half_h;
+    const float texel_size_x = half_w / (float)(0.5f * width);
+    const float texel_size_y = half_h / (float)(0.5f * height);
+    const float jitter_x = texel_size_x * texel_offset_x;
+    const float jitter_y = texel_size_y * texel_offset_y;
 
-	// xy = frustum extents at distance 1, zw = jitter at distance 1
-	return vec4(half_w, half_h, jitter_x, jitter_y);
+    // xy = frustum extents at distance 1, zw = jitter at distance 1
+    return vec4(half_w, half_h, jitter_x, jitter_y);
 }
 
 mat4 compute_view_to_world_matrix(const Camera& camera) {
@@ -35,16 +35,16 @@ mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int 
 }
 
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
-	const vec4 ext = projection_extents(camera, width, height, texel_offset_x, texel_offset_y);
+    const vec4 ext = projection_extents(camera, width, height, texel_offset_x, texel_offset_y);
 
-	const float cn = camera.near_plane;
-	const float cf = camera.far_plane;
-	const float xm = ext.z - ext.x;
-	const float xp = ext.z + ext.x;
-	const float ym = ext.w - ext.y;
-	const float yp = ext.w + ext.y;
+    const float cn = camera.near_plane;
+    const float cf = camera.far_plane;
+    const float xm = ext.z - ext.x;
+    const float xp = ext.z + ext.x;
+    const float ym = ext.w - ext.y;
+    const float yp = ext.w + ext.y;
 
-	return glm::frustum(xm * cn, xp * cn, ym * cn, yp * cn, cn, cf);
+    return glm::frustum(xm * cn, xp * cn, ym * cn, yp * cn, cn, cf);
 }
 
 // @TODO: This is messed up... what values should one use to control the zoomlevel?
@@ -141,7 +141,7 @@ void camera_move(Camera* camera, vec3 vec) {
 
 static inline vec3 transform_vec(quat q, vec3 v) { return q * v; }
 
-bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* state) {
+bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* state, TrackballFlags flags) {
     ASSERT(position);
     ASSERT(orientation);
     ASSERT(state);
@@ -157,21 +157,19 @@ bool camera_controller_trackball(vec3* position, quat* orientation, TrackballCon
         const vec3 look_at = *position - *orientation * vec3(0, 0, state->distance);
         *orientation = glm::normalize(*orientation * q);
         *position = look_at + *orientation * vec3(0, 0, state->distance);
-        return true;
+        if (flags & TrackballFlags_RotateReturnsTrue) return true;
     } else if (state->input.pan_button && mouse_move) {
         const vec2 delta = (ndc_curr - ndc_prev) * vec2(1, -1);
-        const vec3 move =
-            *orientation * vec3(-delta.x, delta.y, 0) * math::pow(state->distance * state->params.pan_scale, state->params.pan_exponent);
+        const vec3 move = *orientation * vec3(-delta.x, delta.y, 0) * math::pow(state->distance * state->params.pan_scale, state->params.pan_exponent);
         *position += move;
-        return true;
+        if (flags & TrackballFlags_PanReturnsTrue) return true;
     } else if ((state->input.dolly_button && mouse_move) || state->input.dolly_delta != 0.f) {
-        float delta = -(state->input.mouse_coord_curr.y - state->input.mouse_coord_prev.y) *
-                      math::pow(state->distance * state->params.dolly_drag_scale, state->params.dolly_drag_exponent);
+        float delta = -(state->input.mouse_coord_curr.y - state->input.mouse_coord_prev.y) * math::pow(state->distance * state->params.dolly_drag_scale, state->params.dolly_drag_exponent);
         delta -= state->input.dolly_delta * math::pow(state->distance * state->params.dolly_delta_scale, state->params.dolly_delta_exponent);
         const vec3 look_at = *position - *orientation * vec3(0, 0, state->distance);
         state->distance = math::clamp(state->distance + delta, state->params.min_distance, state->params.max_distance);
         *position = look_at + transform_vec(*orientation, vec3(0, 0, state->distance));
-        return true;
+        if (flags & TrackballFlags_DollyReturnsTrue) return true;
     }
     return false;
 }

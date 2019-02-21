@@ -473,6 +473,9 @@ static struct {
     struct {
         GLint texture_atom_idx = -1;
         GLint buffer_selection = -1;
+        GLint highlight = -1;
+        GLint selection = -1;
+        GLint outline = -1;
     } uniform_loc;
 } highlight;
 
@@ -483,6 +486,9 @@ void initialize() {
     if (!highlight.selection_texture) glGenTextures(1, &highlight.selection_texture);
     highlight.uniform_loc.texture_atom_idx = glGetUniformLocation(highlight.program, "u_texture_atom_idx");
     highlight.uniform_loc.buffer_selection = glGetUniformLocation(highlight.program, "u_buffer_selection");
+    highlight.uniform_loc.highlight = glGetUniformLocation(highlight.program, "u_highlight");
+    highlight.uniform_loc.selection = glGetUniformLocation(highlight.program, "u_selection");
+    highlight.uniform_loc.outline = glGetUniformLocation(highlight.program, "u_outline");
 }
 
 void shutdown() {
@@ -794,7 +800,7 @@ void initialize(int width, int height) {
             LOG_ERROR("Something went wrong");
         }
 
-        GLenum buffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+        GLenum buffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
         glDrawBuffers(4, buffers);
         glClear(GL_COLOR_BUFFER_BIT);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -802,7 +808,7 @@ void initialize(int width, int height) {
 
     // HALF RES
     {
-        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof_half_res_prepass.frag");
+        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof_half_res_prepass.frag");
         defer { FREE(src); };
         setup_program(&gl.half_res.program, "dof pre-pass", src);
         if (gl.half_res.program) {
@@ -837,7 +843,7 @@ void initialize(int width, int height) {
 
     // DOF
     {
-        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof.frag");
+        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof.frag");
         defer { FREE(src); };
         if (setup_program(&gl.bokeh_dof.program, "bokeh dof", src)) {
             gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "uHalfRes");
@@ -1040,7 +1046,7 @@ void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const
     glUseProgram(0);
 }
 
-void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer) {
+void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer, const vec3& highlight, const vec3& selection, const vec3& outline) {
     ASSERT(glIsTexture(atom_idx_tex));
     ASSERT(glIsBuffer(selection_buffer));
 
@@ -1049,11 +1055,14 @@ void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer) {
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_BUFFER, highlight::highlight.selection_texture);
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_R8, selection_buffer);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, selection_buffer);
 
     glUseProgram(highlight::highlight.program);
     glUniform1i(highlight::highlight.uniform_loc.texture_atom_idx, 0);
     glUniform1i(highlight::highlight.uniform_loc.buffer_selection, 1);
+    glUniform3fv(highlight::highlight.uniform_loc.highlight, 1, &highlight[0]);
+    glUniform3fv(highlight::highlight.uniform_loc.selection, 1, &selection[0]);
+    glUniform3fv(highlight::highlight.uniform_loc.outline, 1, &outline[0]);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
@@ -1088,7 +1097,7 @@ void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_p
     POP_GPU_SECTION();
 }
 
-void apply_dof(GLuint linear_depth_tex, GLuint color_tex, const mat4& proj_matrix, float focus_point, float focus_scale) {
+void apply_dof(GLuint linear_depth_tex, GLuint color_tex, float focus_point, float focus_scale) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
 
@@ -1246,7 +1255,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
     GLenum draw_buffers[2];
     draw_buffers[0] = GL_COLOR_ATTACHMENT2 + dst_buf;  // tex_temporal_buffer[0 or 1]
-    draw_buffers[1] = bound_buffer;  // assume that this is part of the same fbo
+    draw_buffers[1] = bound_buffer;                    // assume that this is part of the same fbo
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
     glViewport(0, 0, gl.tex_width, gl.tex_height);
@@ -1350,66 +1359,79 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
         POP_GPU_SECTION()
     }
 
+    GLenum dst_buffer = GL_COLOR_ATTACHMENT1;
+    GLuint src_texture = gl.targets.tex_color[0];
+
+    auto swap_target = [&dst_buffer, &src_texture]() {
+        dst_buffer = dst_buffer == GL_COLOR_ATTACHMENT0 ? GL_COLOR_ATTACHMENT1 : GL_COLOR_ATTACHMENT0;
+        src_texture = src_texture == gl.targets.tex_color[0] ? gl.targets.tex_color[1] : gl.targets.tex_color[0];
+    };
+
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
-    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glDrawBuffer(dst_buffer);
     glViewport(0, 0, gl.tex_width, gl.tex_height);
 
-	PUSH_GPU_SECTION("Clear HDR")
-	glClearColor(25.f, 25.f, 25.f, 1.f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	POP_GPU_SECTION()
+    PUSH_GPU_SECTION("Clear HDR")
+    glClearColor(25.f, 25.f, 25.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    POP_GPU_SECTION()
 
-	PUSH_GPU_SECTION("Shade")
-	shade_deferred(desc.input_textures.depth, desc.input_textures.color, desc.input_textures.normal, view_param.matrix.inverse.proj);
-	POP_GPU_SECTION()
+    PUSH_GPU_SECTION("Shade")
+    shade_deferred(desc.input_textures.depth, desc.input_textures.color, desc.input_textures.normal, view_param.matrix.inverse.proj);
+    POP_GPU_SECTION()
 
-	if (desc.ambient_occlusion.enabled) {
-		PUSH_GPU_SECTION("SSAO")
-		apply_ssao(gl.linear_depth.texture, desc.input_textures.normal, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
-		POP_GPU_SECTION()
-	}
+    if (desc.ambient_occlusion.enabled) {
+        PUSH_GPU_SECTION("SSAO")
+        apply_ssao(gl.linear_depth.texture, desc.input_textures.normal, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
+        POP_GPU_SECTION()
+    }
 
-	if (desc.input_textures.emissive) {
-		PUSH_GPU_SECTION("Add Emissive")
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_ONE, GL_ONE);
-		blit_texture(desc.input_textures.emissive);
-		glDisable(GL_BLEND);
-		POP_GPU_SECTION()
-	}
+    if (desc.input_textures.emissive) {
+        PUSH_GPU_SECTION("Add Emissive")
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE);
+        blit_texture(desc.input_textures.emissive);
+        glDisable(GL_BLEND);
+        POP_GPU_SECTION()
+    }
 
-	if (desc.depth_of_field.enabled) {
-		glDrawBuffer(GL_COLOR_ATTACHMENT1);
-		PUSH_GPU_SECTION("DOF")
-		apply_dof(gl.linear_depth.texture, gl.targets.tex_color[0], view_param.matrix.proj, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
-		POP_GPU_SECTION()
-	}
-	else {
-		glDrawBuffer(GL_COLOR_ATTACHMENT1);
-		blit_texture(gl.targets.tex_color[0]);
-	}
+    if (desc.depth_of_field.enabled) {
+        swap_target();
+        glDrawBuffer(dst_buffer);
+        PUSH_GPU_SECTION("DOF")
+        apply_dof(gl.linear_depth.texture, src_texture, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
+        POP_GPU_SECTION()
+    }
 
-	if (desc.temporal_reprojection.enabled) {
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
-		const float feedback_min = desc.temporal_reprojection.feedback_min;
-		const float feedback_max = desc.temporal_reprojection.feedback_max;
-		const float motion_scale = desc.temporal_reprojection.motion_blur.enabled ? desc.temporal_reprojection.motion_blur.motion_scale : 0.f;
-		if (motion_scale != 0.f)
-			PUSH_GPU_SECTION("Temporal AA + Motion Blur")
-		else
-			PUSH_GPU_SECTION("Temporal AA")
-		apply_temporal_aa(gl.linear_depth.texture, gl.targets.tex_color[1], desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, feedback_min, feedback_max, motion_scale);
-		POP_GPU_SECTION()
-	}
+    PUSH_GPU_SECTION("Tonemapping") {
+        swap_target();
+        glDrawBuffer(dst_buffer);
+        const auto tonemapper = desc.tonemapping.enabled ? desc.tonemapping.mode : Tonemapping_Passthrough;
+        apply_tonemapping(src_texture, tonemapper, desc.tonemapping.exposure, desc.tonemapping.gamma);
+    }
+    POP_GPU_SECTION()
+
+    if (desc.temporal_reprojection.enabled) {
+        swap_target();
+        glDrawBuffer(dst_buffer);
+        const float feedback_min = desc.temporal_reprojection.feedback_min;
+        const float feedback_max = desc.temporal_reprojection.feedback_max;
+        const float motion_scale = desc.temporal_reprojection.motion_blur.enabled ? desc.temporal_reprojection.motion_blur.motion_scale : 0.f;
+        if (motion_scale != 0.f)
+            PUSH_GPU_SECTION("Temporal AA + Motion Blur")
+        else
+            PUSH_GPU_SECTION("Temporal AA")
+        apply_temporal_aa(gl.linear_depth.texture, src_texture, desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, feedback_min, feedback_max, motion_scale);
+        POP_GPU_SECTION()
+    }
 
     // Activate backbuffer or whatever was bound before
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
     glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
     glDrawBuffer(last_draw_buffer);
 
-	PUSH_GPU_SECTION("Tonemapping")
-	apply_tonemapping(gl.targets.tex_color[0], desc.tonemapping.mode, desc.tonemapping.exposure, desc.tonemapping.gamma);
-	POP_GPU_SECTION()
+    swap_target();
+    blit_texture(src_texture);
 }
 
 }  // namespace postprocessing

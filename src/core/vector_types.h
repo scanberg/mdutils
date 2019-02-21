@@ -86,5 +86,3 @@ using mat3x4 = glm::tmat3x4<float>;
 using mat4x2 = glm::tmat4x2<float>;
 using mat4x3 = glm::tmat4x3<float>;
 using mat4x4 = glm::tmat4x4<float>;
-
-using Range = vec2;

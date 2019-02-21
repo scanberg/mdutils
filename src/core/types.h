@@ -14,3 +14,19 @@ typedef uint64_t uint64;
 
 typedef float float32;
 typedef double float64;
+
+template <typename T>
+struct Range {
+    union {
+        T beg = 0;
+        T x;
+        T min;
+    };
+    union {
+        T end = 0;
+        T y;
+        T max;
+    };
+    operator bool() const { return beg != end && beg < end; }
+    int64 size() const { return end - beg; }
+};

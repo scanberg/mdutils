@@ -7,19 +7,6 @@
 #include <mol/molecule_dynamic.h>
 #include <mol/aminoacid.h>
 
-/*
-// tangent AND binormal is perhaps redundant
-struct SplineSegment {
-    vec3 position;
-    vec3 tangent;
-    vec3 normal;
-    vec3 binormal;
-
-    uint32 index;
-    uint32 color;
-};
-*/
-
 struct BackboneAnglesTrajectory {
     int num_segments = 0;
     int num_frames = 0;

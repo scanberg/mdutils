@@ -250,7 +250,7 @@ void initialize() {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    for (const auto& res : dyn.molecule.residues) {
                                        const auto res_size = res.atom_idx.end - res.atom_idx.beg;
-                                       if (res_size != 3) {
+                                       if (res_size == 3) {
                                            int32 h_count = 0;
                                            int32 o_count = 0;
                                            for (auto e : get_elements(dyn.molecule, res)) {

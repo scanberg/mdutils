@@ -13,7 +13,6 @@ mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int 
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
 mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height);
 
-
 struct FpsControllerState {
     struct {
         bool forward_button = false;
@@ -58,4 +57,8 @@ struct TrackballControllerState {
     float distance = 14.f;
 };
 
-bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* trackball_state);
+enum TrackballFlags_ { TrackballFlags_RotateReturnsTrue = 1, TrackballFlags_PanReturnsTrue = 2, TrackballFlags_DollyReturnsTrue = 4 };
+
+typedef int TrackballFlags;
+
+bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* trackball_state, TrackballFlags flags = 0xFFFFFFFF);

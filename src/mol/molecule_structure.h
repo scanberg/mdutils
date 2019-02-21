@@ -12,6 +12,11 @@ using ResIdx = int32;
 using ChainIdx = int32;
 using BondIdx = int32;
 
+using AtomRange = Range<AtomIdx>;
+using ResRange = Range<ResIdx>;
+using ChainRange = Range<ChainIdx>;
+using BondRange = Range<BondIdx>;
+
 struct Bond {
     AtomIdx idx[2] = {0, 0};
 };
@@ -23,11 +28,7 @@ struct BackboneSegment {
     AtomIdx o_idx = -1;
 };
 
-struct BackboneSequence {
-    ResIdx beg = 0;
-    ResIdx end = 0;
-};
-
+using BackboneSequence = ResRange;
 using BackboneAngle = vec2;
 
 struct HydrogenBondDonor {
@@ -42,10 +43,7 @@ struct Residue {
     ResIdx id = -1;
     ChainIdx chain_idx = -1;
 
-    struct {
-        AtomIdx beg = 0;
-        AtomIdx end = 0;
-    } atom_idx;
+    AtomRange atom_idx;
 
     struct {
         // Covalent bonds for a residue
@@ -63,15 +61,8 @@ struct Residue {
 struct Chain {
     Label id{};
 
-    struct {
-        ResIdx beg = 0;
-        ResIdx end = 0;
-    } res_idx;
-
-    struct {
-        AtomIdx beg = 0;
-        AtomIdx end = 0;
-    } atom_idx;
+    ResRange res_idx;
+    AtomRange atom_idx;
 };
 
 // Interface to access molecular data

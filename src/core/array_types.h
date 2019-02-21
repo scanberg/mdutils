@@ -313,8 +313,6 @@ struct DynamicArray : Array<T> {
 
     void clear() { this->count = 0; }
 
-    void set_mem_to_zero() { memset(this->ptr, 0, this->count * sizeof(T)); }
-
 private:
     int64 m_capacity;
 };
