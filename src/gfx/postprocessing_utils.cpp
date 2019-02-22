@@ -1372,7 +1372,7 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
     glViewport(0, 0, gl.tex_width, gl.tex_height);
 
     PUSH_GPU_SECTION("Clear HDR")
-    glClearColor(25.f, 25.f, 25.f, 1.f);
+    glClearColor(desc.background.intensity.r, desc.background.intensity.g, desc.background.intensity.b, 1.f);
     glClear(GL_COLOR_BUFFER_BIT);
     POP_GPU_SECTION()
 

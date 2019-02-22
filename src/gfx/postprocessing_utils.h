@@ -15,6 +15,10 @@ enum Tonemapping_ { Tonemapping_Passthrough, Tonemapping_ExposureGamma, Tonemapp
 
 struct Descriptor {
     struct {
+        vec3 intensity = {20.f, 20.f, 20.f};
+    } background;
+
+    struct {
         bool enabled = true;
         float clip_point = 1.0f;
     } bloom;

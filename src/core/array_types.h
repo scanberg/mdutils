@@ -334,12 +334,12 @@ void free_array(Array<T>* arr) {
 }
 
 template <typename T>
-void zero_array(Array<T>& arr) {
+void zero_array(Array<T> arr) {
     memset(arr.ptr, 0, arr.size_in_bytes());
 }
 
 template <typename T>
-void memset_array(Array<T>& arr, const T& val) {
+void memset_array(Array<T> arr, const T& val) {
     ASSERT(arr);
     for (int64 i = 0; i < arr.count; i++) {
         *(arr.ptr + i) = val;
@@ -347,7 +347,7 @@ void memset_array(Array<T>& arr, const T& val) {
 }
 
 template <typename T>
-void memset_array(Array<T>& arr, const T& val, int64 offset, int64 length) {
+void memset_array(Array<T> arr, const T& val, int64 offset, int64 length) {
     ASSERT(arr);
     ASSERT(0 <= offset && offset < arr.count);
     ASSERT(0 < length && offset + length <= arr.count);

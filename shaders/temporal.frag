@@ -441,10 +441,10 @@ ss_vel = vec2(0,0);
 	//to_screen = vec4(1000.0 * abs(ss_vel), 0.0, 0.0);
 
 	// add noise
-	vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
+	//vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
 
-	out_buff = to_buffer + noise4;
-	out_frag = to_screen + noise4;
+	out_buff = to_buffer;
+	out_frag = to_screen;
 
 	//out_frag = texture(u_tex_vel_neighbormax, uv);
 
