@@ -17,16 +17,12 @@ typedef double float64;
 
 template <typename T>
 struct Range {
-    union {
-        T beg = 0;
-        T x;
-        T min;
-    };
-    union {
-        T end = 0;
-        T y;
-        T max;
-    };
+    union { T beg = 0, x, min; };
+    union { T end = 0, y, max; };
+
+    Range() = default;
+    Range(T lo, T hi) : beg(lo), end(hi) {};
+    
     operator bool() const { return beg != end && beg < end; }
     int64 size() const { return end - beg; }
 };
