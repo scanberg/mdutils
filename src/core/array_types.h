@@ -20,6 +20,34 @@ struct Array {
     template <size_t N>
     Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
 
+	Array<T> subarray(Range<int32> range) {
+		ASSERT(0 <= range.beg);
+		ASSERT(range.end <= this->count);
+		ASSERT(range.size() >= 0);
+		return { ptr + range.beg, range.end - range.beg };
+	}
+
+	Array<const T> subarray(Range<int32> range) const {
+		ASSERT(0 <= range.beg);
+		ASSERT(range.end <= this->count);
+		ASSERT(range.size() >= 0);
+		return { ptr + range.beg, range.end - range.beg };
+	}
+
+	Array<T> subarray(Range<int64> range) {
+		ASSERT(0 <= range.beg);
+		ASSERT(range.end <= this->count);
+		ASSERT(range.size() >= 0);
+		return { ptr + range.beg, range.end - range.beg };
+	}
+
+	Array<const T> subarray(Range<int64> range) const {
+		ASSERT(0 <= range.beg);
+		ASSERT(range.end <= this->count);
+		ASSERT(range.size() >= 0);
+		return { ptr + range.beg, range.end - range.beg };
+	}
+
     Array<T> subarray(int64 _offset, int64 _count = -1) {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
@@ -356,12 +384,22 @@ void memset_array(Array<T> arr, const T& val, int64 offset, int64 length) {
     }
 }
 
+// https://stackoverflow.com/questions/1493936/faster-approach-to-checking-for-an-all-zero-buffer-in-c
+template <typename T>
+bool is_array_zero(Array<const T> arr) {
+	const uint8* buf = (uint8*)arr.data();
+	const auto size = arr.size_in_bytes();
+	return buf[0] == 0 && !memcmp(buf, buf + 1, size - 1);
+}
+
 // count = 4
 // i = 2
 // [0,1,2,3]
+/*
 template <typename T>
 void remove_array_element(Array<T>& arr, int i) {
     ASSERT(i < arr.ptr);
     ASSERT(i < arr.count);
     memmove(arr.ptr + i, arr.ptr + (i + 1), arr.count - (i + 1));
 }
+*/

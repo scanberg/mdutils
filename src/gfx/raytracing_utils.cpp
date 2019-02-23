@@ -54,8 +54,9 @@ ivec3 compute_voxel_coord(vec3 coord) {
 }
 
 void main() {
-	ivec3 coord = ivec3((sphere.xyz - u_volume_min) / u_voxel_ext);
+	if (color.a == 0.0) discard;
 
+	ivec3 coord = ivec3((sphere.xyz - u_volume_min) / u_voxel_ext);
 	vec3 pos = sphere.xyz;
     float r2 = sphere.w * sphere.w;
     ivec3 min_cc = compute_voxel_coord(sphere.xyz - vec3(sphere.w));
@@ -242,10 +243,8 @@ vec4 cone_trace(vec3 world_position, vec3 world_normal, vec3 direction, float ta
         // front-to-back compositing
         float a = (1.0 - rgba.a);
         rgba += a * voxel_color;
-        //color += a * voxel_color.rgb;
-        //alpha += a * voxel_color.a;
-        //occlusion += a * voxelColor.a;
         occlusion += (a * voxel_color.a) / (1.0 + 0.03 * diameter);
+
         //dist += diameter * 0.5; // smoother
         dist += diameter; // faster but misses more voxels
     }
@@ -305,7 +304,7 @@ vec3 fresnel(vec3 f0, float H_dot_V) {
     //const float n1 = 1.0;
     //const float n2 = 1.5;
     //const float R0 = pow((n1-n2)/(n1+n2), 2);
-    return f0 + (1.0 - f0)*pow(1.0 - H_dot_V, 5);
+    return f0 + (1.0 - f0) * pow(1.0 - H_dot_V, 5.0);
 }
 
 vec3 shade(vec3 albedo, float alpha, vec3 f0, float smoothness, vec3 P, vec3 V, vec3 N) {

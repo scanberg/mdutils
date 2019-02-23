@@ -16,6 +16,9 @@
 #ifndef UNJITTER_REPROJECTION
 #define UNJITTER_REPROJECTION 0
 #endif
+#ifndef UNJITTER_PREV_SAMPLES
+#define UNJITTER_PREV_SAMPLES 0
+#endif
 
 #ifndef USE_YCOCG
 #define USE_YCOCG 1
@@ -273,7 +276,12 @@ vec4 temporal_reprojection(vec2 ss_txc, vec2 ss_vel, float vs_dist)
 #else
 	vec4 texel0 = sample_color(u_tex_main, ss_txc);
 #endif
+
+#if UNJITTER_PREV_SAMPLES
+	vec4 texel1 = sample_color(u_tex_prev, ss_txc - u_jitter_uv.zw - ss_vel);
+#else
 	vec4 texel1 = sample_color(u_tex_prev, ss_txc - ss_vel);
+#endif
 
 	// calc min-max of current neighbourhood
 #if UNJITTER_NEIGHBORHOOD

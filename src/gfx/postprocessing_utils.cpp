@@ -505,6 +505,7 @@ static struct {
         GLint texture_color = -1;
         GLint texture_normal = -1;
         GLint inv_proj_mat = -1;
+		GLint time = -1;
     } uniform_loc;
 } deferred;
 
@@ -516,6 +517,7 @@ void initialize() {
     deferred.uniform_loc.texture_color = glGetUniformLocation(deferred.program, "u_texture_color");
     deferred.uniform_loc.texture_normal = glGetUniformLocation(deferred.program, "u_texture_normal");
     deferred.uniform_loc.inv_proj_mat = glGetUniformLocation(deferred.program, "u_inv_proj_mat");
+	deferred.uniform_loc.time = glGetUniformLocation(deferred.program, "u_time");
 }
 
 void shutdown() {
@@ -1028,6 +1030,10 @@ void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(normal_tex));
 
+	static float time = 0;
+	time = time + 1.0f;
+	if (time > 100.0f) time -= 100.0f;
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
     glActiveTexture(GL_TEXTURE1);
@@ -1040,6 +1046,7 @@ void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const
     glUniform1i(deferred::deferred.uniform_loc.texture_color, 1);
     glUniform1i(deferred::deferred.uniform_loc.texture_normal, 2);
     glUniformMatrix4fv(deferred::deferred.uniform_loc.inv_proj_mat, 1, GL_FALSE, &inv_proj_matrix[0][0]);
+	glUniform1f(deferred::deferred.uniform_loc.time, time);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
@@ -1210,7 +1217,7 @@ void blit_neighbormax(GLuint velocity_tex, int tex_width, int tex_height) {
     glUseProgram(0);
 }
 
-void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, float feedback_min, float feedback_max,
+void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min, float feedback_max,
                        float motion_scale) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
@@ -1232,7 +1239,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
     const vec2 res = {gl.tex_width, gl.tex_height};
     const vec4 texel_size = vec4(1.f / res, res);
-    const vec4 jitter_uv = vec4(curr_jitter / res, 0, 0);
+    const vec4 jitter_uv = vec4(curr_jitter / res, prev_jitter / res);
     const float sin_time = time;
 
     glActiveTexture(GL_TEXTURE0);
@@ -1421,7 +1428,7 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
             PUSH_GPU_SECTION("Temporal AA + Motion Blur")
         else
             PUSH_GPU_SECTION("Temporal AA")
-        apply_temporal_aa(gl.linear_depth.texture, src_texture, desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, feedback_min, feedback_max, motion_scale);
+        apply_temporal_aa(gl.linear_depth.texture, src_texture, desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter, feedback_min, feedback_max, motion_scale);
         POP_GPU_SECTION()
     }
 

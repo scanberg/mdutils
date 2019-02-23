@@ -5,6 +5,7 @@ uniform sampler2D u_texture_color;
 uniform sampler2D u_texture_normal;
 
 uniform mat4 u_inv_proj_mat;
+uniform float u_time;
 
 in vec2 tc;
 out vec4 out_frag;
@@ -34,6 +35,14 @@ vec3 decode_normal(vec2 enc) {
     n.xy = fenc*g;
     n.z = 1-f/2.0;
     return n;
+}
+
+vec4 rand4( vec2 n ) {
+    return fract( sin(dot(n.xy, vec2(12.9898, 78.233)))* vec4(43758.5453, 28001.8384, 50849.4141, 12996.89) );
+}
+
+vec4 srand4( vec2 n ) {
+    return rand4( n ) * 2.0 - 1.0;
 }
 
 const vec3 env_radiance = vec3(5.0);
@@ -67,6 +76,10 @@ void main() {
     vec4 color = texelFetch(u_texture_color, ivec2(gl_FragCoord.xy), 0);
     vec3 normal = decode_normal(texelFetch(u_texture_normal, ivec2(gl_FragCoord.xy), 0).xy);
     vec4 view_coord = depth_to_view_coord(tc, depth);
+
+    // Add noise to reduce banding
+    vec4 noise4 = srand4(tc + u_time + 0.6959174) / 10.0;
+    color += color*noise4;
 
     vec3 N = normal;
     vec3 V = -normalize(view_coord.xyz);
