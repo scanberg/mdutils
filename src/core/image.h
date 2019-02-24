@@ -13,6 +13,8 @@ struct Image {
 bool init_image(Image* img, int32 width, int32 height);
 bool init_image(Image* img, const Image& other);
 void free_image(Image* img);
+
 bool read_image(Image* img, CString filename);
+bool write_image(const Image& img, CString filename);
 
 void gaussian_blur(Image* img, int32 kernel_width = 4);

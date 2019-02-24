@@ -3,10 +3,12 @@ project(stb LANGUAGES C)
 
 set(HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/stb_image.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/stb_image_write.h
 )
                   
 set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/stb_image.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/stb_image_write.c 
 )
 
 add_library(stb ${HEADERS} ${SOURCES})
