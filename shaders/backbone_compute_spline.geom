@@ -1,11 +1,14 @@
 #version 330 core
 #extension GL_ARB_shading_language_packing : enable
 
-uniform int u_num_subdivisions = 8;
+#ifndef NUM_SUBDIVISIONS
+#define NUM_SUBDIVISIONS 16
+#endif
+
 uniform float u_tension = 0.5;
 
 layout(lines_adjacency) in;
-layout(points, max_vertices = 8) out;
+layout(points, max_vertices = NUM_SUBDIVISIONS) out;
 
 out vec3 out_control_point;
 out uint out_support_vector_xy;
@@ -118,8 +121,8 @@ void main() {
     ai[0] = in_vert[1].atom_index;
     ai[1] = in_vert[2].atom_index;
 
-    for (int i = 0; i < u_num_subdivisions; i++) {
-        float s = float(i) / float(u_num_subdivisions);
+    for (int i = 0; i < NUM_SUBDIVISIONS; i++) {
+        float s = float(i) / float(NUM_SUBDIVISIONS);
         vec3 p = spline(cp[0], cp[1], cp[2], cp[3], s);
         vec3 v = normalize(spline(sv[0], sv[1], sv[2], sv[3], s));
         vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));

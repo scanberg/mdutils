@@ -25,23 +25,23 @@ struct ControlPoint {
 };
 
 struct AtomPosition {
-	float x, y, z;
+    float x, y, z;
 };
 
 struct AtomRadius {
-	float radius;
+    float radius;
 };
 
 struct AtomColor {
-	uint8 r, g, b, a;
+    uint8 r, g, b, a;
 };
 
 struct AtomVelocity {
-	float x, y, z;
+    float x, y, z;
 };
 
 struct Bond {
-	uint32 atom_idx[2];
+    uint32 atom_idx[2];
 };
 
 void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_color_buffer, GLuint atom_velocity_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale = 1.f);
@@ -52,6 +52,6 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
                  uint32 t_color = 0xFFFF0000);
 
 void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buffer, GLuint backbone_index_buffer, int num_backbone_indices, GLuint ramachandran_tex);
-void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices, int num_subdivisions = 8, float tension = 0.5);
+void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices, float tension = 0.5);
 
 }  // namespace draw

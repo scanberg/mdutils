@@ -44,8 +44,8 @@ static void initialize() {
     uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
     uniform_loc_radius_scale = glGetUniformLocation(program, "u_radius_scale");
     uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
-	uniform_loc_tex_noise = glGetUniformLocation(program, "u_tex_noise");
-	uniform_loc_frame = glGetUniformLocation(program, "u_frame");
+    uniform_loc_tex_noise = glGetUniformLocation(program, "u_tex_noise");
+    uniform_loc_frame = glGetUniformLocation(program, "u_frame");
 }
 
 static void shutdown() {
@@ -201,7 +201,6 @@ static GLuint draw_spline_program = 0;
 
 static GLint uniform_loc_ramachandran_tex = 0;
 
-static GLint uniform_loc_num_subdivisions = 0;
 static GLint uniform_loc_tension = 0;
 
 static GLint uniform_loc_view_proj_mat = 0;
@@ -239,7 +238,7 @@ void initialize() {
         if (!compute_spline_program) compute_spline_program = glCreateProgram();
         gl::attach_link_detach_with_transform_feedback(compute_spline_program, shaders, feedback_varyings, GL_INTERLEAVED_ATTRIBS);
 
-        uniform_loc_num_subdivisions = glGetUniformLocation(compute_spline_program, "u_num_subdivisions");
+        // uniform_loc_num_subdivisions = glGetUniformLocation(compute_spline_program, "u_num_subdivisions");
         uniform_loc_tension = glGetUniformLocation(compute_spline_program, "u_tension");
     }
 
@@ -273,23 +272,22 @@ void shutdown() {
 
 void initialize() {
     if (!vao) glGenVertexArrays(1, &vao);
-	if (!tex_noise) {
-		glGenTextures(1, &tex_noise);
-		Image img;
-		defer{ free_image(&img); };
-		if (read_image(&img, MDUTILS_IMAGE_DIR "/bluenoise/RGBA_512.png")) {
-			glBindTexture(GL_TEXTURE_2D, tex_noise);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 512, 512, 0, GL_RED, GL_UNSIGNED_BYTE, img.data);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			glBindTexture(GL_TEXTURE_2D, 0);
-		}
-		else {
-			LOG_ERROR("COULD NOT READ NOISE TEXTURE");
-		}
-	}
+    if (!tex_noise) {
+        glGenTextures(1, &tex_noise);
+        Image img;
+        defer { free_image(&img); };
+        if (read_image(&img, MDUTILS_IMAGE_DIR "/bluenoise/RGBA_512.png")) {
+            glBindTexture(GL_TEXTURE_2D, tex_noise);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 512, 512, 0, GL_RED, GL_UNSIGNED_BYTE, img.data);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        } else {
+            LOG_ERROR("COULD NOT READ NOISE TEXTURE");
+        }
+    }
 
     vdw::initialize();
     licorice::initialize();
@@ -330,16 +328,16 @@ void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint ato
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
     glEnableVertexAttribArray(3);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tex_noise);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex_noise);
 
     glUseProgram(vdw::program);
 
     const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
     const vec2 res = view_param.resolution;
     const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
-	static uint32 frame = 0;
-	frame++;
+    static uint32 frame = 0;
+    frame++;
 
     // Uniforms
     glUniformMatrix4fv(vdw::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
@@ -348,8 +346,8 @@ void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint ato
     glUniformMatrix4fv(vdw::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
     glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
     glUniform4fv(vdw::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
-	glUniform1i(vdw::uniform_loc_tex_noise, 0);
-	glUniform1ui(vdw::uniform_loc_frame, frame);
+    glUniform1i(vdw::uniform_loc_tex_noise, 0);
+    glUniform1ui(vdw::uniform_loc_frame, frame);
 
     glDrawArrays(GL_POINTS, 0, atom_count);
 
@@ -419,7 +417,7 @@ void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buf
     glDisable(GL_RASTERIZER_DISCARD);
 }
 
-void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices, int num_subdivisions, float tension) {
+void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices, float tension) {
     glEnable(GL_RASTERIZER_DISCARD);
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(0xFFFFFFFFU);
@@ -439,7 +437,7 @@ void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLu
 
     glUseProgram(backbone_spline::compute_spline_program);
 
-    glUniform1i(backbone_spline::uniform_loc_num_subdivisions, num_subdivisions);
+    // glUniform1i(backbone_spline::uniform_loc_num_subdivisions, num_subdivisions);
     glUniform1f(backbone_spline::uniform_loc_tension, tension);
 
     glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, dst_buffer);
