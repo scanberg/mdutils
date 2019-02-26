@@ -69,6 +69,8 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param);
 
 // void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix);
 void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer, const vec3& highlight, const vec3& selection, const vec3& outline);
+void desaturate_selection(GLuint atom_color_tex, GLuint atom_idx_tex, GLuint selection_buffer, bool selecting);
+
 // void apply_ssao(GLuint depth_tex, GLuint normal_tex, const mat4& proj_mat, float intensity = 1.5f, float radius = 3.f, float bias = 0.1f);
 // void apply_dof(GLuint depth_tex, GLuint color_tex, const mat4& proj_mat, float focus_point, float focus_scale);
 // void apply_tonemapping(GLuint color_tex, Tonemapping tonemapping, float exposure = 1.0f, float gamma = 2.2f);

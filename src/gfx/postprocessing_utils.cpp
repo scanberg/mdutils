@@ -496,6 +496,35 @@ void shutdown() {
 }
 }  // namespace highlight
 
+namespace desaturate {
+
+static struct {
+    GLuint program = 0;
+    GLuint selection_texture = 0;
+    struct {
+        GLint texture_atom_color = -1;
+        GLint texture_atom_idx = -1;
+        GLint buffer_selection = -1;
+        GLint selecting = -1;
+    } uniform_loc;
+} desaturate;
+
+void initialize() {
+    String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/desaturate.frag");
+    defer { FREE(f_shader_src); };
+    setup_program(&desaturate.program, "desaturate", f_shader_src);
+    if (!desaturate.selection_texture) glGenTextures(1, &desaturate.selection_texture);
+    desaturate.uniform_loc.texture_atom_color = glGetUniformLocation(desaturate.program, "u_texture_atom_color");
+    desaturate.uniform_loc.texture_atom_idx = glGetUniformLocation(desaturate.program, "u_texture_atom_idx");
+    desaturate.uniform_loc.buffer_selection = glGetUniformLocation(desaturate.program, "u_buffer_selection");
+    desaturate.uniform_loc.selecting = glGetUniformLocation(desaturate.program, "u_selecting");
+}
+
+void shutdown() {
+    if (desaturate.program) glDeleteProgram(desaturate.program);
+}
+}  // namespace desaturate
+
 namespace deferred {
 
 static struct {
@@ -505,7 +534,7 @@ static struct {
         GLint texture_color = -1;
         GLint texture_normal = -1;
         GLint inv_proj_mat = -1;
-		GLint time = -1;
+        GLint time = -1;
     } uniform_loc;
 } deferred;
 
@@ -517,7 +546,7 @@ void initialize() {
     deferred.uniform_loc.texture_color = glGetUniformLocation(deferred.program, "u_texture_color");
     deferred.uniform_loc.texture_normal = glGetUniformLocation(deferred.program, "u_texture_normal");
     deferred.uniform_loc.inv_proj_mat = glGetUniformLocation(deferred.program, "u_inv_proj_mat");
-	deferred.uniform_loc.time = glGetUniformLocation(deferred.program, "u_time");
+    deferred.uniform_loc.time = glGetUniformLocation(deferred.program, "u_time");
 }
 
 void shutdown() {
@@ -905,6 +934,7 @@ void initialize(int width, int height) {
     ssao::initialize(width, height);
     deferred::initialize();
     highlight::initialize();
+    desaturate::initialize();
     tonemapping::initialize();
     velocity::initialize();
     temporal::initialize();
@@ -915,6 +945,7 @@ void shutdown() {
     ssao::shutdown();
     deferred::shutdown();
     highlight::shutdown();
+    desaturate::shutdown();
     tonemapping::shutdown();
     velocity::shutdown();
     temporal::shutdown();
@@ -1030,9 +1061,9 @@ void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(normal_tex));
 
-	static float time = 0;
-	time = time + 1.0f;
-	if (time > 100.0f) time -= 100.0f;
+    static float time = 0;
+    time = time + 1.0f;
+    if (time > 100.0f) time -= 100.0f;
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
@@ -1046,7 +1077,7 @@ void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const
     glUniform1i(deferred::deferred.uniform_loc.texture_color, 1);
     glUniform1i(deferred::deferred.uniform_loc.texture_normal, 2);
     glUniformMatrix4fv(deferred::deferred.uniform_loc.inv_proj_mat, 1, GL_FALSE, &inv_proj_matrix[0][0]);
-	glUniform1f(deferred::deferred.uniform_loc.time, time);
+    glUniform1f(deferred::deferred.uniform_loc.time, time);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
@@ -1070,6 +1101,31 @@ void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer, const vec
     glUniform3fv(highlight::highlight.uniform_loc.highlight, 1, &highlight[0]);
     glUniform3fv(highlight::highlight.uniform_loc.selection, 1, &selection[0]);
     glUniform3fv(highlight::highlight.uniform_loc.outline, 1, &outline[0]);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void desaturate_selection(GLuint atom_color_tex, GLuint atom_idx_tex, GLuint selection_buffer, bool selecting) {
+    ASSERT(glIsTexture(atom_idx_tex));
+    ASSERT(glIsBuffer(selection_buffer));
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, atom_color_tex);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, atom_idx_tex);
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_BUFFER, highlight::highlight.selection_texture);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, selection_buffer);
+
+    glUseProgram(desaturate::desaturate.program);
+    glUniform1i(desaturate::desaturate.uniform_loc.texture_atom_color, 0);
+    glUniform1i(desaturate::desaturate.uniform_loc.texture_atom_idx, 1);
+    glUniform1i(desaturate::desaturate.uniform_loc.buffer_selection, 2);
+    glUniform1i(desaturate::desaturate.uniform_loc.selecting, selecting ? 1 : 0);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
@@ -1217,8 +1273,8 @@ void blit_neighbormax(GLuint velocity_tex, int tex_width, int tex_height) {
     glUseProgram(0);
 }
 
-void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min, float feedback_max,
-                       float motion_scale) {
+void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min,
+                       float feedback_max, float motion_scale) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(velocity_tex));
@@ -1428,7 +1484,8 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
             PUSH_GPU_SECTION("Temporal AA + Motion Blur")
         else
             PUSH_GPU_SECTION("Temporal AA")
-        apply_temporal_aa(gl.linear_depth.texture, src_texture, desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter, feedback_min, feedback_max, motion_scale);
+        apply_temporal_aa(gl.linear_depth.texture, src_texture, desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter, feedback_min, feedback_max,
+                          motion_scale);
         POP_GPU_SECTION()
     }
 
