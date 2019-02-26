@@ -40,6 +40,10 @@ struct AtomVelocity {
     float x, y, z;
 };
 
+struct AtomMask {
+	uint8 mask;
+};
+
 struct Bond {
     uint32 atom_idx[2];
 };
@@ -50,6 +54,13 @@ void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
 void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const ViewParam& view_param);
 void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const ViewParam& view_param, uint32 s_color = 0xFF00FF00, uint32 v_color = 0xFF0000FF,
                  uint32 t_color = 0xFFFF0000);
+
+namespace lean_and_mean {
+	void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale = 1.f);
+	void draw_licorice(GLuint atom_position_buffer, GLuint bond_buffer, int32 bond_count, const ViewParam& view_param, float radius_scale = 1.f);
+	void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const ViewParam& view_param);
+	void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const ViewParam& view_param);
+}
 
 void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buffer, GLuint backbone_index_buffer, int num_backbone_indices, GLuint ramachandran_tex);
 void compute_backbone_spline(GLuint dst_buffer, GLuint control_point_buffer, GLuint control_point_index_buffer, int num_control_point_indices, float tension = 0.5);
