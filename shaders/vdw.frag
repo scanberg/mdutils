@@ -10,11 +10,11 @@ uniform vec4 u_jitter_uv;
 uniform uint u_frame;
 
 in GS_FS {
-    flat vec4 color;
-    flat vec4 view_sphere;
-    flat vec4 picking_color;
     smooth vec4 view_coord;
+    flat vec4 view_sphere;
     flat vec4 view_velocity;
+    flat vec4 picking_color;
+    flat vec4 color;
     flat uint atom_idx;
 } in_frag;
 

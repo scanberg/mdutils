@@ -17,6 +17,7 @@ void initialize();
 void shutdown();
 bool compute_filter_mask(Array<bool> mask, const MoleculeDynamic& dynamic, CString filter);
 void filter_colors(Array<uint32> colors, Array<bool> mask);
+void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale);
 
 template <typename T>
 void extract_filtered_data(DynamicArray<T>* dst_data, Array<const T> src_data, Array<const bool> mask) {

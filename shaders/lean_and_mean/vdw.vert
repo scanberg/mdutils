@@ -3,20 +3,22 @@
 
 uniform mat4 u_view_mat;
 uniform mat4 u_proj_mat;
+uniform vec4 u_jitter_uv;
 
 uniform float u_radius_scale = 1.0;
 uniform vec4 u_color;
+
 
 layout (location = 0) in vec3  in_position;
 layout (location = 1) in float in_radius;
 layout (location = 2) in uint  in_mask;
 
 out VS_GS {
+    flat vec4 view_sphere;
     flat vec2 axis_a;
     flat vec2 axis_b;
     flat vec2 center;
     flat float z;
-    flat float radius;
 } out_geom;
 
 // From Inigo Quilez!
@@ -41,7 +43,7 @@ void main() {
     float rad = in_radius * u_radius_scale;
     uint mask = in_mask;
     if (mask == 0U) {
-    	out_geom.radius = 0.0;
+    	out_geom.view_sphere = vec4(0,0,0,0);
 	} else {
 		vec4 view_coord = u_view_mat * vec4(pos, 1.0);
 		vec4 view_sphere = vec4(view_coord.xyz, rad);
@@ -54,15 +56,22 @@ void main() {
 		vec2 axis_b;
 		vec2 center;
 		proj_sphere(view_sphere, fle, axis_a, axis_b, center);
-
 		vec2 scl = vec2(inv_ar, 1.0);
+        axis_a *= scl;
+        axis_b *= scl;
+        center *= scl;
+        center += u_jitter_uv.xy * 0.5;
 
-		out_geom.axis_a = axis_a * scl;
-		out_geom.axis_b = axis_b * scl;
-		out_geom.center = center * scl;
+        // Use center from projection matrix instead to get jitter
+        //vec4 cs = u_proj_mat * (view_coord + vec4(0,0,0,0));
+        //cs /= cs.w;
+        //center = cs.xy;
+        //z = cs.z;
+
+        out_geom.view_sphere = view_sphere;
+		out_geom.axis_a = axis_a;
+		out_geom.axis_b = axis_b;
+		out_geom.center = center;
 		out_geom.z = z;
-		out_geom.radius = rad;
-
-		gl_Position = view_coord;
 	}
 }

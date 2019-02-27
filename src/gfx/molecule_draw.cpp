@@ -272,41 +272,43 @@ void shutdown() {
 
 namespace lean_and_mean {
 namespace vdw {
-	static GLuint program = 0;
+static GLuint program = 0;
 
-	static GLint uniform_loc_view_mat = -1;
-	static GLint uniform_loc_proj_mat = -1;
-	static GLint uniform_loc_inv_proj_mat = -1;
-	static GLint uniform_loc_radius_scale = -1;
-	static GLint uniform_loc_color = -1;
+static GLint uniform_loc_view_mat = -1;
+static GLint uniform_loc_proj_mat = -1;
+static GLint uniform_loc_inv_proj_mat = -1;
+static GLint uniform_loc_jitter_uv = -1;
+static GLint uniform_loc_radius_scale = -1;
+static GLint uniform_loc_color = -1;
 
-	static void initialize() {
-		GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/lean_and_mean/vdw.vert", GL_VERTEX_SHADER);
-		GLuint g_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/lean_and_mean/vdw.geom", GL_GEOMETRY_SHADER);
-		GLuint f_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/lean_and_mean/vdw.frag", GL_FRAGMENT_SHADER);
-		defer{
-			glDeleteShader(v_shader);
-			glDeleteShader(g_shader);
-			glDeleteShader(f_shader);
-		};
+static void initialize() {
+    GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/lean_and_mean/vdw.vert", GL_VERTEX_SHADER);
+    GLuint g_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/lean_and_mean/vdw.geom", GL_GEOMETRY_SHADER);
+    GLuint f_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/lean_and_mean/vdw.frag", GL_FRAGMENT_SHADER);
+    defer {
+        glDeleteShader(v_shader);
+        glDeleteShader(g_shader);
+        glDeleteShader(f_shader);
+    };
 
-		if (!program) program = glCreateProgram();
-		const GLuint shaders[] = { v_shader, g_shader, f_shader };
-		gl::attach_link_detach(program, shaders);
+    if (!program) program = glCreateProgram();
+    const GLuint shaders[] = {v_shader, g_shader, f_shader};
+    gl::attach_link_detach(program, shaders);
 
-		uniform_loc_view_mat = glGetUniformLocation(program, "u_view_mat");
-		uniform_loc_proj_mat = glGetUniformLocation(program, "u_proj_mat");
-		uniform_loc_inv_proj_mat = glGetUniformLocation(program, "u_inv_proj_mat");
-		uniform_loc_radius_scale = glGetUniformLocation(program, "u_radius_scale");
-		uniform_loc_color = glGetUniformLocation(program, "u_color");
-	}
+    uniform_loc_view_mat = glGetUniformLocation(program, "u_view_mat");
+    uniform_loc_proj_mat = glGetUniformLocation(program, "u_proj_mat");
+    uniform_loc_inv_proj_mat = glGetUniformLocation(program, "u_inv_proj_mat");
+    uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
+    uniform_loc_radius_scale = glGetUniformLocation(program, "u_radius_scale");
+    uniform_loc_color = glGetUniformLocation(program, "u_color");
+}
 
-	static void shutdown() {
-		if (program) glDeleteProgram(program);
-	}
+static void shutdown() {
+    if (program) glDeleteProgram(program);
+}
 
-	}  // namespace vdw
-} // namespace lean_and_mean
+}  // namespace vdw
+}  // namespace lean_and_mean
 
 void initialize() {
     if (!vao) glGenVertexArrays(1, &vao);
@@ -332,7 +334,7 @@ void initialize() {
     ribbon::intitialize();
     cartoon::intitialize();
     backbone_spline::initialize();
-	lean_and_mean::vdw::initialize();
+    lean_and_mean::vdw::initialize();
 }
 
 void shutdown() {
@@ -595,42 +597,44 @@ void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_
 
 namespace lean_and_mean {
 
-	void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_mask_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale) {
-		ASSERT(glIsBuffer(atom_position_buffer));
-		ASSERT(glIsBuffer(atom_radius_buffer));
-		ASSERT(glIsBuffer(atom_mask_buffer));
+void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_mask_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale, vec4 color) {
+    ASSERT(glIsBuffer(atom_position_buffer));
+    ASSERT(glIsBuffer(atom_radius_buffer));
+    ASSERT(glIsBuffer(atom_mask_buffer));
 
-		glBindVertexArray(vao);
-		glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AtomPosition), (const GLvoid*)0);
-		glEnableVertexAttribArray(0);
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_position_buffer);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(AtomPosition), (const GLvoid*)0);
+    glEnableVertexAttribArray(0);
 
-		glBindBuffer(GL_ARRAY_BUFFER, atom_radius_buffer);
-		glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(AtomRadius), (const GLvoid*)0);
-		glEnableVertexAttribArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_radius_buffer);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(AtomRadius), (const GLvoid*)0);
+    glEnableVertexAttribArray(1);
 
-		glBindBuffer(GL_ARRAY_BUFFER, atom_mask_buffer);
-		glVertexAttribPointer(2, 1, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(AtomMask), (const GLvoid*)0);
-		glEnableVertexAttribArray(2);
+    glBindBuffer(GL_ARRAY_BUFFER, atom_mask_buffer);
+    glVertexAttribPointer(2, 1, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(AtomMask), (const GLvoid*)0);
+    glEnableVertexAttribArray(2);
 
-		glUseProgram(vdw::program);
+    const vec2 res = view_param.resolution;
+    const vec4 jitter_uv = vec4(view_param.jitter / res, view_param.previous.jitter / res);
 
-		const vec4 color = vec4(1, 1, 1, 1);
+    glUseProgram(vdw::program);
 
-		// Uniforms
-		glUniformMatrix4fv(vdw::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
-		glUniformMatrix4fv(vdw::uniform_loc_proj_mat, 1, GL_FALSE, &view_param.matrix.proj[0][0]);
-		glUniformMatrix4fv(vdw::uniform_loc_inv_proj_mat, 1, GL_FALSE, &view_param.matrix.inverse.proj[0][0]);
-		glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
-		glUniform4fv(vdw::uniform_loc_color, 1, &color[0]);
+    // Uniforms
+    glUniformMatrix4fv(vdw::uniform_loc_view_mat, 1, GL_FALSE, &view_param.matrix.view[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_proj_mat, 1, GL_FALSE, &view_param.matrix.proj[0][0]);
+    glUniformMatrix4fv(vdw::uniform_loc_inv_proj_mat, 1, GL_FALSE, &view_param.matrix.inverse.proj[0][0]);
+    glUniform4fv(vdw::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
+    glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
+    glUniform4fv(vdw::uniform_loc_color, 1, &color[0]);
 
-		glDrawArrays(GL_POINTS, 0, atom_count);
+    glDrawArrays(GL_POINTS, 0, atom_count);
 
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindVertexArray(0);
-		glUseProgram(0);
-		glBindVertexArray(0);
-	}
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glUseProgram(0);
+    glBindVertexArray(0);
 }
+}  // namespace lean_and_mean
 
 }  // namespace draw

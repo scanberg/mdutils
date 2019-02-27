@@ -197,6 +197,19 @@ void filter_colors(Array<uint32> colors, Array<bool> mask) {
     }
 }
 
+void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale) {
+    ASSERT(colors.count == mask.count);
+    for (int i = 0; i < colors.count; i++) {
+        if (!mask[i]) continue;
+
+        vec4 rgba = math::convert_color(colors[i]);
+        vec3 hsv = math::rgb_to_hsv((vec3)rgba);
+        hsv.y *= scale;
+        rgba = vec4(math::hsv_to_rgb(hsv), rgba.a);
+        colors[i] = math::convert_color(rgba);
+    }
+}
+
 void initialize() {
 
     /*

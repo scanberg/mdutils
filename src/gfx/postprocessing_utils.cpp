@@ -496,34 +496,28 @@ void shutdown() {
 }
 }  // namespace highlight
 
-namespace desaturate {
+namespace hsv {
 
 static struct {
     GLuint program = 0;
-    GLuint selection_texture = 0;
     struct {
-        GLint texture_atom_color = -1;
-        GLint texture_atom_idx = -1;
-        GLint buffer_selection = -1;
-        GLint selecting = -1;
+        GLint texture_color = -1;
+        GLint hsv_scale = -1;
     } uniform_loc;
-} desaturate;
+} gl;
 
 void initialize() {
-    String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/desaturate.frag");
+    String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/scale_hsv.frag");
     defer { FREE(f_shader_src); };
-    setup_program(&desaturate.program, "desaturate", f_shader_src);
-    if (!desaturate.selection_texture) glGenTextures(1, &desaturate.selection_texture);
-    desaturate.uniform_loc.texture_atom_color = glGetUniformLocation(desaturate.program, "u_texture_atom_color");
-    desaturate.uniform_loc.texture_atom_idx = glGetUniformLocation(desaturate.program, "u_texture_atom_idx");
-    desaturate.uniform_loc.buffer_selection = glGetUniformLocation(desaturate.program, "u_buffer_selection");
-    desaturate.uniform_loc.selecting = glGetUniformLocation(desaturate.program, "u_selecting");
+    setup_program(&gl.program, "scale hsv", f_shader_src);
+    gl.uniform_loc.texture_color = glGetUniformLocation(gl.program, "u_texture_atom_color");
+    gl.uniform_loc.hsv_scale = glGetUniformLocation(gl.program, "u_hsv_scale");
 }
 
 void shutdown() {
-    if (desaturate.program) glDeleteProgram(desaturate.program);
+    if (gl.program) glDeleteProgram(gl.program);
 }
-}  // namespace desaturate
+}  // namespace hsv
 
 namespace deferred {
 
@@ -934,7 +928,7 @@ void initialize(int width, int height) {
     ssao::initialize(width, height);
     deferred::initialize();
     highlight::initialize();
-    desaturate::initialize();
+    hsv::initialize();
     tonemapping::initialize();
     velocity::initialize();
     temporal::initialize();
@@ -945,7 +939,7 @@ void shutdown() {
     ssao::shutdown();
     deferred::shutdown();
     highlight::shutdown();
-    desaturate::shutdown();
+    hsv::shutdown();
     tonemapping::shutdown();
     velocity::shutdown();
     temporal::shutdown();
@@ -1107,6 +1101,7 @@ void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer, const vec
     glUseProgram(0);
 }
 
+/*
 void desaturate_selection(GLuint atom_color_tex, GLuint atom_idx_tex, GLuint selection_buffer, bool selecting) {
     ASSERT(glIsTexture(atom_idx_tex));
     ASSERT(glIsBuffer(selection_buffer));
@@ -1131,6 +1126,7 @@ void desaturate_selection(GLuint atom_color_tex, GLuint atom_idx_tex, GLuint sel
     glBindVertexArray(0);
     glUseProgram(0);
 }
+*/
 
 void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_point, float focus_scale) {
     PUSH_GPU_SECTION("DOF Prepass");
@@ -1359,6 +1355,36 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
     glUseProgram(0);
+}
+
+void scale_hsv(GLuint color_tex, vec3 hsv_scale) {
+    GLint last_fbo;
+    GLint last_viewport[4];
+    GLint last_draw_buffer;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
+    glGetIntegerv(GL_VIEWPORT, last_viewport);
+    glGetIntegerv(GL_DRAW_BUFFER, &last_draw_buffer);
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.targets.fbo);
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    glViewport(0, 0, gl.tex_width, gl.tex_height);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, color_tex);
+
+    glUseProgram(hsv::gl.program);
+    glUniform1i(hsv::gl.uniform_loc.texture_color, 0);
+    glUniform3fv(hsv::gl.uniform_loc.hsv_scale, 1, &hsv_scale[0]);
+    glBindVertexArray(gl.vao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+    glUseProgram(0);
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
+    glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
+    glDrawBuffer(last_draw_buffer);
+
+    blit_texture(gl.targets.tex_color[0]);
 }
 
 void blit_texture(GLuint tex) {

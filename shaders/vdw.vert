@@ -4,6 +4,7 @@
 uniform mat4 u_view_mat;
 uniform mat4 u_proj_mat;
 uniform mat4 u_inv_proj_mat;
+uniform vec4 u_jitter_uv;
 
 uniform float u_radius_scale = 1.0;
 
@@ -14,14 +15,13 @@ layout (location = 3) in vec3  in_velocity;
 
 out VS_GS {
     flat vec4 view_sphere;
+    flat vec4 view_velocity;
     flat vec4 color;
     flat vec4 picking_color;
     flat vec2 axis_a;
     flat vec2 axis_b;
     flat vec2 center;
-    flat float inv_aspect_ratio;
     flat float z;
-    flat vec4 view_velocity;
     flat uint atom_idx;
 } out_geom;
 
@@ -67,17 +67,26 @@ void main() {
     vec2 axis_b;
     vec2 center;
     proj_sphere(view_sphere, fle, axis_a, axis_b, center);
+    vec2 scl = vec2(inv_ar, 1.0);
+    axis_a *= scl;
+    axis_b *= scl;
+    center *= scl;
+    center += u_jitter_uv.xy * 0.5;
+
+    // Use center from projection matrix instead to get jitter
+    //vec4 cs = u_proj_mat * (view_coord + vec4(0,0,0,0));
+    //cs /= cs.w;
+    //center = cs.xy;
+    //z = cs.z;
 
     out_geom.view_sphere = view_sphere;
+    out_geom.view_velocity = u_view_mat * vec4(in_velocity, 0);
     out_geom.color = in_color;
     out_geom.picking_color = pack_u32(uint(gl_VertexID));
     out_geom.axis_a = axis_a;
     out_geom.axis_b = axis_b;
     out_geom.center = center;
-    out_geom.inv_aspect_ratio = inv_ar;
+    //out_geom.inv_aspect_ratio = inv_ar;
     out_geom.z = z;
-    out_geom.view_velocity = u_view_mat * vec4(in_velocity, 0);
     out_geom.atom_idx = uint(gl_VertexID);
-
-    gl_Position = view_coord;
 }
