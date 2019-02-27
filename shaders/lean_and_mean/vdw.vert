@@ -7,7 +7,7 @@ uniform vec4 u_jitter_uv;
 
 uniform float u_radius_scale = 1.0;
 uniform vec4 u_color;
-
+uniform uint u_mask;
 
 layout (location = 0) in vec3  in_position;
 layout (location = 1) in float in_radius;
@@ -41,8 +41,8 @@ void proj_sphere(in vec4 sphere,
 void main() {
     vec3 pos = in_position;
     float rad = in_radius * u_radius_scale;
-    uint mask = in_mask;
-    if (mask == 0U) {
+    uint ref_mask = u_mask;
+    if ((in_mask & ref_mask) == 0U) {
     	out_geom.view_sphere = vec4(0,0,0,0);
 	} else {
 		vec4 view_coord = u_view_mat * vec4(pos, 1.0);
