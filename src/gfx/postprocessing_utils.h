@@ -59,6 +59,7 @@ struct Descriptor {
         GLuint normal = 0;
         GLuint velocity = 0;
         GLuint emissive = 0;
+        GLuint post_tonemap = 0;
     } input_textures;
 };
 

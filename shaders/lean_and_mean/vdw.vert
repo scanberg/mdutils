@@ -11,7 +11,8 @@ uniform uint u_mask;
 
 layout (location = 0) in vec3  in_position;
 layout (location = 1) in float in_radius;
-layout (location = 2) in uint  in_mask;
+layout (location = 2) in vec4  in_color;
+layout (location = 3) in uint  in_mask;
 
 out VS_GS {
     flat vec4 view_sphere;
@@ -39,14 +40,15 @@ void proj_sphere(in vec4 sphere,
 }
 
 void main() {
-    vec3 pos = in_position;
-    float rad = in_radius * u_radius_scale;
     uint ref_mask = u_mask;
-    if ((in_mask & ref_mask) == 0U) {
-    	out_geom.view_sphere = vec4(0,0,0,0);
-	} else {
-		vec4 view_coord = u_view_mat * vec4(pos, 1.0);
-		vec4 view_sphere = vec4(view_coord.xyz, rad);
+    vec4 color = in_color;
+    if ((in_mask & ref_mask) == 0U || color.a == 0.0) {
+        out_geom.view_sphere = vec4(0,0,0,0);
+    } else {
+        vec3 pos = in_position;
+        float rad = in_radius * u_radius_scale;
+        vec4 view_coord = u_view_mat * vec4(pos, 1.0);
+        vec4 view_sphere = vec4(view_coord.xyz, rad);
 
 		float fle = u_proj_mat[1][1]; // Focal length
 		float inv_ar = u_proj_mat[0][0] / u_proj_mat[1][1]; // 1.0 / aspect_ratio

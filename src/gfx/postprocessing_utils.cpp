@@ -1500,6 +1500,16 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
     }
     POP_GPU_SECTION()
 
+    if (desc.input_textures.post_tonemap) {
+        PUSH_GPU_SECTION("Add Post Tonemap")
+        glEnable(GL_BLEND);
+        glColorMask(1, 1, 1, 1);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        blit_texture(desc.input_textures.post_tonemap);
+        glDisable(GL_BLEND);
+        POP_GPU_SECTION()
+    }
+
     if (desc.temporal_reprojection.enabled) {
         swap_target();
         glDrawBuffer(dst_buffer);
@@ -1522,6 +1532,8 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
 
     swap_target();
     blit_texture(src_texture);
+
+    glColorMask(1, 1, 1, 1);
 }
 
 }  // namespace postprocessing

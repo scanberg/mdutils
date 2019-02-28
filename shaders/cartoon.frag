@@ -10,7 +10,8 @@ layout(location = 0) out vec4 out_color_alpha;
 layout(location = 1) out vec4 out_normal;
 layout(location = 2) out vec4 out_ss_vel;
 layout(location = 3) out vec4 out_emission;
-layout(location = 4) out vec4 out_picking_color;
+layout(location = 4) out vec4 out_post_tonemap;
+layout(location = 5) out vec4 out_picking_color;
 
 vec4 encode_normal (vec3 n) {
     float p = sqrt(n.z*8+8);

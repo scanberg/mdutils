@@ -12,10 +12,10 @@ uniform float uFocusPoint;
 uniform float uFocusScale;
 
 const float GOLDEN_ANGLE = 2.39996323; 
-const float MAX_BLUR_SIZE = 15.0; 
+const float MAX_BLUR_SIZE = 25.0; 
 const float RAD_SCALE = 1.0; // Smaller = nicer blur, larger = faster
 
-#define APPROX
+//#define APPROX
 
 float getBlurSize(float depth, float focusPoint, float focusScale)
 {

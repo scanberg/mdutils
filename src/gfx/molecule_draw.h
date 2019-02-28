@@ -56,12 +56,15 @@ void draw_spline(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spl
                  uint32 t_color = 0xFFFF0000);
 
 namespace lean_and_mean {
-void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_mask_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale = 1.f, vec4 color = vec4(1, 1, 1, 1), uint32 mask = 0xFFFFFFFFU);
-void draw_licorice(GLuint atom_position_buffer, GLuint atom_mask_buffer, GLuint bond_buffer, int32 bond_count, const ViewParam& view_param, float radius_scale = 1.f, vec4 color = vec4(1,1,1,1), uint32 mask = 0xFFFFFFFFU);
-void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_mask_buffer, int32 num_spline_indices, const ViewParam& view_param, float scale = 1.f, vec4 color = vec4(1, 1, 1, 1), uint32 mask = 0xFFFFFFFFU);
+void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_color_buffer, GLuint atom_mask_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale = 1.f,
+              vec4 color = vec4(1, 1, 1, 1), uint32 mask = 0xFFFFFFFFU);
+void draw_licorice(GLuint atom_position_buffer, GLuint atom_color_buffer, GLuint atom_mask_buffer, GLuint bond_buffer, int32 bond_count, const ViewParam& view_param, float radius_scale = 1.f,
+                   vec4 color = vec4(1, 1, 1, 1), uint32 mask = 0xFFFFFFFFU);
+void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, GLuint atom_mask_buffer, int32 num_spline_indices, const ViewParam& view_param, float scale = 1.f,
+                  vec4 color = vec4(1, 1, 1, 1), uint32 mask = 0xFFFFFFFFU);
 
-//void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const ViewParam& view_param);
-//void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const ViewParam& view_param);
+// void draw_ribbons(GLuint spline_buffer, GLuint spline_index_buffer, int32 num_spline_indices, const ViewParam& view_param);
+// void draw_cartoon(GLuint spline_buffer, GLuint spline_index_buffer, GLuint atom_color_buffer, int32 num_spline_indices, const ViewParam& view_param);
 }  // namespace lean_and_mean
 
 void compute_backbone_control_points(GLuint dst_buffer, GLuint atom_position_buffer, GLuint backbone_index_buffer, int num_backbone_indices, GLuint ramachandran_tex);

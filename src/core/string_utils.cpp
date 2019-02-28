@@ -384,8 +384,8 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
 
     CString base_dir(abs_dir.beg(), c + 1);
     res = base_dir;
-    StringBuffer<128> file = get_file(relative_file);
-    snprintf(res.cstr() + base_dir.count, res.capacity() - base_dir.count, "/%s", file.beg());
+    StringBuffer<128> file = relative_file;
+    snprintf(res.cstr() + base_dir.size(), res.capacity() - base_dir.size(), "/%s", file.beg());
 
     return res;
 }

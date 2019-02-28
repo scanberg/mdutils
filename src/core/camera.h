@@ -9,5 +9,5 @@ struct Camera {
 
     float32 near_plane = 1.f;
     float32 far_plane = 1000.f;
-    float32 fov_y = 3.1415926534f / 4.f;
+    float32 fov_y = (3.1415926534f / 4.f);
 };

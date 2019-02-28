@@ -4,7 +4,7 @@
 
 namespace aminoacid {
 
-static constexpr unsigned int NUM_AMINO_ACIDS = 26;
+static constexpr unsigned int NUM_AMINO_ACIDS = 27;
 
 static constexpr const char* names[NUM_AMINO_ACIDS] = {"Unknown",
                                                        "Alanine",
@@ -12,6 +12,7 @@ static constexpr const char* names[NUM_AMINO_ACIDS] = {"Unknown",
                                                        "Asparagine",
                                                        "Aspartic acid",
                                                        "Cysteine",
+                                                       "Cysteine XX",
                                                        "Glutamic acid",
                                                        "Glutamine",
                                                        "Glycine",
@@ -33,7 +34,7 @@ static constexpr const char* names[NUM_AMINO_ACIDS] = {"Unknown",
                                                        "Glutamine or glutamic acid",
                                                        "Leucine or Isloleucine"};
 
-static constexpr const char* symbols[NUM_AMINO_ACIDS] = {"XAA", "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS",
+static constexpr const char* symbols[NUM_AMINO_ACIDS] = {"XAA", "ALA", "ARG", "ASN", "ASP", "CYS", "CYX", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS",
                                                          "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL", "SEC", "PYL", "ASC", "GLX", "XLE"};
 
 constexpr const char* name(AminoAcid amino) { return names[(int)amino]; }
