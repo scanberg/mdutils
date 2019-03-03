@@ -4,6 +4,9 @@
 #include <core/array_types.h>
 #include <core/string_utils.h>
 
+#include "ext/meow_hash/meow_intrinsics.h"
+#include "ext/meow_hash/meow_hash.h"
+
 /*
 https://github.com/LordJZ/consthash
 The MIT License(MIT)
@@ -31,7 +34,7 @@ SOFTWARE.
 
 namespace hash {
 
-namespace internal {
+namespace crc {
 static uint32_t constexpr crc32_tab[] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
     0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7, 0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9, 0xfa0f3d63, 0x8d080df5,
@@ -89,10 +92,12 @@ static uint64_t constexpr crc64_tab[] = {
 
 constexpr uint64_t crc64impl(uint64_t prevCrc, const uint8_t* str, size_t size) { return !size ? prevCrc : crc64impl((prevCrc >> 8) ^ crc64_tab[(prevCrc ^ *str) & 0xff], str + 1, size - 1); }
 
-}  // namespace internal
+}  // namespace crc
 
-constexpr uint32 crc32(const void* ptr, size_t size) { return internal::crc32impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
-constexpr uint64 crc64(const void* ptr, size_t size) { return internal::crc64impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
+// --- CRC (constexpr) ---
+
+constexpr uint32 crc32(const void* ptr, size_t size) { return crc::crc32impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
+constexpr uint64 crc64(const void* ptr, size_t size) { return crc::crc64impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
 
 // Array template
 template <typename T>
@@ -104,6 +109,7 @@ inline uint32 crc32(CString str) { return crc32(str.ptr, str.count); }
 
 template <size_t N>
 constexpr uint32 crc32(const char (&cstr)[N]) {
+	STATIC_ASSERT(N > 0, "crc32: length of cstr was zero!");
     return crc32(cstr, N);
 }
 
@@ -122,8 +128,53 @@ inline uint64 crc64(CString str) { return crc64(str.ptr, str.count); }
 
 template <size_t N>
 constexpr uint64 crc64(const char (&cstr)[N]) {
-    STATIC_ASSERT(N > 0, "crc64: length of cstring was zero!");
+    STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
     return crc64(cstr, N - 1);
+}
+
+// --- MEOW (fast) ---
+
+inline uint32 meow32(const void* ptr, size_t size) {
+	meow_hash hash = MeowHash_Accelerated(0, size, (void*)ptr);
+	return MeowU32From(hash, 0);
+}
+
+inline uint64 meow64(const void* ptr, size_t size) {
+	meow_hash hash = MeowHash_Accelerated(0, size, (void*)ptr);
+	return MeowU32From(hash, 0);
+}
+
+// Array template
+template <typename T>
+constexpr uint32 meow32(Array<T> arr) {
+	return meow32(arr.data(), arr.size_in_bytes());
+}
+
+inline uint32 meow32(CString str) { return meow32(str.ptr, str.count); }
+
+template <size_t N>
+constexpr uint32 meow32(const char(&cstr)[N]) {
+	STATIC_ASSERT(N > 0, "crc32: length of cstr was zero!");
+	return meow32(cstr, N);
+}
+
+template <typename T>
+constexpr uint32 meow32(const T& data) {
+	static_assert(std::is_pointer<T>::value == false, "Pointers are not supported");
+	return meow32(&data, sizeof(T));
+}
+
+template <typename T>
+constexpr uint64 meow64(Array<T> arr) {
+	return meow64(arr.data(), arr.size_in_bytes());
+}
+
+inline uint64 meow64(CString str) { return meow64(str.ptr, str.count); }
+
+template <size_t N>
+constexpr uint64 meow64(const char(&cstr)[N]) {
+	STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
+	return meow64(cstr, N - 1);
 }
 
 }  // namespace hash
