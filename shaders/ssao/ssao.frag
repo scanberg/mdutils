@@ -36,6 +36,34 @@ uniform sampler2D u_tex_random;
 in vec2 tc;
 out vec4 out_frag;
 
+
+float rand(vec2 n) {
+    return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* 43758.5453);
+}
+vec2 rand2(vec2 n) {
+    return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* vec2(43758.5453, 28001.8384));
+}
+vec3 rand3(vec2 n) {
+    return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* vec3(43758.5453, 28001.8384, 50849.4141 ));
+}
+vec4 rand4(vec2 n) {
+    return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* vec4(43758.5453, 28001.8384, 50849.4141, 12996.89));
+}
+
+
+float srand(vec2 n) {
+    return rand(n) * 2.0 - 1.0;
+}
+vec2 srand2(vec2 n) {
+    return rand2(n) * 2.0 - 1.0;
+}
+vec3 srand3(vec2 n) {
+    return rand3(n) * 2.0 - 1.0;
+}
+vec4 srand4(vec2 n) {
+    return rand4(n) * 2.0 - 1.0;
+}
+
 vec3 uv_to_view(vec2 uv, float eye_z) {
 #if AO_PERSPECTIVE
     return vec3((uv * control.proj_info.xy + control.proj_info.zw) * eye_z, eye_z);
@@ -104,9 +132,12 @@ float compute_ao(vec2 full_res_uv, float radius_pixels, vec4 jitter, vec3 view_p
     const float global_mip_offset = -4.3; // -4.3 is recomended in the intel ASSAO implementation
     float mip_offset = log2(radius_pixels) + global_mip_offset;
 
-    const int NUM_SAMPLES = 16;
+    const int NUM_SAMPLES = 32;
     float weight_sum = 0.0;
     float ao = 0.0;
+
+    //vec2 noise = srand2(full_res_uv + vec2(control.time) + 0.2765672);
+    //vec2 cos_sin = vec2(cos(noise.x * 3.1415926535), sin(noise.x * 3.1415026535));
 
     for (int i = 0; i < NUM_SAMPLES; i++) {
         vec4 sample = control.sample_pattern[i];

@@ -58,7 +58,7 @@ uniform sampler2D u_tex_vel_neighbormax;
 uniform vec4 u_texel_size;
 uniform vec4 u_jitter_uv;
 
-uniform float u_sin_time;
+uniform float u_time;
 uniform float u_feedback_min = 0.88;
 uniform float u_feedback_max = 0.97;
 uniform float u_motion_scale = 0.1;
@@ -250,7 +250,7 @@ vec4 sample_color_motion(sampler2D tex, vec2 uv, vec2 ss_vel)
 	const int taps = 3;// on either side!
 	vec2 v = 0.5 * ss_vel;
 
-	float srand = PDsrand(uv + vec2(u_sin_time, u_sin_time));
+	float srand = PDsrand(uv + vec2(u_time, u_time));
 	vec2 vtap = v / taps;
 	vec2 pos0 = uv + vtap * (0.5 * srand);
 	vec4 accu = vec4(0.0);
@@ -447,9 +447,6 @@ ss_vel = vec2(0,0);
 	//// NOTE: velocity debug
 	//to_screen.g += 1000.0 * length(ss_vel);
 	//to_screen = vec4(1000.0 * abs(ss_vel), 0.0, 0.0);
-
-	// add noise
-	//vec4 noise4 = PDsrand4(uv + u_sin_time + 0.6959174) / 510.0;
 
 	out_buff = to_buffer;
 	out_frag = to_screen;

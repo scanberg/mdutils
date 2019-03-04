@@ -7,192 +7,62 @@
 
 namespace volume {
 
-static GLuint vao = 0;
-static GLuint vbo = 0;
+static struct {
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint program = 0;
 
-static GLuint prog_volume_renderer = 0;
-
-static GLint attrib_loc_pos = -1;
-
-static GLint uniform_loc_model_view_proj_matrix = -1;
-static GLint uniform_loc_tex_depth = -1;
-static GLint uniform_loc_tex_volume = -1;
-static GLint uniform_loc_color = -1;
-static GLint uniform_loc_scale = -1;
-static GLint uniform_loc_inv_res = -1;
-static GLint uniform_loc_view_to_model_matrix = -1;
-static GLint uniform_loc_model_to_tex_matrix = -1;
-static GLint uniform_loc_inv_proj_matrix = -1;
-
-static const char* v_shader_src_volume_renderer = R"(
-#version 150 core
-
-in vec3 in_pos;
-
-uniform mat4 u_view_to_model_mat;
-uniform mat4 u_model_view_proj_mat;
-
-out vec3 model_pos;
-out vec3 model_eye;
-out vec3 color;
-
-void main() {
-	color = mix(vec3(1,0,0), vec3(0,1,0), float(gl_VertexID) / 42.0);
-	model_pos = in_pos;
-	model_eye = u_view_to_model_mat[3].xyz;
-	gl_Position = u_model_view_proj_mat * vec4(in_pos, 1);
-}
-)";
-
-static const char* f_shader_src_volume_renderer = R"(
-#version 150 core
-
-uniform sampler2D u_tex_depth;
-uniform sampler3D u_tex_volume;
-uniform vec3	  u_color;
-uniform float	  u_scale;
-uniform vec2	  u_inv_res;
-uniform mat4      u_view_to_model_mat;
-uniform mat4	  u_model_to_tex_mat;
-uniform mat4	  u_inv_proj_mat;
-
-in  vec3 model_pos;
-in  vec3 model_eye;
-in  vec3 color;
-
-out vec4 out_frag;
-
-// Modified version from source found here:
-// https://gamedev.stackexchange.com/questions/18436/most-efficient-aabb-vs-ray-collision-algorithms#18459
-
-bool ray_vs_aabb(out float t_entry, out float t_exit, in vec3 ori, in vec3 dir, in vec3 min_box, in vec3 max_box) {
-	vec3 dir_frac = 1.0 / dir;
-
-	vec3 tv_1 = (min_box - ori) * dir_frac;
-	vec3 tv_2 = (max_box - ori) * dir_frac;
-
-	vec3 tv_min = min(tv_1, tv_2);
-	vec3 tv_max = max(tv_1, tv_2); 
-
-	float t_min = max(max(tv_min.x, tv_min.y), tv_min.z);
-	float t_max = min(min(tv_max.x, tv_max.y), tv_max.z);
-
-	if (t_max < 0 || t_min > t_max) {
-		return false;
-	}
-
-	t_entry = t_min;
-	t_exit  = t_max;
-
-	return true;
-} 
-
-vec4 depth_to_view_coord(vec2 tc, float depth) {
-    vec4 clip_coord = vec4(vec3(tc, depth) * 2.0 - 1.0, 1.0);
-    vec4 view_coord = u_inv_proj_mat * clip_coord;
-    return view_coord / view_coord.w;
-}
-
-vec4 fetch_voxel(vec3 tc) {
-	float a = min(texture(u_tex_volume, tc).x * u_scale, 1.0);
-	return vec4(mix(vec3(0), u_color, min(a * 10.0, 1.0)), a);
-}
-
-const float REF = 150.0;
-const float step = 0.005;
-
-void main() {
-	// Do everything in model space
-	vec3 ori = model_eye;
-    vec3 dir = normalize(model_pos - model_eye);
-
-	float t_entry, t_exit;
-	if (!ray_vs_aabb(t_entry, t_exit, ori, dir, vec3(0), vec3(1))) discard;
-	t_entry = max(0, t_entry);
-
-	float depth = texelFetch(u_tex_depth, ivec2(gl_FragCoord.xy), 0).x;
-	if (depth < 1.0) {
-		vec3 stop_pos = (u_view_to_model_mat * depth_to_view_coord(gl_FragCoord.xy * u_inv_res, depth)).xyz;
-		t_exit = min(t_exit, dot(stop_pos - ori, dir));
-	}
-
-	vec4 result = vec4(0);
-	for (float t = t_entry + step; t < t_exit; t += step) {
-		vec3 pos  = ori + dir * t;
-		vec4 rgba = fetch_voxel((u_model_to_tex_mat * vec4(pos, 1)).xyz);
-		rgba.a    = 1.0 - pow(1.0 - rgba.a, step * REF);
-		rgba.rgb *= rgba.a;
-
-		result += (1.0 - result.a) * rgba;
-		if (result.a > 0.99) break;
-	}
-
-	out_frag = result;
-}
-)";
+    struct {
+        GLint model_view_proj_matrix = -1;
+        GLint tex_depth = -1;
+        GLint tex_volume = -1;
+        GLint color = -1;
+        GLint scale = -1;
+        GLint inv_res = -1;
+        GLint view_to_model_matrix = -1;
+        GLint model_to_tex_matrix = -1;
+        GLint inv_proj_matrix = -1;
+    } uniform_loc;
+} gl;
 
 void initialize() {
-    constexpr int BUFFER_SIZE = 1024;
-    char buffer[BUFFER_SIZE];
 
-    GLuint v_shader = glCreateShader(GL_VERTEX_SHADER);
-    GLuint f_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(v_shader, 1, &v_shader_src_volume_renderer, 0);
-    glShaderSource(f_shader, 1, &f_shader_src_volume_renderer, 0);
-    glCompileShader(v_shader);
-    if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, v_shader)) {
-        LOG_ERROR("Error while compiling volume renderer vertex shader:\n%s\n", buffer);
-    }
-    glCompileShader(f_shader);
-    if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, f_shader)) {
-        LOG_ERROR("Error while compiling volume renderer fragment shader:\n%s\n", buffer);
-    }
+    GLuint v_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/volume/raycaster.vert", GL_VERTEX_SHADER);
+    GLuint f_shader = gl::compile_shader_from_file(MDUTILS_SHADER_DIR "/volume/raycaster.frag", GL_FRAGMENT_SHADER);
+    defer {
+        glDeleteShader(v_shader);
+        glDeleteShader(f_shader);
+    };
 
-    prog_volume_renderer = glCreateProgram();
-    glAttachShader(prog_volume_renderer, v_shader);
-    glAttachShader(prog_volume_renderer, f_shader);
-    glLinkProgram(prog_volume_renderer);
-    if (gl::get_program_link_error(buffer, BUFFER_SIZE, prog_volume_renderer)) {
-        LOG_ERROR("Error while linking volume renderer program:\n%s\n", buffer);
-    }
+    if (!gl.program) gl.program = glCreateProgram();
+    const GLuint shaders[] = {v_shader, f_shader};
+    gl::attach_link_detach(gl.program, shaders);
 
-    glDetachShader(prog_volume_renderer, v_shader);
-    glDetachShader(prog_volume_renderer, f_shader);
+    gl.uniform_loc.model_view_proj_matrix = glGetUniformLocation(gl.program, "u_model_view_proj_mat");
+    gl.uniform_loc.tex_depth = glGetUniformLocation(gl.program, "u_tex_depth");
+    gl.uniform_loc.tex_volume = glGetUniformLocation(gl.program, "u_tex_volume");
+    gl.uniform_loc.color = glGetUniformLocation(gl.program, "u_color");
+    gl.uniform_loc.scale = glGetUniformLocation(gl.program, "u_scale");
+    gl.uniform_loc.inv_res = glGetUniformLocation(gl.program, "u_inv_res");
+    gl.uniform_loc.view_to_model_matrix = glGetUniformLocation(gl.program, "u_view_to_model_mat");
+    gl.uniform_loc.model_to_tex_matrix = glGetUniformLocation(gl.program, "u_model_to_tex_mat");
+    gl.uniform_loc.inv_proj_matrix = glGetUniformLocation(gl.program, "u_inv_proj_mat");
 
-    glDeleteShader(v_shader);
-    glDeleteShader(f_shader);
-
-    attrib_loc_pos = glGetAttribLocation(prog_volume_renderer, "in_pos");
-
-    uniform_loc_model_view_proj_matrix = glGetUniformLocation(prog_volume_renderer, "u_model_view_proj_mat");
-    uniform_loc_tex_depth = glGetUniformLocation(prog_volume_renderer, "u_tex_depth");
-    uniform_loc_tex_volume = glGetUniformLocation(prog_volume_renderer, "u_tex_volume");
-    uniform_loc_color = glGetUniformLocation(prog_volume_renderer, "u_color");
-    uniform_loc_scale = glGetUniformLocation(prog_volume_renderer, "u_scale");
-    uniform_loc_inv_res = glGetUniformLocation(prog_volume_renderer, "u_inv_res");
-    uniform_loc_view_to_model_matrix = glGetUniformLocation(prog_volume_renderer, "u_view_to_model_mat");
-    uniform_loc_model_to_tex_matrix = glGetUniformLocation(prog_volume_renderer, "u_model_to_tex_mat");
-    uniform_loc_inv_proj_matrix = glGetUniformLocation(prog_volume_renderer, "u_inv_proj_mat");
-
-    // From here:
-    // https://stackoverflow.com/questions/28375338/cube-using-single-gl-triangle-strip
-    static const float cube_strip[] = {0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
-
-    if (!vbo) {
-        glGenBuffers(1, &vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    if (!gl.vbo) {
+        // https://stackoverflow.com/questions/28375338/cube-using-single-gl-triangle-strip
+        constexpr float cube_strip[42] = {0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+        glGenBuffers(1, &gl.vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
         glBufferData(GL_ARRAY_BUFFER, sizeof(cube_strip), cube_strip, GL_STATIC_DRAW);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
 
-    if (!vao) {
-        glGenVertexArrays(1, &vao);
-        glBindVertexArray(vao);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        if (attrib_loc_pos != -1) {
-            glEnableVertexAttribArray(attrib_loc_pos);
-            glVertexAttribPointer(attrib_loc_pos, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)0);
-        }
+    if (!gl.vao) {
+        glGenVertexArrays(1, &gl.vao);
+        glBindVertexArray(gl.vao);
+        glBindBuffer(GL_ARRAY_BUFFER, gl.vbo);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const GLvoid*)0);
         glBindVertexArray(0);
     }
 }
@@ -211,7 +81,7 @@ void create_volume_texture(GLuint* texture, const ivec3& dim) {
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, dim.x, dim.y, dim.z, 0, GL_RED, GL_FLOAT, nullptr);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_R16F, dim.x, dim.y, dim.z, 0, GL_RED, GL_FLOAT, nullptr);
     glBindTexture(GL_TEXTURE_3D, 0);
 }
 
@@ -234,22 +104,24 @@ mat4 compute_model_to_world_matrix(const vec3& min_world_aabb, const vec3& max_w
 }
 
 mat4 compute_texture_to_model_matrix(const ivec3& dim) {
-	(void)dim;
+    (void)dim;
     return mat4(1);
-	/*
-    const vec3 cell_ext = 1.f / vec3(dim);
-    const vec3 scl = 1.f + cell_ext;
-    return math::inverse(mat4(vec4(scl.x, 0, 0, 0), vec4(0, scl.y, 0, 0), vec4(0, 0, scl.z, 0), vec4(-0.5f * cell_ext, 1.f)));
-	*/
+    /*
+const vec3 cell_ext = 1.f / vec3(dim);
+const vec3 scl = 1.f + cell_ext;
+return math::inverse(mat4(vec4(scl.x, 0, 0, 0), vec4(0, scl.y, 0, 0), vec4(0, 0, scl.z, 0), vec4(-0.5f * cell_ext, 1.f)));
+    */
 }
 
 void save_volume_to_file(const Volume& volume, const char* file) {
-    FILE* fs = fopen(file, "wb");
-    if (!fs) {
-        LOG_ERROR("Could not open file %s", fs);
+    FILE* f = fopen(file, "wb");
+    defer { fclose(f); };
+
+    if (!f) {
+        LOG_ERROR("Could not open file %s", file);
+        return;
     }
-    fwrite(volume.voxel_data.ptr, sizeof(Volume::VoxelDataType), volume.voxel_data.count, fs);
-    fclose(fs);
+    fwrite(volume.voxel_data.ptr, sizeof(Volume::VoxelDataType), volume.voxel_data.count, f);
 }
 
 void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix, const mat4& proj_matrix, vec3 color,
@@ -264,15 +136,8 @@ void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const ma
     const mat4 inv_proj_matrix = math::inverse(proj_matrix);
     const vec2 inv_res = vec2(1.f / (float)(viewport[2]), 1.f / (float)(viewport[3]));
 
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-    glDepthMask(GL_TRUE);
-
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_texture);
@@ -280,25 +145,24 @@ void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const ma
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_3D, volume_texture);
 
-    glUseProgram(prog_volume_renderer);
+    glUseProgram(gl.program);
 
-    glUniform1i(uniform_loc_tex_depth, 0);
-    glUniform1i(uniform_loc_tex_volume, 1);
-    glUniform3fv(uniform_loc_color, 1, &color[0]);
-    glUniform1f(uniform_loc_scale, opacity_scale);
-    glUniform2fv(uniform_loc_inv_res, 1, &inv_res[0]);
-    glUniformMatrix4fv(uniform_loc_model_view_proj_matrix, 1, GL_FALSE, &model_view_proj_matrix[0][0]);
-    glUniformMatrix4fv(uniform_loc_view_to_model_matrix, 1, GL_FALSE, &view_to_model_matrix[0][0]);
-    glUniformMatrix4fv(uniform_loc_model_to_tex_matrix, 1, GL_FALSE, &model_to_tex_matrix[0][0]);
-    glUniformMatrix4fv(uniform_loc_inv_proj_matrix, 1, GL_FALSE, &inv_proj_matrix[0][0]);
+    glUniform1i(gl.uniform_loc.tex_depth, 0);
+    glUniform1i(gl.uniform_loc.tex_volume, 1);
+    glUniform3fv(gl.uniform_loc.color, 1, &color[0]);
+    glUniform1f(gl.uniform_loc.scale, opacity_scale);
+    glUniform2fv(gl.uniform_loc.inv_res, 1, &inv_res[0]);
+    glUniformMatrix4fv(gl.uniform_loc.model_view_proj_matrix, 1, GL_FALSE, &model_view_proj_matrix[0][0]);
+    glUniformMatrix4fv(gl.uniform_loc.view_to_model_matrix, 1, GL_FALSE, &view_to_model_matrix[0][0]);
+    glUniformMatrix4fv(gl.uniform_loc.model_to_tex_matrix, 1, GL_FALSE, &model_to_tex_matrix[0][0]);
+    glUniformMatrix4fv(gl.uniform_loc.inv_proj_matrix, 1, GL_FALSE, &inv_proj_matrix[0][0]);
 
-    glBindVertexArray(vao);
+    glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 42);
     glBindVertexArray(0);
 
     glUseProgram(0);
 
-    glDisable(GL_BLEND);
     glDisable(GL_CULL_FACE);
 }
 

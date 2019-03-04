@@ -37,12 +37,12 @@ vec3 decode_normal(vec2 enc) {
     return n;
 }
 
-vec4 rand4( vec2 n ) {
-    return fract( sin(dot(n.xy, vec2(12.9898, 78.233)))* vec4(43758.5453, 28001.8384, 50849.4141, 12996.89) );
+vec4 rand4(vec2 n) {
+    return fract(sin(dot(n.xy, vec2(12.9898, 78.233)))* vec4(43758.5453, 28001.8384, 50849.4141, 12996.89));
 }
 
-vec4 srand4( vec2 n ) {
-    return rand4( n ) * 2.0 - 1.0;
+vec4 srand4(vec2 n) {
+    return rand4(n) * 2.0 - 1.0;
 }
 
 const vec3 env_radiance = vec3(5.0);

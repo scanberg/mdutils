@@ -74,20 +74,6 @@ static struct {
 
     struct {
         GLuint fbo = 0;
-        GLuint program = 0;
-        struct {
-            GLuint color_coc = 0;
-        } tex;
-        struct {
-            GLint tex_depth = -1;
-            GLint tex_color = -1;
-            GLint focus_point = -1;
-            GLint focus_scale = -1;
-        } uniform_loc;
-    } half_res;
-
-    struct {
-        GLuint fbo = 0;
         GLuint texture = 0;
         GLuint program_persp = 0;
         GLuint program_ortho = 0;
@@ -137,7 +123,22 @@ static struct {
             GLint pixel_size = -1;
             GLint focus_point = -1;
             GLint focus_scale = -1;
+            GLint time = -1;
         } uniform_loc;
+
+        struct {
+            GLuint fbo = 0;
+            GLuint program = 0;
+            struct {
+                GLuint color_coc = 0;
+            } tex;
+            struct {
+                GLint tex_depth = -1;
+                GLint tex_color = -1;
+                GLint focus_point = -1;
+                GLint focus_scale = -1;
+            } uniform_loc;
+        } half_res;
     } bokeh_dof;
 
     struct {
@@ -162,7 +163,7 @@ static struct {
                 GLint tex_vel = -1;
                 GLint tex_vel_neighbormax = -1;
                 GLint texel_size = -1;
-                GLint sin_time = -1;
+                GLint time = -1;
                 GLint feedback_min = -1;
                 GLint feedback_max = -1;
                 GLint motion_scale = -1;
@@ -177,7 +178,7 @@ static struct {
                 GLint tex_prev = -1;
                 GLint tex_vel = -1;
                 GLint texel_size = -1;
-                GLint sin_time = -1;
+                GLint time = -1;
                 GLint feedback_min = -1;
                 GLint feedback_max = -1;
                 GLint motion_scale = -1;
@@ -225,6 +226,24 @@ out vec4 out_frag;
 void main() {
   float d = texelFetch(u_tex_depth, ivec2(gl_FragCoord.xy), 0).x;
   out_frag = vec4(ReconstructCSZ(d, u_clip_info));
+}
+)";
+
+static const char* f_shader_src_mip_map_min_depth = R"(
+uniform sampler2D u_tex_depth;
+
+out vec4 out_frag;
+
+void main() {
+	float d00 = texelFetch(u_tex_depth, ivec2(gl_FragCoord.xy) + ivec2(0,0), 0).x;
+	float d01 = texelFetch(u_tex_depth, ivec2(gl_FragCoord.xy) + ivec2(0,1), 0).x;
+	float d10 = texelFetch(u_tex_depth, ivec2(gl_FragCoord.xy) + ivec2(1,0), 0).x;
+	float d11 = texelFetch(u_tex_depth, ivec2(gl_FragCoord.xy) + ivec2(1,1), 0).x;
+
+	float dmin0 = min(d00, d01);
+	float dmin1 = min(d10, d11);
+
+	out_frag = vec4(min(dmin0, dmin1));
 }
 )";
 
@@ -293,7 +312,7 @@ struct HBAOData {
     vec4 sample_pattern[32];
 };
 
-void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat, float intensity, float radius, float bias) {
+void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat, float intensity, float radius, float bias, float time) {
     ASSERT(ubo);
 
     // From intel ASSAO
@@ -332,14 +351,6 @@ void setup_ubo_hbao_data(GLuint ubo, int width, int height, const mat4& proj_mat
     }
 
     float r = radius * METERS_TO_VIEWSPACE;
-
-    // This is to seed time random functions
-    static float time = 0.f;
-    time += 0.016f;
-
-    if (time > 100.f) {
-        time -= 100.f;
-    }
 
     HBAOData data;
     data.radius_to_screen = r * 0.5f * proj_scl;
@@ -614,6 +625,61 @@ void shutdown() {
 
 }  // namespace tonemapping
 
+namespace dof {
+void initialize(int32 width, int32 height) {
+    {
+        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof_half_res_prepass.frag");
+        defer { FREE(src); };
+        setup_program(&gl.bokeh_dof.half_res.program, "dof pre-pass", src);
+        if (gl.bokeh_dof.half_res.program) {
+            gl.bokeh_dof.half_res.uniform_loc.tex_depth = glGetUniformLocation(gl.bokeh_dof.half_res.program, "u_tex_depth");
+            gl.bokeh_dof.half_res.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.half_res.program, "u_tex_color");
+            gl.bokeh_dof.half_res.uniform_loc.focus_point = glGetUniformLocation(gl.bokeh_dof.half_res.program, "u_focus_point");
+            gl.bokeh_dof.half_res.uniform_loc.focus_scale = glGetUniformLocation(gl.bokeh_dof.half_res.program, "u_focus_scale");
+        }
+    }
+
+    if (!gl.bokeh_dof.half_res.tex.color_coc) {
+        glGenTextures(1, &gl.bokeh_dof.half_res.tex.color_coc);
+    }
+    glBindTexture(GL_TEXTURE_2D, gl.bokeh_dof.half_res.tex.color_coc);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width / 2, height / 2, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (!gl.bokeh_dof.half_res.fbo) {
+        glGenFramebuffers(1, &gl.bokeh_dof.half_res.fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.bokeh_dof.half_res.fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.bokeh_dof.half_res.tex.color_coc, 0);
+        GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            LOG_ERROR("Something went wrong");
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
+
+    // DOF
+    {
+        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof.frag");
+        defer { FREE(src); };
+        if (setup_program(&gl.bokeh_dof.program, "bokeh dof", src)) {
+            gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "u_half_res");
+            gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "u_tex_color");
+            gl.bokeh_dof.uniform_loc.tex_depth = glGetUniformLocation(gl.bokeh_dof.program, "u_tex_depth");
+            gl.bokeh_dof.uniform_loc.pixel_size = glGetUniformLocation(gl.bokeh_dof.program, "u_texel_size");
+            gl.bokeh_dof.uniform_loc.focus_point = glGetUniformLocation(gl.bokeh_dof.program, "u_focus_depth");
+            gl.bokeh_dof.uniform_loc.focus_scale = glGetUniformLocation(gl.bokeh_dof.program, "u_focus_scale");
+            gl.bokeh_dof.uniform_loc.time = glGetUniformLocation(gl.bokeh_dof.program, "u_time");
+        }
+    }
+}
+
+void shutdown() {}
+}  // namespace dof
+
 namespace blit {
 static GLuint program = 0;
 static GLint uniform_loc_texture = -1;
@@ -666,7 +732,7 @@ struct {
     } uniform_loc;
 } blit_neighbormax;
 
-void initialize() {
+void initialize(int32 width, int32 height) {
     {
         String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_velocity.frag");
         defer { free_string(&f_shader_src); };
@@ -688,10 +754,52 @@ void initialize() {
         blit_neighbormax.uniform_loc.tex_vel = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel");
         blit_neighbormax.uniform_loc.tex_vel_texel_size = glGetUniformLocation(blit_neighbormax.program, "u_tex_vel_texel_size");
     }
+
+    if (!gl.velocity.tex_tilemax) {
+        glGenTextures(1, &gl.velocity.tex_tilemax);
+    }
+
+    if (!gl.velocity.tex_neighbormax) {
+        glGenTextures(1, &gl.velocity.tex_neighbormax);
+    }
+
+    gl.velocity.tex_width = width / VEL_TILE_SIZE;
+    gl.velocity.tex_height = height / VEL_TILE_SIZE;
+
+    glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_tilemax);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_neighbormax);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (!gl.velocity.fbo) {
+        glGenFramebuffers(1, &gl.velocity.fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.velocity.tex_tilemax, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.velocity.tex_neighbormax, 0);
+        GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            LOG_ERROR("Something went wrong");
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
 }
 
 void shutdown() {
     if (blit_velocity.program) glDeleteProgram(blit_velocity.program);
+    if (gl.velocity.tex_tilemax) glDeleteTextures(1, &gl.velocity.tex_tilemax);
+    if (gl.velocity.tex_neighbormax) glDeleteTextures(1, &gl.velocity.tex_neighbormax);
+    if (gl.velocity.fbo) glDeleteFramebuffers(1, &gl.velocity.fbo);
 }
 }  // namespace velocity
 
@@ -710,7 +818,7 @@ void initialize() {
         gl.temporal.with_motion_blur.uniform_loc.tex_vel_neighbormax = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_tex_vel_neighbormax");
         gl.temporal.with_motion_blur.uniform_loc.texel_size = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_texel_size");
         gl.temporal.with_motion_blur.uniform_loc.jitter_uv = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_jitter_uv");
-        gl.temporal.with_motion_blur.uniform_loc.sin_time = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_sin_time");
+        gl.temporal.with_motion_blur.uniform_loc.time = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_time");
         gl.temporal.with_motion_blur.uniform_loc.feedback_min = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_feedback_min");
         gl.temporal.with_motion_blur.uniform_loc.feedback_max = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_feedback_max");
         gl.temporal.with_motion_blur.uniform_loc.motion_scale = glGetUniformLocation(gl.temporal.with_motion_blur.program, "u_motion_scale");
@@ -721,7 +829,7 @@ void initialize() {
         gl.temporal.no_motion_blur.uniform_loc.tex_vel = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_tex_vel");
         gl.temporal.no_motion_blur.uniform_loc.texel_size = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_texel_size");
         gl.temporal.no_motion_blur.uniform_loc.jitter_uv = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_jitter_uv");
-        gl.temporal.no_motion_blur.uniform_loc.sin_time = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_sin_time");
+        gl.temporal.no_motion_blur.uniform_loc.time = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_time");
         gl.temporal.no_motion_blur.uniform_loc.feedback_min = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_feedback_min");
         gl.temporal.no_motion_blur.uniform_loc.feedback_max = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_feedback_max");
         gl.temporal.no_motion_blur.uniform_loc.motion_scale = glGetUniformLocation(gl.temporal.no_motion_blur.program, "u_motion_scale");
@@ -831,117 +939,28 @@ void initialize(int width, int height) {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     }
 
-    // HALF RES
-    {
-        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof_half_res_prepass.frag");
-        defer { FREE(src); };
-        setup_program(&gl.half_res.program, "dof pre-pass", src);
-        if (gl.half_res.program) {
-            gl.half_res.uniform_loc.tex_depth = glGetUniformLocation(gl.half_res.program, "u_tex_depth");
-            gl.half_res.uniform_loc.tex_color = glGetUniformLocation(gl.half_res.program, "u_tex_color");
-            gl.half_res.uniform_loc.focus_point = glGetUniformLocation(gl.half_res.program, "u_focus_point");
-            gl.half_res.uniform_loc.focus_scale = glGetUniformLocation(gl.half_res.program, "u_focus_scale");
-        }
-    }
-
-    if (!gl.half_res.tex.color_coc) {
-        glGenTextures(1, &gl.half_res.tex.color_coc);
-    }
-    glBindTexture(GL_TEXTURE_2D, gl.half_res.tex.color_coc);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width / 2, height / 2, 0, GL_RGBA, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    if (!gl.half_res.fbo) {
-        glGenFramebuffers(1, &gl.half_res.fbo);
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.half_res.fbo);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.half_res.tex.color_coc, 0);
-        GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-        if (status != GL_FRAMEBUFFER_COMPLETE) {
-            LOG_ERROR("Something went wrong");
-        }
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    }
-
-    // DOF
-    {
-        String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof.frag");
-        defer { FREE(src); };
-        if (setup_program(&gl.bokeh_dof.program, "bokeh dof", src)) {
-            gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "uHalfRes");
-            gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "uColor");
-            gl.bokeh_dof.uniform_loc.tex_depth = glGetUniformLocation(gl.bokeh_dof.program, "uDepth");
-            gl.bokeh_dof.uniform_loc.pixel_size = glGetUniformLocation(gl.bokeh_dof.program, "uPixelSize");
-            gl.bokeh_dof.uniform_loc.focus_point = glGetUniformLocation(gl.bokeh_dof.program, "uFocusPoint");
-            gl.bokeh_dof.uniform_loc.focus_scale = glGetUniformLocation(gl.bokeh_dof.program, "uFocusScale");
-        }
-    }
-
-    // Velocity
-    {
-        if (!gl.velocity.tex_tilemax) {
-            glGenTextures(1, &gl.velocity.tex_tilemax);
-        }
-
-        if (!gl.velocity.tex_neighbormax) {
-            glGenTextures(1, &gl.velocity.tex_neighbormax);
-        }
-
-        gl.velocity.tex_width = width / VEL_TILE_SIZE;
-        gl.velocity.tex_height = height / VEL_TILE_SIZE;
-
-        glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_tilemax);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glBindTexture(GL_TEXTURE_2D, gl.velocity.tex_neighbormax);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, gl.velocity.tex_width, gl.velocity.tex_height, 0, GL_RG, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        if (!gl.velocity.fbo) {
-            glGenFramebuffers(1, &gl.velocity.fbo);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.velocity.fbo);
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl.velocity.tex_tilemax, 0);
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gl.velocity.tex_neighbormax, 0);
-            GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-            if (status != GL_FRAMEBUFFER_COMPLETE) {
-                LOG_ERROR("Something went wrong");
-            }
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        }
-    }
-
     gl.tex_width = width;
     gl.tex_height = height;
 
     ssao::initialize(width, height);
+    dof::initialize(width, height);
+    velocity::initialize(width, height);
     deferred::initialize();
     highlight::initialize();
     hsv::initialize();
     tonemapping::initialize();
-    velocity::initialize();
     temporal::initialize();
     blit::initialize();
 }
 
 void shutdown() {
     ssao::shutdown();
+    dof::shutdown();
+    velocity::shutdown();
     deferred::shutdown();
     highlight::shutdown();
     hsv::shutdown();
     tonemapping::shutdown();
-    velocity::shutdown();
     temporal::shutdown();
     blit::shutdown();
 
@@ -969,7 +988,7 @@ void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, b
     glBindVertexArray(0);
 }
 
-void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias) {
+void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_matrix, float intensity, float radius, float bias, float time) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(normal_tex));
 
@@ -984,7 +1003,7 @@ void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_mat
 
     glBindVertexArray(gl.vao);
 
-    ssao::setup_ubo_hbao_data(gl.ssao.ubo_hbao_data, gl.tex_width, gl.tex_height, proj_matrix, intensity, radius, bias);
+    ssao::setup_ubo_hbao_data(gl.ssao.ubo_hbao_data, gl.tex_width, gl.tex_height, proj_matrix, intensity, radius, bias, time);
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.ssao.hbao.fbo);
     glViewport(0, 0, gl.tex_width, gl.tex_height);
@@ -1050,14 +1069,10 @@ void apply_ssao(GLuint linear_depth_tex, GLuint normal_tex, const mat4& proj_mat
     POP_GPU_SECTION()
 }
 
-void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix) {
+void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix, float time) {
     ASSERT(glIsTexture(depth_tex));
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(normal_tex));
-
-    static float time = 0;
-    time = time + 1.0f;
-    if (time > 100.0f) time -= 100.0f;
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, depth_tex);
@@ -1101,40 +1116,13 @@ void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer, const vec
     glUseProgram(0);
 }
 
-/*
-void desaturate_selection(GLuint atom_color_tex, GLuint atom_idx_tex, GLuint selection_buffer, bool selecting) {
-    ASSERT(glIsTexture(atom_idx_tex));
-    ASSERT(glIsBuffer(selection_buffer));
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, atom_color_tex);
-
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, atom_idx_tex);
-
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_BUFFER, highlight::highlight.selection_texture);
-    glTexBuffer(GL_TEXTURE_BUFFER, GL_R8UI, selection_buffer);
-
-    glUseProgram(desaturate::desaturate.program);
-    glUniform1i(desaturate::desaturate.uniform_loc.texture_atom_color, 0);
-    glUniform1i(desaturate::desaturate.uniform_loc.texture_atom_idx, 1);
-    glUniform1i(desaturate::desaturate.uniform_loc.buffer_selection, 2);
-    glUniform1i(desaturate::desaturate.uniform_loc.selecting, selecting ? 1 : 0);
-    glBindVertexArray(gl.vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glBindVertexArray(0);
-    glUseProgram(0);
-}
-*/
-
 void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_point, float focus_scale) {
     PUSH_GPU_SECTION("DOF Prepass");
     GLint last_viewport[4];
     glGetIntegerv(GL_VIEWPORT, last_viewport);
     glViewport(0, 0, gl.tex_width / 2, gl.tex_height / 2);
 
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.half_res.fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl.bokeh_dof.half_res.fbo);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
@@ -1142,21 +1130,22 @@ void half_res_color_coc(GLuint linear_depth_tex, GLuint color_tex, float focus_p
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, color_tex);
 
-    glUseProgram(gl.half_res.program);
+    glUseProgram(gl.bokeh_dof.half_res.program);
 
-    glUniform1i(gl.half_res.uniform_loc.tex_depth, 0);
-    glUniform1i(gl.half_res.uniform_loc.tex_color, 1);
-    glUniform1f(gl.half_res.uniform_loc.focus_point, focus_point);
-    glUniform1f(gl.half_res.uniform_loc.focus_scale, focus_scale);
+    glUniform1i(gl.bokeh_dof.half_res.uniform_loc.tex_depth, 0);
+    glUniform1i(gl.bokeh_dof.half_res.uniform_loc.tex_color, 1);
+    glUniform1f(gl.bokeh_dof.half_res.uniform_loc.focus_point, focus_point);
+    glUniform1f(gl.bokeh_dof.half_res.uniform_loc.focus_scale, focus_scale);
 
-    // ASSUME THAT THE APPROPRIATE FS_QUAD VAO IS BOUND
+    glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
 
     glViewport(last_viewport[0], last_viewport[1], last_viewport[2], last_viewport[3]);
     POP_GPU_SECTION();
 }
 
-void apply_dof(GLuint linear_depth_tex, GLuint color_tex, float focus_point, float focus_scale) {
+void apply_dof(GLuint linear_depth_tex, GLuint color_tex, float focus_point, float focus_scale, float time) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
 
@@ -1165,20 +1154,16 @@ void apply_dof(GLuint linear_depth_tex, GLuint color_tex, float focus_point, flo
     GLint last_fbo;
     glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &last_fbo);
 
-    glBindVertexArray(gl.vao);
-
     half_res_color_coc(linear_depth_tex, color_tex, focus_point, focus_scale);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, gl.half_res.tex.color_coc);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
 
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gl.bokeh_dof.half_res.tex.color_coc);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
-
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, color_tex);
-
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, last_fbo);
 
     glUseProgram(gl.bokeh_dof.program);
     glUniform1i(gl.bokeh_dof.uniform_loc.tex_half_res, 0);
@@ -1187,7 +1172,9 @@ void apply_dof(GLuint linear_depth_tex, GLuint color_tex, float focus_point, flo
     glUniform2f(gl.bokeh_dof.uniform_loc.pixel_size, pixel_size.x, pixel_size.y);
     glUniform1f(gl.bokeh_dof.uniform_loc.focus_point, focus_point);
     glUniform1f(gl.bokeh_dof.uniform_loc.focus_scale, focus_scale);
+    glUniform1f(gl.bokeh_dof.uniform_loc.time, time);
 
+    glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glBindVertexArray(0);
     glUseProgram(0);
@@ -1270,7 +1257,7 @@ void blit_neighbormax(GLuint velocity_tex, int tex_width, int tex_height) {
 }
 
 void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocity_tex, GLuint velocity_neighbormax_tex, const vec2& curr_jitter, const vec2& prev_jitter, float feedback_min,
-                       float feedback_max, float motion_scale) {
+                       float feedback_max, float motion_scale, float time) {
     ASSERT(glIsTexture(linear_depth_tex));
     ASSERT(glIsTexture(color_tex));
     ASSERT(glIsTexture(velocity_tex));
@@ -1279,20 +1266,12 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
     static int target = 0;
     target = (target + 1) % 2;
 
-    static float time = 0.f;
-    time += 0.016f;
-
-    if (time > 100.f) {
-        time -= 100.f;
-    }
-
-    int dst_buf = target;
-    int src_buf = (target + 1) % 2;
+    const int dst_buf = target;
+    const int src_buf = (target + 1) % 2;
 
     const vec2 res = {gl.tex_width, gl.tex_height};
     const vec4 texel_size = vec4(1.f / res, res);
     const vec4 jitter_uv = vec4(curr_jitter / res, prev_jitter / res);
-    const float sin_time = time;
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, linear_depth_tex);
@@ -1331,7 +1310,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
         glUniform4fv(gl.temporal.with_motion_blur.uniform_loc.texel_size, 1, &texel_size[0]);
         glUniform4fv(gl.temporal.with_motion_blur.uniform_loc.jitter_uv, 1, &jitter_uv[0]);
-        glUniform1f(gl.temporal.with_motion_blur.uniform_loc.sin_time, sin_time);
+        glUniform1f(gl.temporal.with_motion_blur.uniform_loc.time, time);
         glUniform1f(gl.temporal.with_motion_blur.uniform_loc.feedback_min, feedback_min);
         glUniform1f(gl.temporal.with_motion_blur.uniform_loc.feedback_max, feedback_max);
         glUniform1f(gl.temporal.with_motion_blur.uniform_loc.motion_scale, motion_scale);
@@ -1345,7 +1324,7 @@ void apply_temporal_aa(GLuint linear_depth_tex, GLuint color_tex, GLuint velocit
 
         glUniform4fv(gl.temporal.no_motion_blur.uniform_loc.texel_size, 1, &texel_size[0]);
         glUniform4fv(gl.temporal.no_motion_blur.uniform_loc.jitter_uv, 1, &jitter_uv[0]);
-        glUniform1f(gl.temporal.no_motion_blur.uniform_loc.sin_time, sin_time);
+        glUniform1f(gl.temporal.no_motion_blur.uniform_loc.time, time);
         glUniform1f(gl.temporal.no_motion_blur.uniform_loc.feedback_min, feedback_min);
         glUniform1f(gl.temporal.no_motion_blur.uniform_loc.feedback_max, feedback_max);
         glUniform1f(gl.temporal.no_motion_blur.uniform_loc.motion_scale, motion_scale);
@@ -1404,6 +1383,11 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
     ASSERT(glIsTexture(desc.input_textures.color));
     ASSERT(glIsTexture(desc.input_textures.normal));
     ASSERT(glIsTexture(desc.input_textures.velocity));
+
+    // For seeding noise
+    static float time = 0.f;
+    time = time + 0.016f;
+    if (time > 100.f) time -= 100.f;
 
     const auto near_dist = view_param.matrix.proj[3][2] / (view_param.matrix.proj[2][2] - 1.f);
     const auto far_dist = (view_param.matrix.proj[2][2] - 1.f) * near_dist / (view_param.matrix.proj[2][2] + 1.f);
@@ -1466,12 +1450,12 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
     POP_GPU_SECTION()
 
     PUSH_GPU_SECTION("Shade")
-    shade_deferred(desc.input_textures.depth, desc.input_textures.color, desc.input_textures.normal, view_param.matrix.inverse.proj);
+    shade_deferred(desc.input_textures.depth, desc.input_textures.color, desc.input_textures.normal, view_param.matrix.inverse.proj, time);
     POP_GPU_SECTION()
 
     if (desc.ambient_occlusion.enabled) {
         PUSH_GPU_SECTION("SSAO")
-        apply_ssao(gl.linear_depth.texture, desc.input_textures.normal, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias);
+        apply_ssao(gl.linear_depth.texture, desc.input_textures.normal, view_param.matrix.proj, desc.ambient_occlusion.intensity, desc.ambient_occlusion.radius, desc.ambient_occlusion.bias, time);
         POP_GPU_SECTION()
     }
 
@@ -1488,7 +1472,7 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
         swap_target();
         glDrawBuffer(dst_buffer);
         PUSH_GPU_SECTION("DOF")
-        apply_dof(gl.linear_depth.texture, src_texture, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale);
+        apply_dof(gl.linear_depth.texture, src_texture, desc.depth_of_field.focus_depth, desc.depth_of_field.focus_scale, time);
         POP_GPU_SECTION()
     }
 
@@ -1521,7 +1505,7 @@ void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param) 
         else
             PUSH_GPU_SECTION("Temporal AA")
         apply_temporal_aa(gl.linear_depth.texture, src_texture, desc.input_textures.velocity, gl.velocity.tex_neighbormax, view_param.jitter, view_param.previous.jitter, feedback_min, feedback_max,
-                          motion_scale);
+                          motion_scale, time);
         POP_GPU_SECTION()
     }
 
