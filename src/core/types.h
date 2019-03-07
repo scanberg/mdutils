@@ -26,3 +26,13 @@ struct Range {
     operator bool() const { return beg != end && beg < end; }
     int64 size() const { return end - beg; }
 };
+
+template <typename T>
+bool operator == (const Range<T>& r_a, const Range<T>& r_b) {
+	return r_a.beg == r_b.beg && r_a.end == r_b.end;
+}
+
+template <typename T>
+bool operator != (const Range<T>& r_a, const Range<T>& r_b) {
+	return !(r_a == r_b);
+}
