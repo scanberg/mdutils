@@ -54,6 +54,8 @@ void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev
 void cubic_interpolation(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t);
 void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0, Array<const vec3> pos1, Array<const vec3> pos2, Array<const vec3> pos3, float t, const mat3& sim_box);
 
+void compute_velocities_pbc(Array<vec3> dst_vel, Array<const vec3> pos, Array<const vec3> old_pos, const vec3& box_ext);
+
 void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, const mat3& sim_box);
 void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<const Residue> residues, const mat3& sim_box);
 

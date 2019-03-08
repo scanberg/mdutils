@@ -17,22 +17,26 @@ typedef double float64;
 
 template <typename T>
 struct Range {
-    union { T beg = 0, x, min; };
-    union { T end = 0, y, max; };
+    union {
+        T beg = 0, x, min;
+    };
+    union {
+        T end = 0, y, max;
+    };
 
     Range() = default;
-    Range(T lo, T hi) : beg(lo), end(hi) {};
-    
+    Range(T lo, T hi) : beg(lo), end(hi){};
+
     operator bool() const { return beg != end && beg < end; }
     int64 size() const { return end - beg; }
 };
 
 template <typename T>
-bool operator == (const Range<T>& r_a, const Range<T>& r_b) {
-	return r_a.beg == r_b.beg && r_a.end == r_b.end;
+bool operator==(const Range<T>& r_a, const Range<T>& r_b) {
+    return r_a.beg == r_b.beg && r_a.end == r_b.end;
 }
 
 template <typename T>
-bool operator != (const Range<T>& r_a, const Range<T>& r_b) {
-	return !(r_a == r_b);
+bool operator!=(const Range<T>& r_a, const Range<T>& r_b) {
+    return !(r_a == r_b);
 }

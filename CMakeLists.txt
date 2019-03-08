@@ -12,9 +12,12 @@ source_group("core" FILES ${CORE_FILES})
 source_group("gfx" FILES ${GFX_FILES})
 source_group("mol" FILES ${MOL_FILES})
 
+add_subdirectory(ispc_kernels)
 add_subdirectory(ext/gl3w)
 add_subdirectory(ext/libxdrfile)
 add_subdirectory(ext/stb)
+
+message("${ISPC_BUILD_DIR}")
 
 add_library(mdutils ${CORE_FILES} ${GFX_FILES} ${MOL_FILES})
 
@@ -31,6 +34,7 @@ target_include_directories(mdutils
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/glm
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/libxdrfile/src
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/meow_hash
+		${ISPC_BUILD_DIR}
 )
 
 set(RESOURCE_DIR "${PROJECT_SOURCE_DIR}/")
@@ -50,4 +54,5 @@ target_link_libraries(mdutils
     PRIVATE
 		libxdrfile
 		stb
+		ispc_objs
 )

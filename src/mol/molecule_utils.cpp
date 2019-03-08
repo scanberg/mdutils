@@ -9,6 +9,8 @@
 
 #include <ctype.h>
 
+#include "compute_velocity_ispc.h"
+
 inline glm_vec4 glm_step(const glm_vec4 edge, const glm_vec4 x) {
     const glm_vec4 cmp = _mm_cmpge_ps(x, edge);
     const glm_vec4 res = _mm_and_ps(cmp, _mm_set1_ps(1.f));
@@ -262,6 +264,27 @@ void cubic_interpolation_periodic(Array<vec3> positions, Array<const vec3> pos0,
         const glm_vec4 res = math::spline(p0, p1, p2, p3, t);
         positions[i] = *reinterpret_cast<const vec3*>(&res);
     }
+}
+
+void compute_velocities_pbc(Array<vec3> dst_vel, Array<const vec3> pos, Array<const vec3> old_pos, const vec3& box_ext) {
+    ASSERT(dst_vel.size() == pos.size());
+    ASSERT(dst_vel.size() == old_pos.size());
+
+    const float dt = 1.f;
+    ispc::compute_velocity(dst_vel.data(), pos.data(), old_pos.data(), dt, dst_vel.size());
+    /*
+for (int64 i = 0; i < dst_vel.size(); i++) {
+    // De-periodize previous position
+    const vec3 p1 = pos[i];
+    const vec3 p0 = old_pos[i];
+
+    const vec3 delta = p1 - p0;
+    const vec3 signed_mask = sign(delta) * step(box_ext * 0.5f, abs(delta));
+    const vec3 dp_p0 = p0 + box_ext * signed_mask;
+
+    dst_vel[i] = p1 - dp_p0;
+}
+    */
 }
 
 void apply_pbc_residues(Array<vec3> positions, Array<const Residue> residues, const mat3& sim_box) {
