@@ -5,7 +5,8 @@ if (NOT ISPC_EXECUTABLE)
     message(FATAL_ERROR "Failed to find ispc" )
 endif()
 
-set (ISPC_IA_TARGETS "sse2-i32x4,sse4-i32x4,avx1-i32x8,avx2-i32x8,avx512knl-i32x16,avx512skx-i32x16" CACHE STRING "ISPC IA targets")
+#set (ISPC_IA_TARGETS "sse2-i32x4,sse4-i32x4,avx1-i32x8,avx2-i32x8,avx512knl-i32x16,avx512skx-i32x16" CACHE STRING "ISPC IA targets")
+set (ISPC_IA_TARGETS "avx1" CACHE STRING "ISPC IA targets")
 
 if (UNIX)
     execute_process( COMMAND bash "-c" "uname -m | sed -e s/x86_64/x86/ -e s/i686/x86/ -e s/arm.*/arm/ -e s/sa110/arm/" OUTPUT_VARIABLE ARCH)
@@ -26,7 +27,7 @@ else()
     endif()
 endif()
 
-# given an ispc file, append it and the generated .h file to 'outList'
+# given ispc file(s), append it and the generated .h file to 'outList'
 macro( add_ispc_src outList outListObj srcLocationsList )
   set (BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/CMakeFiles/ispc)
   file(MAKE_DIRECTORY ${BUILD_DIR}/ispc)

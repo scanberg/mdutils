@@ -10,6 +10,7 @@
 #include <ctype.h>
 
 #include "compute_velocity_ispc.h"
+#include "interpolate_position_linear_ispc.h"
 
 inline glm_vec4 glm_step(const glm_vec4 edge, const glm_vec4 x) {
     const glm_vec4 cmp = _mm_cmpge_ps(x, edge);
@@ -192,9 +193,16 @@ void linear_interpolation(Array<vec3> positions, Array<const vec3> prev_pos, Arr
     ASSERT(prev_pos.count == positions.count);
     ASSERT(next_pos.count == positions.count);
 
-    for (int i = 0; i < positions.count; i++) {
-        positions[i] = math::mix(prev_pos[i], next_pos[i], t);
-    }
+    //for (int i = 0; i < positions.count; i++) {
+    //    positions[i] = math::mix(prev_pos[i], next_pos[i], t);
+    //}
+
+	ispc::float4* dst_pos = (ispc::float4*)positions.data();
+	ispc::float4* prv_pos = (ispc::float4*)prev_pos.data();
+	ispc::float4* nxt_pos = (ispc::float4*)next_pos.data();
+	const int32 count = (int32)positions.size();
+
+	ispc::interpolate_position_linear(dst_pos, prv_pos, nxt_pos, count, t);
 }
 
 // @TODO: Fix this, is it possible in theory to get a good interpolation between frames with periodicity without modifying source data?
@@ -271,7 +279,7 @@ void compute_velocities_pbc(Array<vec3> dst_vel, Array<const vec3> pos, Array<co
     ASSERT(dst_vel.size() == old_pos.size());
 
     const float dt = 1.f;
-    ispc::compute_velocity(dst_vel.data(), pos.data(), old_pos.data(), dt, dst_vel.size());
+    //ispc::compute_velocity(dst_vel.data(), pos.data(), old_pos.data(), dt, dst_vel.size());
     /*
 for (int64 i = 0; i < dst_vel.size(); i++) {
     // De-periodize previous position

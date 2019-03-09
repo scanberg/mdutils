@@ -54,5 +54,5 @@ target_link_libraries(mdutils
     PRIVATE
 		libxdrfile
 		stb
-		ispc_objs
+		ispc_kernels
 )
