@@ -67,9 +67,14 @@ struct Chain {
 
 // Interface to access molecular data
 struct MoleculeStructure {
+    // SOA Layout for Atom data
     struct {
         int64 count = 0;
-        vec3* positions = nullptr;
+        struct {
+            float* x = nullptr;
+            float* y = nullptr;
+            float* z = nullptr;
+        } position;
         Element* elements = nullptr;
         Label* labels = nullptr;
         ResIdx* residue_indices = nullptr;
@@ -103,8 +108,18 @@ inline Array<Bond> get_covalent_bonds(MoleculeStructure& mol) { return mol.coval
 inline Array<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { return mol.covalent_bonds; }
 
 // Atom data accessors
-inline Array<vec3> get_positions(MoleculeStructure& mol) { return Array<vec3>(mol.atom.positions, mol.atom.count); }
-inline Array<const vec3> get_positions(const MoleculeStructure& mol) { return Array<const vec3>(mol.atom.positions, mol.atom.count); }
+//inline Array<vec3> get_positions(MoleculeStructure& mol) { return Array<vec3>(mol.atom.positions, mol.atom.count); }
+//inline Array<const vec3> get_positions(const MoleculeStructure& mol) { return Array<const vec3>(mol.atom.positions, mol.atom.count); }
+//vec3 get_position(const MoleculeStructure& mol, AtomIdx i) { return {mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i]}; }
+//void set_position(MoleculeStructure& mol, AtomIdx i, const vec3& p) { mol.atom.position.x[i] = p.x; mol.atom.position.y[i], mol.atom.position.x[i]}
+
+inline Array<float> get_position_x(MoleculeStructure& mol) { return Array<float>(mol.atom.position.x, mol.atom.count); }
+inline Array<const float> get_position_x(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.x, mol.atom.count); }
+inline Array<float> get_position_y(MoleculeStructure& mol) { return Array<float>(mol.atom.position.y, mol.atom.count); }
+inline Array<const float> get_position_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.y, mol.atom.count); }
+inline Array<float> get_position_z(MoleculeStructure& mol) { return Array<float>(mol.atom.position.z, mol.atom.count); }
+inline Array<const float> get_position_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.z, mol.atom.count); }
+
 inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.elements, mol.atom.count); }
 inline Array<const Element> get_elements(const MoleculeStructure& mol) { return Array<const Element>(mol.atom.elements, mol.atom.count); }
 inline Array<Label> get_labels(MoleculeStructure& mol) { return Array<Label>(mol.atom.labels, mol.atom.count); }

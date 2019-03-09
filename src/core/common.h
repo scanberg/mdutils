@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <stdlib.h>
+
 #ifndef NDEBUG
 #define DEBUG
 inline void _assert(const char* file, const char* func, int line, bool cond, const char* fmt, ...) {
@@ -36,28 +38,32 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 
 #define UNUSED(x) (void)(x)
 
-// @TODO: This has to be changed so that the default version is only used when neither malloc nor free is defined
 #ifndef MALLOC
-#define USE_DEFAULT_MALLOC_AND_FREE
+  #define MALLOC(x) malloc(x)
+#if _MSC_VER && !__INTEL_COMPILER
+#include <malloc.h>
+  #define ALIGNED_MALLOC(x, y) _aligned_malloc(x, y)
+  #define ALIGNED_FREE(x) _aligned_free(x)
+#else
+  #define ALIGNED_MALLOC(x, y) aligned_alloc(x, y)
+  #define ALIGNED_FREE(x) free(x)
+#endif
+  #define REALLOC(x, y) realloc(x, y)
+  #define CALLOC(x, y) calloc(x, y)
+  #define FREE(x) free(x)
 #endif
 
+// This is bogus atm and should be implemented properly
 #ifndef TMP_MALLOC
-#define USE_DEFAULT_TMP_MALLOC_AND_FREE
-#endif
-
-#if defined USE_DEFAULT_MALLOC_AND_FREE || defined USE_DEFAULT_TMP_MALLOC_AND_FREE
-#include <stdlib.h>
-#endif
-
-#ifdef USE_DEFAULT_MALLOC_AND_FREE
-#define MALLOC(x) malloc(x)
-#define REALLOC(x, y) realloc(x, y)
-#define CALLOC(x, y) calloc(x, y)
-#define FREE(x) free(x)
-#endif
-
-#ifdef USE_DEFAULT_TMP_MALLOC_AND_FREE
 #define TMP_MALLOC(x) malloc(x)
+#if _MSC_VER && !__INTEL_COMPILER
+#include <malloc.h>
+  #define TMP_ALIGNED_MALLOC(x, y) _aligned_malloc(x, y)
+  #define TMP_ALIGNED_FREE(x) _aligned_free(x)
+#else
+  #define TMP_ALIGNED_MALLOC(x, y) aligned_alloc(x, y)
+  #define ALIGNED_FREE(x) free(x)
+#endif
 #define TMP_REALLOC(x, y) realloc(x, y)
 #define TMP_CALLOC(x, y) calloc(x, y)
 #define TMP_FREE(x) free(x)
