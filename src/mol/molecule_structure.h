@@ -113,12 +113,19 @@ inline Array<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { retu
 //vec3 get_position(const MoleculeStructure& mol, AtomIdx i) { return {mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i]}; }
 //void set_position(MoleculeStructure& mol, AtomIdx i, const vec3& p) { mol.atom.position.x[i] = p.x; mol.atom.position.y[i], mol.atom.position.x[i]}
 
-inline Array<float> get_position_x(MoleculeStructure& mol) { return Array<float>(mol.atom.position.x, mol.atom.count); }
-inline Array<const float> get_position_x(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.x, mol.atom.count); }
-inline Array<float> get_position_y(MoleculeStructure& mol) { return Array<float>(mol.atom.position.y, mol.atom.count); }
-inline Array<const float> get_position_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.y, mol.atom.count); }
-inline Array<float> get_position_z(MoleculeStructure& mol) { return Array<float>(mol.atom.position.z, mol.atom.count); }
-inline Array<const float> get_position_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.z, mol.atom.count); }
+inline Array<float> get_positions_x(MoleculeStructure& mol) { return Array<float>(mol.atom.position.x, mol.atom.count); }
+inline Array<const float> get_positions_x(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.x, mol.atom.count); }
+inline Array<float> get_positions_y(MoleculeStructure& mol) { return Array<float>(mol.atom.position.y, mol.atom.count); }
+inline Array<const float> get_positions_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.y, mol.atom.count); }
+inline Array<float> get_positions_z(MoleculeStructure& mol) { return Array<float>(mol.atom.position.z, mol.atom.count); }
+inline Array<const float> get_positions_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.z, mol.atom.count); }
+
+inline vec3 get_position_xyz(const MoleculeStructure& mol, AtomIdx idx) {
+	ASSERT(0 <= idx && idx < mol.atom.count);
+	return { mol.atom.position.x[idx], mol.atom.position.y[idx], mol.atom.position.z[idx] };
+}
+
+inline Float3Stream get_position_stream(MoleculeStructure& mol) { return { mol.atom.position.x, mol.atom.position.y, mol.atom.position.z, mol.atom.count }; }
 
 inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.elements, mol.atom.count); }
 inline Array<const Element> get_elements(const MoleculeStructure& mol) { return Array<const Element>(mol.atom.elements, mol.atom.count); }

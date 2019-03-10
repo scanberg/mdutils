@@ -39,35 +39,39 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define UNUSED(x) (void)(x)
 
 #ifndef MALLOC
-  #define MALLOC(x) malloc(x)
+  #define MALLOC(size) malloc(size)
 #if _MSC_VER && !__INTEL_COMPILER
 #include <malloc.h>
-  #define ALIGNED_MALLOC(x, y) _aligned_malloc(x, y)
-  #define ALIGNED_FREE(x) _aligned_free(x)
+  #define ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
+  #define ALIGNED_FREE(addr) _aligned_free(addr)
 #else
-  #define ALIGNED_MALLOC(x, y) aligned_alloc(x, y)
-  #define ALIGNED_FREE(x) free(x)
+  #define ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
+  #define ALIGNED_FREE(addr) _mm_free(addr)
 #endif
-  #define REALLOC(x, y) realloc(x, y)
-  #define CALLOC(x, y) calloc(x, y)
-  #define FREE(x) free(x)
+  #define REALLOC(ptr, new_size) realloc(ptr, new_size)
+  #define CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
+  #define FREE(addr) free(addr)
 #endif
 
 // This is bogus atm and should be implemented properly
 #ifndef TMP_MALLOC
-#define TMP_MALLOC(x) malloc(x)
+#define TMP_MALLOC(size) malloc(size)
 #if _MSC_VER && !__INTEL_COMPILER
 #include <malloc.h>
-  #define TMP_ALIGNED_MALLOC(x, y) _aligned_malloc(x, y)
-  #define TMP_ALIGNED_FREE(x) _aligned_free(x)
+  #define TMP_ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
+  #define TMP_ALIGNED_FREE(addr) _aligned_free(addr)
 #else
-  #define TMP_ALIGNED_MALLOC(x, y) aligned_alloc(x, y)
-  #define ALIGNED_FREE(x) free(x)
+  #define TMP_ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
+  #define ALIGNED_FREE(addr) _mm_free(addr)
 #endif
-#define TMP_REALLOC(x, y) realloc(x, y)
-#define TMP_CALLOC(x, y) calloc(x, y)
-#define TMP_FREE(x) free(x)
+#define TMP_REALLOC(ptr, new_size) realloc(ptr, new_size)
+#define TMP_CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
+#define TMP_FREE(addr) free(addr)
 #endif
+
+inline void* get_next_aligned_adress(void* mem, int alignment) {
+	return ((void *)(((uintptr_t)mem + (alignment - 1)) & ~(uintptr_t)alignment));
+}
 
 // implementation of 'defer' in c++.
 // from here https://pastebin.com/suTkpYp4

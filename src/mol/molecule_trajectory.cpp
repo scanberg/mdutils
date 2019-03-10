@@ -10,8 +10,13 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
     traj->path_to_file = {};
     traj->file_handle = nullptr;
 
+	float* pos_data = (float*)ALIGNED_MALLOC((num_frames * num_atoms * sizeof(float) + 16) * 3, 16);
+	float* pos_data_x = pos_data;
+	float* pos_data_y = (float*)get_next_aligned_adress(pos_data_x + num_frames * num_atoms, 16);
+	float* pos_data_z = (float*)get_next_aligned_adress(pos_data_y + num_frames * num_atoms, 16);
+
     traj->frame_offsets = {};
-    traj->position_data = {(vec3*)CALLOC(num_frames * num_atoms, sizeof(vec3)), num_frames * num_atoms};
+	traj->position_data = {pos_data_x, pos_data_y, pos_data_z};
     traj->frame_buffer = {(TrajectoryFrame*)CALLOC(num_frames, sizeof(TrajectoryFrame)), num_frames};
 
     return true;
@@ -22,7 +27,7 @@ void free_trajectory(MoleculeTrajectory* traj) {
 
     free_string(&traj->path_to_file);
     if (traj->frame_offsets.ptr) FREE(traj->frame_offsets.ptr);
-    if (traj->position_data.ptr) FREE(traj->position_data.ptr);
+    if (traj->position_data.x) ALIGNED_FREE(traj->position_data.x);
     if (traj->frame_buffer.ptr) FREE(traj->frame_buffer.ptr);
 
     *traj = {};

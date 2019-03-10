@@ -1,9 +1,5 @@
 #include "molecule_structure.h"
 
-inline void* get_next_aligned_adress(void* mem, int alignment) {
-    return ((void *)(((uintptr_t)mem + (alignment-1)) & ~ (uintptr_t)alignment));
-}
-
 bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_backbone_segments, int32 num_backbone_sequences,
                              int32 num_hydrogen_bond_donors, int32 num_hydrogen_bond_acceptors) {
     free_molecule_structure(mol);
@@ -11,7 +7,7 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     int64 alloc_size = 0;
 
     alloc_size += num_atoms * (sizeof(Element) + sizeof(Label) + sizeof(ResIdx));
-    alloc_size += (num_atoms * sizeof(float) + 16 + 16) * 3;
+    alloc_size += (num_atoms * sizeof(float) + 16) * 3; // Padding for 16 byte alignment
     
     alloc_size += num_bonds * sizeof(Bond);
     alloc_size += num_residues * sizeof(Residue);

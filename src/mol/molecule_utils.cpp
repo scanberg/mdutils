@@ -62,11 +62,13 @@ void transform_positions(Array<vec3> positions, const mat4& transformation) {
     }
 }
 
-void compute_bounding_box(vec3* min_box, vec3* max_box, Array<const vec3> positions, Array<const float> radii) {
+void compute_bounding_box(vec3* min_box, vec3* max_box, Array<const float> pos_x, Array<const float> pos_y, Array<const float> pos_z, Array<const float> radii) {
     ASSERT(min_box);
     ASSERT(max_box);
-    if (radii.count > 0) {
-        ASSERT(radii.count == positions.count);
+	ASSERT(pos_x.size() == pos_y.size());
+	ASSERT(pos_x.size() == pos_z.size());
+    if (radii.size() > 0) {
+        ASSERT(radii.size() == positions.count);
     }
 
     if (positions.count == 0) {
@@ -189,7 +191,7 @@ inline bool periodic_jump(const vec3& p_prev, const vec3& p_next, const vec3& ha
     return false;
 }
 
-void linear_interpolation(Array<vec3> positions, Array<const vec3> prev_pos, Array<const vec3> next_pos, float t) {
+void linear_interpolation(Array<float> out_x, Array<float> out_y, Array<float> out_z, Array<const vec3> in_prev_x, Array<const vec3> next_pos, float t) {
     ASSERT(prev_pos.count == positions.count);
     ASSERT(next_pos.count == positions.count);
 
