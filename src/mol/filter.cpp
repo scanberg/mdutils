@@ -222,6 +222,7 @@ void initialize() {
             protein
 
             name
+                        type (alias name)
             element
             atomicnumber
             atom
@@ -248,7 +249,7 @@ void initialize() {
         for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
             mask[i] = false;
             for (const auto& arg : args) {
-                if (compare(dyn.molecule.atom.labels[i], arg)) {
+                if (compare(dyn.molecule.atom.label[i], arg)) {
                     mask[i] = true;
                     break;
                 }
@@ -307,7 +308,7 @@ void initialize() {
                                    for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
                                        mask[i] = false;
                                        for (const auto& ele : elements) {
-                                           if (dyn.molecule.atom.elements[i] == ele) {
+                                           if (dyn.molecule.atom.element[i] == ele) {
                                                mask[i] = true;
                                                break;
                                            }
@@ -320,7 +321,7 @@ void initialize() {
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
-                                       int atomnr = (int)dyn.molecule.atom.elements[i];
+                                       int atomnr = (int)dyn.molecule.atom.element[i];
                                        mask[i] = false;
                                        for (auto range : ranges) {
                                            if (range.x == -1) range.x = 0;
@@ -416,9 +417,7 @@ void initialize() {
                                        range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.chains.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
                                            Chain chain = get_chain(dyn.molecule, (ChainIdx)i);
-                                           const auto beg = get_atom_beg_idx(dyn.molecule, chain);
-                                           const auto end = get_atom_end_idx(dyn.molecule, chain);
-                                           memset(mask.ptr + beg, 1, end - beg);
+                                           memset(mask.ptr + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
                                        }
                                    }
                                    return true;
@@ -429,9 +428,7 @@ void initialize() {
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& chain : dyn.molecule.chains) {
                                            if (compare(args[i], chain.id)) {
-                                               const auto beg = get_atom_beg_idx(dyn.molecule, chain);
-                                               const auto end = get_atom_end_idx(dyn.molecule, chain);
-                                               memset(mask.ptr + beg, 1, end - beg);
+                                               memset(mask.ptr + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
                                            }
                                        }
                                    }

@@ -1,5 +1,7 @@
 #include "molecule_trajectory.h"
 
+#define ALIGNMENT 64
+
 bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames) {
     ASSERT(traj);
 
@@ -10,13 +12,13 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
     traj->path_to_file = {};
     traj->file_handle = nullptr;
 
-	float* pos_data = (float*)ALIGNED_MALLOC((num_frames * num_atoms * sizeof(float) + 16) * 3, 16);
-	float* pos_data_x = pos_data;
-	float* pos_data_y = (float*)get_next_aligned_adress(pos_data_x + num_frames * num_atoms, 16);
-	float* pos_data_z = (float*)get_next_aligned_adress(pos_data_y + num_frames * num_atoms, 16);
+    float* pos_data = (float*)ALIGNED_MALLOC((num_frames * num_atoms * sizeof(float) + ALIGNMENT) * 3, ALIGNMENT);
+    float* pos_data_x = pos_data;
+    float* pos_data_y = (float*)get_next_aligned_adress(pos_data_x + num_frames * num_atoms, ALIGNMENT);
+    float* pos_data_z = (float*)get_next_aligned_adress(pos_data_y + num_frames * num_atoms, ALIGNMENT);
 
     traj->frame_offsets = {};
-	traj->position_data = {pos_data_x, pos_data_y, pos_data_z};
+    traj->position_data = {pos_data_x, pos_data_y, pos_data_z};
     traj->frame_buffer = {(TrajectoryFrame*)CALLOC(num_frames, sizeof(TrajectoryFrame)), num_frames};
 
     return true;

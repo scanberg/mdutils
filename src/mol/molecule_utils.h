@@ -46,16 +46,17 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
 // phi   = dihedral( C[i-1], N[i],  CA[i],  C[i])
 // psi   = dihedral( N[i],  CA[i],   C[i],  N[i+1])
 // As seen here https://en.wikipedia.org/wiki/Ramachandran_plot.
-DynamicArray<vec2> compute_backbone_angles(Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
-void compute_backbone_angles(Array<vec2> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
 
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z,
+                                                    int64 count);
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z,
+                             int64 count);
 
 void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic);
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
-
 
 void translate_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const vec3& translation);
 void transform_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat4& transformation);
@@ -67,42 +68,26 @@ vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, int
 vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const float* mass, int64 count);
 vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);
 
-void linear_interpolation(float* out_x, float* out_y, float* out_z,
-                          const float* p0_x, const float* p0_y, const float* p0_z,
-                          const float* p1_x, const float* p1_y, const float* p1_z,
-                          int64 count, float t);
+void linear_interpolation(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, int64 count,
+                          float t);
 
-void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
-                              const float* p0_x, const float* p0_y, const float* p0_z,
-                              const float* p1_x, const float* p1_y, const float* p1_z,
-                              int64 count, float t);
+void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, int64 count,
+                              float t, const mat3& sim_box);
 
-void cubic_interpolation(float* out_x, float* out_y, float* out_z,
-                         const float* p0_x, const float* p0_y, const float* p0_z,
-                         const float* p1_x, const float* p1_y, const float* p1_z,
-                         const float* p2_x, const float* p2_y, const float* p2_z,
-                         const float* p3_x, const float* p3_y, const float* p3_z,
-                         int64 count, float t);
+void cubic_interpolation(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, const float* p2_x,
+                         const float* p2_y, const float* p2_z, const float* p3_x, const float* p3_y, const float* p3_z, int64 count, float t);
 
-void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z,
-                             const float* p0_x, const float* p0_y, const float* p0_z,
-                             const float* p1_x, const float* p1_y, const float* p1_z,
-                             const float* p2_x, const float* p2_y, const float* p2_z,
-                             const float* p3_x, const float* p3_y, const float* p3_z,
-                             int64 count, float t, const mat3& sim_box);
+void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z,
+                             const float* p2_x, const float* p2_y, const float* p2_z, const float* p3_x, const float* p3_y, const float* p3_z, int64 count, float t, const mat3& sim_box);
 
-void compute_velocities(float* out_x, float* out_y, float* out_z,
-                        const float* prv_x, const float* prv_y, const float* prv_z,
-                        const float* cur_x, const float* cur_y, const float* cur_z,
-                        int64 count, float t);
+void compute_velocities(float* out_x, float* out_y, float* out_z, const float* prv_x, const float* prv_y, const float* prv_z, const float* cur_x, const float* cur_y, const float* cur_z, int64 count,
+                        float t);
 
-void compute_velocities_pbc(float* out_x, float* out_y, float* out_z,
-                            const float* prv_x, const float* prv_y, const float* prv_z,
-                            const float* cur_x, const float* cur_y, const float* cur_z,
+void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const float* prv_x, const float* prv_y, const float* prv_z, const float* cur_x, const float* cur_y, const float* cur_z,
                             int64 count, float t, const mat3& sim_box);
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
-    const vec3 ext = sim_box * vec3(1,1,1);
+    const vec3 ext = sim_box * vec3(1, 1, 1);
     vec3 out;
     for (int i = 0; i < 3; i++) {
         out[i] = (pos[i] > ext[i]) ? (pos[i] - ext[i]) : (pos[i]);

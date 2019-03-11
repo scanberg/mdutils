@@ -76,28 +76,33 @@ DynamicArray<HydrogenBondAcceptor> compute_acceptors(Array<const Element> elemen
 // The distance cutoff sets the distance from bonds to potential acceptors.
 //
 
-int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, Array<const vec3> atom_positions, float dist_cutoff,
-                    float angle_cutoff) {
+int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y,
+                    const float* atom_pos_z, float dist_cutoff, float angle_cutoff) {
     const int32 num_acceptors = (int32)acceptors.count;
     if (!num_acceptors) return 0;
 
-    DynamicArray<vec3> acceptor_pos(num_acceptors);
+    DynamicArray<float> acceptor_pos_x(num_acceptors);
+    DynamicArray<float> acceptor_pos_y(num_acceptors);
+    DynamicArray<float> acceptor_pos_z(num_acceptors);
     DynamicArray<AtomIdx> acceptor_idx(num_acceptors);
+
     for (int32 i = 0; i < num_acceptors; i++) {
-        acceptor_pos[i] = atom_positions[acceptors[i]];
+        acceptor_pos_x[i] = atom_pos_x[acceptors[i]];
+        acceptor_pos_y[i] = atom_pos_y[acceptors[i]];
+        acceptor_pos_z[i] = atom_pos_z[acceptors[i]];
         acceptor_idx[i] = acceptors[i];
     }
 
     int32 pre_count = (int32)bonds->count;
-    spatialhash::Frame frame = spatialhash::compute_frame(acceptor_pos, vec3(dist_cutoff));
+    spatialhash::Frame frame = spatialhash::compute_frame(acceptor_pos_x.data(), acceptor_pos_y.data(), acceptor_pos_z.data(), num_acceptors, vec3(dist_cutoff));
     for (const auto& don : donors) {
-        vec3 donor_pos = atom_positions[don.donor_idx];
-        vec3 hydro_pos = atom_positions[don.hydro_idx];
-        spatialhash::for_each_within(frame, hydro_pos, dist_cutoff, [bonds, &donor_pos, &hydro_pos, &acceptor_idx, &don, angle_cutoff](int32 idx, const vec3& pos) {
+        vec3 donor_pos_xyz = {atom_pos_x[don.donor_idx], atom_pos_y[don.donor_idx], atom_pos_z[don.donor_idx]};
+        vec3 hydro_pos_xyz = {atom_pos_x[don.hydro_idx], atom_pos_y[don.hydro_idx], atom_pos_z[don.hydro_idx]};
+        spatialhash::for_each_within(frame, hydro_pos_xyz, dist_cutoff, [bonds, &donor_pos_xyz, &hydro_pos_xyz, &acceptor_idx, &don, angle_cutoff](int32 idx, const vec3& pos) {
             AtomIdx g_idx = acceptor_idx[idx];
             if (g_idx == don.donor_idx) return;
-            const vec3 a = hydro_pos - donor_pos;
-            const vec3 b = pos - hydro_pos;
+            const vec3 a = hydro_pos_xyz - donor_pos_xyz;
+            const vec3 b = pos - hydro_pos_xyz;
             if (math::angle(a, b) < angle_cutoff) {
                 bonds->push_back({g_idx, don.donor_idx, don.hydro_idx});
             }
@@ -106,12 +111,14 @@ int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondD
     return (int32)bonds->count - pre_count;
 }
 
-DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, Array<const vec3> atom_positions, float dist_cutoff, float angle_cutoff) {
+DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y, const float* atom_pos_z,
+                                         float dist_cutoff, float angle_cutoff) {
     DynamicArray<HydrogenBond> bonds;
-    compute_bonds(&bonds, donors, acceptors, atom_positions, dist_cutoff, angle_cutoff);
+    compute_bonds(&bonds, donors, acceptors, atom_pos_x, atom_pos_y, atom_pos_z, dist_cutoff, angle_cutoff);
     return bonds;
 }
 
+/*
 void compute_bonds_trajectory(HydrogenBondTrajectory* hbt, const MoleculeDynamic& dyn, float max_dist, float max_angle) {
     ASSERT(hbt);
     for (int32 i = 0; i < dyn.trajectory.num_frames; i++) {
@@ -126,4 +133,6 @@ HydrogenBondTrajectory compute_bonds_trajectory(const MoleculeDynamic& dyn, floa
     compute_bonds_trajectory(&hbt, dyn, max_dist, max_angle);
     return hbt;
 }
+*/
+
 }  // namespace hydrogen_bond

@@ -201,9 +201,9 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
         memset(md->molecule.atom.velocity.y, 0, num_atoms * sizeof(float));
         memset(md->molecule.atom.velocity.z, 0, num_atoms * sizeof(float));
         memcpy(md->molecule.atom.radius, radii.data(), num_atoms * sizeof(float));
-        memcpy(md->molecule.atom.elements, elements.ptr, elements.size_in_bytes());
-        memcpy(md->molecule.atom.labels, labels.ptr, labels.size_in_bytes());
-        memcpy(md->molecule.atom.residue_indices, residue_indices.ptr, residue_indices.size_in_bytes());
+        memcpy(md->molecule.atom.element, elements.ptr, elements.size_in_bytes());
+        memcpy(md->molecule.atom.label, labels.ptr, labels.size_in_bytes());
+        memcpy(md->molecule.atom.res_idx, residue_indices.ptr, residue_indices.size_in_bytes());
 
         memcpy(md->molecule.residues.ptr, residues.ptr, residues.size_in_bytes());
         memcpy(md->molecule.chains.ptr, chains.ptr, chains.size_in_bytes());
@@ -219,7 +219,6 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
         init_trajectory(&md->trajectory, num_atoms, num_frames);
         // COPY POSITION DATA
 
-        ASSERT(positions.count > 0);
         memcpy(md->trajectory.position_data.x, pos_x.data(), pos_x.size_in_bytes());
         memcpy(md->trajectory.position_data.y, pos_y.data(), pos_y.size_in_bytes());
         memcpy(md->trajectory.position_data.z, pos_z.data(), pos_z.size_in_bytes());
