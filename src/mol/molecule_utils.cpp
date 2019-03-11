@@ -28,11 +28,10 @@ inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     return res;
 }
 
-inline vec3 de_periodize(const vec3 ref, const vec3 p, const vec3 box_ext) {
-    const vec3 half_ext = box_ext * 0.5f;
-    const vec3 delta = p - ref;
-    const vec3 signed_mask = sign(delta) * step(half_ext, abs(delta));
-    const vec3 res = p - box_ext * signed_mask;
+inline float de_periodize(float a, float b, float full_ext, float half_ext) {
+    const float delta = p - ref;
+    const float signed_mask = math::sign(delta) * math::step(half_ext, math::abs(delta));
+    const float res = p - full_ext * signed_mask;
     return res;
 }
 
@@ -214,25 +213,9 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const fl
         float y1 = in_y1[i];
         float z1 = in_z1[i];
 
-        float dx = in_x1[i] - in_x0[i];
-        float dy = in_y1[i] - in_y0[i];
-        float dz = in_z1[i] - in_z0[i];
-
-        float a_dx = fabs(dx);
-        float a_dy = fabs(dy);
-        float a_dz = fabs(dz);
-
-        float s_dx = a_dx > 0.0f ? 1.0f : -1.0f;
-        float s_dy = a_dy > 0.0f ? 1.0f : -1.0f;
-        float s_dz = a_dz > 0.0f ? 1.0f : -1.0f;
-
-        if (a_dx > half_ext_x) x1 = x1 - full_ext_x * s_dx;
-        if (a_dy > half_ext_y) y1 = y1 - full_ext_y * s_dy;
-        if (a_dz > half_ext_z) z1 = z1 - full_ext_z * s_dz;
-
-        const float x = x0 * (1.0f - t) + x1 * t;
-        const float y = y0 * (1.0f - t) + y1 * t;
-        const float z = z0 * (1.0f - t) + z1 * t;
+        de_periodize(x1, x0, full_ext_x, half_ext_x);
+        de_periodize(y1, y0, full_ext_y, half_ext_y);
+        de_periodize(z1, z0, full_ext_z, half_ext_z);
 
         out_x[i] = x;
         out_y[i] = y;
@@ -318,8 +301,13 @@ void cubic_interpolation(float* out_x, float* out_y, float* out_z, const float* 
 void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
                              const float* in_x2, const float* in_y2, const float* in_z2, const float* in_x3, const float* in_y3, const float* in_z3, int64 count, float t, const mat3& sim_box) {
 
-    const __m128 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
-    const __m128 half_box_ext = simd::mul(full_box_ext, simd::set_float4(0.5f));
+    const __m128 full_box_ext_x = simd::set_float4(sim_box[0][0]);
+    const __m128 full_box_ext_y = simd::set_float4(sim_box[1][1]);
+    const __m128 full_box_ext_z = simd::set_float4(sim_box[2][2]);
+
+    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_float4(0.5f));
+    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_float4(0.5f));
+    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_float4(0.5f));
 
     for (int i = 0; i < count; i += 4) {
         __m128 x0 = _mm_load_ps(in_x0);
@@ -338,17 +326,17 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const flo
         __m128 y3 = _mm_load_ps(in_y3);
         __m128 z3 = _mm_load_ps(in_z3);
 
-        x0 = de_periodize(x1, x0, full_box_ext, half_box_ext);
-        x2 = de_periodize(x1, x2, full_box_ext, half_box_ext);
-        x3 = de_periodize(x1, x3, full_box_ext, half_box_ext);
+        x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
+        x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
+        x3 = de_periodize(x1, x3, full_box_ext_X, half_box_ext_x);
 
-        y0 = de_periodize(y1, y0, full_box_ext, half_box_ext);
-        y2 = de_periodize(y1, y2, full_box_ext, half_box_ext);
-        y3 = de_periodize(y1, y3, full_box_ext, half_box_ext);
+        y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
+        y2 = de_periodize(y1, y2, full_box_ext_y, half_box_ext_y);
+        y3 = de_periodize(y1, y3, full_box_ext_y, half_box_ext_y);
 
-        z0 = de_periodize(z1, z0, full_box_ext, half_box_ext);
-        z2 = de_periodize(z1, z2, full_box_ext, half_box_ext);
-        z3 = de_periodize(z1, z3, full_box_ext, half_box_ext);
+        z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
+        z2 = de_periodize(z1, z2, full_box_ext_z, half_box_ext_z);
+        z3 = de_periodize(z1, z3, full_box_ext_z, half_box_ext_z);
 
         const __m128 x = simd::cubic_spline(x0, x1, x2, x3, t);
         const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
