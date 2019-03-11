@@ -9,9 +9,9 @@
 
 #include <ctype.h>
 
-#include "compute_velocity_ispc.h"
-#include "interpolate_position_linear_ispc.h"
-
+//#include "compute_velocity_ispc.h"
+//#include "interpolate_position_linear_ispc.h"
+ /*
 inline glm_vec4 glm_step(const glm_vec4 edge, const glm_vec4 x) {
     const glm_vec4 cmp = _mm_cmpge_ps(x, edge);
     const glm_vec4 res = _mm_and_ps(cmp, _mm_set1_ps(1.f));
@@ -49,100 +49,99 @@ inline vec3 de_periodize(const vec3 ref, const vec3 p, const vec3 box_ext) {
     const vec3 res = p - box_ext * signed_mask;
     return res;
 }
+*/
 
-void translate_positions(Array<vec3> positions, const vec3& translation) {
-    for (auto& p : positions) {
-        p = p + translation;
+
+void translate_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const vec3& translation) {
+    for (int64 i = 0; i < count; i++) {
+        pos_x += translation.x;
+        pos_y += translation.y;
+        pos_z += translation.z;
     }
 }
 
-void transform_positions(Array<vec3> positions, const mat4& transformation) {
-    for (auto& p : positions) {
-        p = vec3(transformation * vec4(p, 1));
+void transform_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat4& transformation) {
+    for (int64 i = 0; i < count; i++) {
+        vec4 p { pos_x[i], pos_y[i], pos_z[i], 1.0f };
+        p = transformation * p;
+        pos_x[i] = p.x;
+        pos_y[i] = p.y;
+        pos_z[i] = p.z;
     }
 }
 
-void compute_bounding_box(vec3* min_box, vec3* max_box, Array<const float> pos_x, Array<const float> pos_y, Array<const float> pos_z, Array<const float> radii) {
+void compute_bounding_box(vec3* min_box, vec3* max_box, const float* pos_x, const float* pos_y, const float* pos_z, int64 count) {
     ASSERT(min_box);
     ASSERT(max_box);
-	ASSERT(pos_x.size() == pos_y.size());
-	ASSERT(pos_x.size() == pos_z.size());
-    if (radii.size() > 0) {
-        ASSERT(radii.size() == positions.count);
-    }
 
-    if (positions.count == 0) {
+    if (count == 0) {
         *min_box = *max_box = vec3(0);
+        return;
     }
 
-    *min_box = *max_box = positions.ptr[0];
-    for (int64 i = 0; i < positions.count; i++) {
-        const vec3& p = positions.ptr[i];
-        const float r = radii.count > 0 ? radii.ptr[i] : 0.f;
+    *min_box = *max_box = vec3(pos_x[0], pos_y[0], pos_z[0]);
+    for (int64 i = 1; i < count; i++) {
+        const vec3 p = vec3(pos_x[i], pos_y[i], pos_z[i]);
+        *min_box = math::min(*min_box, p);
+        *max_box = math::max(*max_box, p);
+    }
+}
+
+void compute_bounding_box(vec3* min_box, vec3* max_box, const float* pos_x, const float* pos_y, const float* pos_z, const float* radii, int64 count) {
+    ASSERT(min_box);
+    ASSERT(max_box);
+
+    if (count == 0) {
+        *min_box = *max_box = vec3(0);
+        return;
+    }
+
+    *min_box = *max_box = vec3(pos_x[0], pos_y[0], pos_z[0]);
+    for (int64 i = 1; i < count; i++) {
+        const vec3 p = vec3(pos_x[i], pos_y[i], pos_z[i]);
+        const float r = radii[i];
         *min_box = math::min(*min_box, p - r);
         *max_box = math::max(*max_box, p + r);
     }
 }
 
-vec3 compute_com(Array<const vec3> positions) {
-    if (positions.count == 0) return {0, 0, 0};
-    if (positions.count == 1) return positions[0];
+vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, int64 count) {
+    if (count == 0) return vec3(0);
+    if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
     vec3 sum{0};
-    for (const auto& p : positions) {
-        sum += p;
+    for (int64 i = 0; i < count; i++) {
+        const vec3 pos = {pos_x[i], pos_y[i], pos_z[i]};
+        sum += pos;
     }
-    return sum / (float)positions.count;
+    return sum / (float)count;
 }
 
-vec3 compute_com(Array<const vec3> positions, Array<const float> masses) {
-    ASSERT(masses.count == positions.count);
-    if (positions.count == 0) return {0, 0, 0};
-    if (positions.count == 1) return positions[0];
+vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const float* mass, int64 count) {
+    if (count == 0) return {0, 0, 0};
+    if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
     vec3 sum{0};
-    for (int32 i = 0; i < positions.count; i++) {
-        sum += positions[i] * masses[i];
+    for (int32 i = 0; i < count; i++) {
+        const vec3 pos = {pos_x[i], pos_y[i], pos_z[i]};
+        sum += pos * mass[i];
     }
 
-    return sum / (float)positions.count;
+    return sum / (float)count;
 }
 
-vec3 compute_com(Array<const vec3> positions, Array<const Element> elements) {
-    ASSERT(elements.count == positions.count);
-    if (positions.count == 0) return {0, 0, 0};
-    if (positions.count == 1) return positions[0];
+vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
+    if (count == 0) return {0, 0, 0};
+    if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
     vec3 sum{0};
-    for (int32 i = 0; i < positions.count; i++) {
-        sum += positions[i] * element::atomic_mass(elements[i]);
+    for (int32 i = 0; i < count; i++) {
+        const vec3 pos = {pos_x[i], pos_y[i], pos_z[i]};
+        const float mass = element::atomic_mass(elements[i]);
+        sum += pos * mass;
     }
 
-    return sum / (float)positions.count;
-}
-
-vec3 compute_periodic_com(Array<const vec3> positions, Array<const Element> elements, const vec3& box_ext) {
-    ASSERT(positions.count == elements.count);
-
-    if (positions.count == 0) return {0, 0, 0};
-    if (positions.count == 1) return positions[0];
-
-    const glm_vec4 full_box_ext = _mm_set_ps(0, box_ext[2], box_ext[1], box_ext[0]);
-    const glm_vec4 box_center = glm_vec4_mul(full_box_ext, _mm_set_ps1(0.5f));
-
-    glm_vec4 p_ref = _mm_set_ps(1, positions[0].z, positions[0].y, positions[0].x);
-    glm_vec4 sum = glm_vec4_mul(p_ref, _mm_set_ps1(element::atomic_mass(elements[0])));
-
-    for (int32 i = 1; i < positions.count; i++) {
-        glm_vec4 p_curr = _mm_set_ps(1, positions[i].z, positions[i].y, positions[i].x);
-        p_curr = de_periodize(p_ref, p_curr, full_box_ext);
-        sum = glm_vec4_add(sum, glm_vec4_mul(p_curr, _mm_set_ps1(element::atomic_mass(elements[i]))));
-    }
-
-    sum = glm_vec4_div(sum, _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(3, 3, 3, 3)));
-    sum = de_periodize(box_center, sum, full_box_ext);
-
-    return *reinterpret_cast<vec3*>(&sum);
+    return sum / (float)count;
 }
 
 void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
@@ -191,46 +190,62 @@ inline bool periodic_jump(const vec3& p_prev, const vec3& p_next, const vec3& ha
     return false;
 }
 
-void linear_interpolation(Array<float> out_x, Array<float> out_y, Array<float> out_z, Array<const vec3> in_prev_x, Array<const vec3> next_pos, float t) {
-    ASSERT(prev_pos.count == positions.count);
-    ASSERT(next_pos.count == positions.count);
+void linear_interpolation(float* out_x, float* out_y, float* out_z,
+                          const float* p0_x, const float* p0_y, const float* p0_z,
+                          const float* p1_x, const float* p1_y, const float* p1_z,
+                          int64 count, float t) {
 
-    //for (int i = 0; i < positions.count; i++) {
-    //    positions[i] = math::mix(prev_pos[i], next_pos[i], t);
-    //}
-
-	ispc::float4* dst_pos = (ispc::float4*)positions.data();
-	ispc::float4* prv_pos = (ispc::float4*)prev_pos.data();
-	ispc::float4* nxt_pos = (ispc::float4*)next_pos.data();
-	const int32 count = (int32)positions.size();
-
-	ispc::interpolate_position_linear(dst_pos, prv_pos, nxt_pos, count, t);
+    for (int64 i = 0; i < count; i++) {
+        const float x = p0_x[i] * (1.0f - t) + p1_x[i] * t;
+        const float y = p0_y[i] * (1.0f - t) + p1_y[i] * t;
+        const float z = p0_z[i] * (1.0f - t) + p1_z[i] * t;
+        out_x[i] = x;
+        out_y[i] = y;
+        out_z[i] = z;
+    }
 }
 
-// @TODO: Fix this, is it possible in theory to get a good interpolation between frames with periodicity without modifying source data?
-// @PERFORMANCE: VECTORIZE THIS
-void linear_interpolation_periodic(Array<vec3> positions, Array<const vec3> prev_pos, Array<const vec3> next_pos, float t, const mat3& sim_box) {
-    ASSERT(prev_pos.count == positions.count);
-    ASSERT(next_pos.count == positions.count);
+void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
+                              const float* in0_x, const float* in0_y, const float* in0_z,
+                              const float* in1_x, const float* in1_y, const float* in1_z,
+                              int64 count, float t) {
 
-    const glm_vec4 full_box_ext = _mm_set_ps(0.f, sim_box[2][2], sim_box[1][1], sim_box[0][0]);
-    const glm_vec4 t_vec = _mm_set_ps1(t);
-    glm_vec4 prev, next;
+    const __m128 full_box_ext_x = _mm_set_ps1(sim_box[0][0]);
+    const __m128 full_box_ext_y = _mm_set_ps1(sim_box[1][1]);
+    const __m128 full_box_ext_z = _mm_set_ps1(sim_box[2][2]);
 
-    for (int64 i = 0; i < positions.size(); i++) {
-        if constexpr (sizeof(vec3) == 16) {
-            prev = *reinterpret_cast<const glm_vec4*>(&prev_pos[i]);
-            next = *reinterpret_cast<const glm_vec4*>(&next_pos[i]);
-        } else {
-            prev = _mm_set_ps(0, prev_pos[i].z, prev_pos[i].y, prev_pos[i].x);
-            next = _mm_set_ps(0, next_pos[i].z, next_pos[i].y, next_pos[i].x);
-        }
+    const __m128 half_box_ext_x = _mm_mul_ps(full_box_ext_x, _mm_set_ps1(0.5f));
+    const __m128 half_box_ext_y = _mm_mul_ps(full_box_ext_y, _mm_set_ps1(0.5f));
+    const __m128 half_box_ext_z = _mm_mul_ps(full_box_ext_z, _mm_set_ps1(0.5f));
 
-        next = de_periodize(prev, next, full_box_ext);
+    const __m128 t4 = _mm_set_ps1(t);
+    const __m128 one_minus_t4 = _mm_set_ps1(1.0f - t);
 
-        const glm_vec4 res = glm_vec4_mix(prev, next, t_vec);
+    for (int64 i = 0; i < count; i += 4) {
+        __m128 x0 = _mm_load_ps(in0_x + i);
+        __m128 y0 = _mm_load_ps(in0_y + i);
+        __m128 z0 = _mm_load_ps(in0_z + i);
+        __m128 x1 = _mm_load_ps(in1_x + i);
+        __m128 y1 = _mm_load_ps(in1_y + i);
+        __m128 z1 = _mm_load_ps(in1_z + i);
 
-        positions[i] = *reinterpret_cast<const vec3*>(&res);
+        __m128 dx = _mm_sub_ps(x1, x0);
+        __m128 dy = _mm_sub_ps(y1, y0);
+        __m128 dz = _mm_sub_ps(z1, z0);
+
+        __m128 abs_dx = _mm_and_ps(dx, _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF)));
+        __m128 abs_dy = _mm_and_ps(dy, _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF)));
+        __m128 abs_dz = _mm_and_ps(dz, _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF)));
+
+        __m128 pm_x = _mm_cmpgt_ps(abs_dx, half_box_ext_x);
+        __m128 pm_y = _mm_cmpgt_ps(abs_dy, half_box_ext_y);
+        __m128 pm_z = _mm_cmpgt_ps(abs_dz, half_box_ext_z);
+
+        x1 = _mm_ _mm_and_ps(pm_x, box_ext);
+
+        _mm_store_ps(out_x, x0);
+        _mm_store_ps(out_y, y0);
+        _mm_store_ps(out_z, z0);
     }
 }
 
@@ -788,6 +803,10 @@ void compute_atom_radii(Array<float> radii_dst, Array<const Element> elements) {
     for (int64 i = 0; i < radii_dst.count; i++) {
         radii_dst[i] = element::vdw_radius(elements[i]);
     }
+}
+
+bool is_amino_acid(const Residue& res) {
+    return aminoacid::get_from_string(res.name) != AminoAcid::Unknown;
 }
 
 bool is_dna(const Residue& res) {

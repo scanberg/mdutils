@@ -7,7 +7,7 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     int64 alloc_size = 0;
 
     alloc_size += num_atoms * (sizeof(Element) + sizeof(Label) + sizeof(ResIdx));
-    alloc_size += (num_atoms * sizeof(float) + 16) * 3; // Padding for 16 byte alignment
+    alloc_size += (num_atoms * sizeof(float) + 16) * (3 + 3 + 1); // Padding for 16 byte alignment
     
     alloc_size += num_bonds * sizeof(Bond);
     alloc_size += num_residues * sizeof(Residue);
@@ -33,7 +33,13 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     mol->atom.position.y = (float*)get_next_aligned_adress(mol->atom.position.x + num_atoms, 16);
     mol->atom.position.z = (float*)get_next_aligned_adress(mol->atom.position.y + num_atoms, 16);
 
-    mol->covalent_bonds = {(Bond*)(mol->atom.position.z + num_atoms), num_bonds};
+    mol->atom.velocity.x = (float*)get_next_aligned_adress(mol->atom.position.z + num_atoms, 16);
+    mol->atom.velocity.y = (float*)get_next_aligned_adress(mol->atom.velocity.x + num_atoms, 16);
+    mol->atom.velocity.z = (float*)get_next_aligned_adress(mol->atom.velocity.y + num_atoms, 16);
+
+    mol->atom.radius = (float*)get_next_aligned_adress(mol->atom.velocity.z + num_atoms, 16);
+
+    mol->covalent_bonds = {(Bond*)(mol->atom.radius + num_atoms), num_bonds};
     mol->residues = {(Residue*)(mol->covalent_bonds.end()), num_residues};
     mol->chains = {(Chain*)(mol->residues.end()), num_chains};
     mol->backbone.segments = {(BackboneSegment*)(mol->chains.end()), num_backbone_segments};
