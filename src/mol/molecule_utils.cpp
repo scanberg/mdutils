@@ -29,9 +29,9 @@ inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
 }
 
 inline float de_periodize(float a, float b, float full_ext, float half_ext) {
-    const float delta = p - ref;
+    const float delta = b - a;
     const float signed_mask = math::sign(delta) * math::step(half_ext, math::abs(delta));
-    const float res = p - full_ext * signed_mask;
+    const float res = b - full_ext * signed_mask;
     return res;
 }
 
@@ -213,9 +213,13 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const fl
         float y1 = in_y1[i];
         float z1 = in_z1[i];
 
-        de_periodize(x1, x0, full_ext_x, half_ext_x);
-        de_periodize(y1, y0, full_ext_y, half_ext_y);
-        de_periodize(z1, z0, full_ext_z, half_ext_z);
+        x1 = de_periodize(x1, x0, full_ext_x, half_ext_x);
+        y1 = de_periodize(y1, y0, full_ext_y, half_ext_y);
+        z1 = de_periodize(z1, z0, full_ext_z, half_ext_z);
+
+		const float x = x0 * (1.0f - t) + x1 * t;
+		const float y = y0 * (1.0f - t) + y1 * t;
+		const float z = z0 * (1.0f - t) + z1 * t;
 
         out_x[i] = x;
         out_y[i] = y;
@@ -328,7 +332,7 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const flo
 
         x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
         x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
-        x3 = de_periodize(x1, x3, full_box_ext_X, half_box_ext_x);
+        x3 = de_periodize(x1, x3, full_box_ext_x, half_box_ext_x);
 
         y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
         y2 = de_periodize(y1, y2, full_box_ext_y, half_box_ext_y);
