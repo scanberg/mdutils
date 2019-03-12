@@ -10,6 +10,10 @@
 #define AO_PERSPECTIVE 1
 #endif
 
+#ifndef AO_NUM_SAMPLES
+#define AO_NUM_SAMPLES 16
+#endif
+
 struct HBAOData {
     float   radius_to_screen;
     float   neg_inv_r2;

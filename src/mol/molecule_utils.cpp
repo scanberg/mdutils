@@ -15,7 +15,7 @@
 //#include "interpolate_position_linear_ispc.h"
 
 inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
-    const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_float4()), box_ext);
+    const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_128()), box_ext);
     const __m128 sub = simd::bit_and(simd::cmp_gt(x, box_ext), box_ext);
     const __m128 res = simd::bit_and(x, simd::sub(add, sub));
     return res;
@@ -31,7 +31,7 @@ inline __m128 de_periodize(const __m128 a, const __m128 b, const __m128 full_ext
 inline float de_periodize(float a, float b, float full_ext, float half_ext) {
     const float delta = b - a;
     const float signed_mask = math::sign(delta) * math::step(half_ext, math::abs(delta));
-    const float res = b + full_ext * signed_mask;
+    const float res = b - full_ext * signed_mask;
     return res;
 }
 

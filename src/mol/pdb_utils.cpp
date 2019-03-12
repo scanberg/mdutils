@@ -245,7 +245,9 @@ inline CString extract_next_model(CString& pdb_string) {
 }
 
 bool extract_pdb_info(PdbInfo* info, CString pdb_string) {
-    int32 num_atoms = 0;
+	ASSERT(info);
+	
+	int32 num_atoms = 0;
     int32 num_residues = 0;
     int32 num_chains = 0;
     int32 num_frames = 0;
@@ -278,7 +280,9 @@ bool extract_pdb_info(PdbInfo* info, CString pdb_string) {
         }
     }
 
+	info->frame_byte_ranges.push_back({ (int64)mdl_block.beg(), (int64)mdl_block.end() }); // Add frame byte range of model block
     while ((mdl_block = extract_next_model(pdb_string))) {
+		info->frame_byte_ranges.push_back({ (int64)mdl_block.beg(), (int64)mdl_block.end() });
         num_frames++;
     }
 

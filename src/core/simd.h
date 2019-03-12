@@ -27,7 +27,7 @@ typedef __m512 float16;
 INLINE float4 set_128(float v) { return _mm_set1_ps(v); }
 INLINE float4 set_128(float x, float y, float z, float w) { return _mm_set_ps(w, z, y, x); }
 
-INLINE float4 zero_float4() { return _mm_setzero_ps(); }
+INLINE float4 zero_128() { return _mm_setzero_ps(); }
 
 INLINE bool all_zero(const float4 v) {
     const auto res = _mm_cmpeq_ps(v, _mm_setzero_ps());
@@ -36,10 +36,16 @@ INLINE bool all_zero(const float4 v) {
 }
 
 INLINE float4 load128(const float* addr) { return _mm_loadu_ps(addr); }
-INLINE float4 load_aligned128(const float* addr) { return _mm_load_ps(addr); }
+INLINE float4 load_aligned128(const float* addr) {
+    ASSERT(IS_ALIGNED(addr), 16);
+    return _mm_load_ps(addr);
+}
 
 INLINE void store(float* addr, float4 v) { _mm_storeu_ps(addr, v); }
-INLINE void store_aligned(float* addr, float4 v) { _mm_store_ps(addr, v); }
+INLINE void store_aligned(float* addr, float4 v) {
+    ASSERT(IS_ALIGNED(addr), 16);
+    _mm_store_ps(addr, v);
+}
 
 INLINE float4 add(const float4 a, const float4 b) { return _mm_add_ps(a, b); }
 INLINE float4 sub(const float4 a, const float4 b) { return _mm_sub_ps(a, b); }
@@ -58,7 +64,7 @@ INLINE float4 cmp_eq(const float4 a, const float4 b) { return _mm_cmpeq_ps(a, b)
 
 INLINE float4 abs(float4 a) { return _mm_and_ps(a, _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF))); }
 INLINE float4 sign(float4 x) {
-    const float4 zero = zero_float4();
+    const float4 zero = zero_128();
     const float4 lz = cmp_lt(x, zero);
     const float4 gz = cmp_gt(x, zero);
     const float4 neg = bit_and(lz, set_128(-1.0f));
