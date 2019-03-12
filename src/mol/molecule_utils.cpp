@@ -515,7 +515,7 @@ spatialhash::for_each_within(
     return bonds;
 }
 
-DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_idx, const Element* element, int64 count) {
+DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
     constexpr float max_covelent_bond_length = 4.0f;
     spatialhash::Frame frame = spatialhash::compute_frame(pos_x, pos_y, pos_z, count, vec3(max_covelent_bond_length));
     DynamicArray<Bond> bonds;
@@ -761,14 +761,14 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
 }
 */
 
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone, const float* pos_x, const float* pos_y, const float* pos_z, int64 count) {
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone, const float* pos_x, const float* pos_y, const float* pos_z) {
     if (backbone.count == 0) return {};
     DynamicArray<BackboneAngle> angles(backbone.count);
-    compute_backbone_angles(angles, backbone, pos_x, pos_y, pos_z, count);
+    compute_backbone_angles(angles, backbone, pos_x, pos_y, pos_z);
     return angles;
 }
 
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count) {
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z) {
     ASSERT(dst.count >= backbone_segments.count);
     float phi, psi;
 
@@ -810,18 +810,16 @@ void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegme
     dst[N] = {phi, psi};
 }
 
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z,
-                                                    int64 count) {
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
     if (segments.size() == 0) return {};
     DynamicArray<BackboneAngle> angles(segments.count);
-    compute_backbone_angles(angles, segments, sequences, pos_x, pos_y, pos_z, count);
+    compute_backbone_angles(angles, segments, sequences, pos_x, pos_y, pos_z);
     return angles;
 }
 
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z,
-                             int64 count) {
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
     for (const auto& seq : sequences) {
-        compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), segments.subarray(seq.beg, seq.end - seq.beg), pos_x, pos_y, pos_z, count);
+        compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), segments.subarray(seq.beg, seq.end - seq.beg), pos_x, pos_y, pos_z);
     }
 }
 
@@ -874,7 +872,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
             if (bb_segments.size() < 2) {
                 memset(bb_angles.ptr, 0, bb_angles.size_in_bytes());
             } else {
-                compute_backbone_angles(bb_angles, bb_segments, pos_x.data(), pos_y.data(), pos_z.data(), dynamic.trajectory.num_atoms);
+                compute_backbone_angles(bb_angles, bb_segments, pos_x.data(), pos_y.data(), pos_z.data());
             }
         }
     }

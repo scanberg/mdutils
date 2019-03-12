@@ -45,7 +45,7 @@ foreach(ISPC_FILE ${ISPC_FILES})
 
 	# Collect list of expected outputs
 	list(APPEND ISPC_BUILD_OUTPUT ${ISPC_HEADER_NAME} ${ISPC_OBJ_NAME})
-	list(APPEND ISPC_OBJ_OUTPUT ${ISPC_OBJ_NAME})
+	list(APPEND ISPC_OBJ_FILES ${ISPC_OBJ_NAME})
     if ("${ARCH}" STREQUAL "x86")
         set(ISPC_TARGETS ${ISPC_IA_TARGETS})
         string(FIND ${ISPC_IA_TARGETS} "," MULTI_TARGET)
@@ -61,7 +61,7 @@ foreach(ISPC_FILE ${ISPC_FILES})
                     endif()
                     list(APPEND ISPC_BUILD_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${ISPC_SRC_NAME}_ispc_${OUTPUT_TARGET}.h"
                                 "${CMAKE_CURRENT_BINARY_DIR}/${ISPC_SRC_NAME}_ispc_${OUTPUT_TARGET}${CMAKE_CXX_OUTPUT_EXTENSION}")
-                    list(APPEND ISPC_OBJ_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${ISPC_SRC_NAME}_ispc_${OUTPUT_TARGET}${CMAKE_CXX_OUTPUT_EXTENSION}")
+                    list(APPEND ISPC_OBJ_FILES "${CMAKE_CURRENT_BINARY_DIR}/${ISPC_SRC_NAME}_ispc_${OUTPUT_TARGET}${CMAKE_CXX_OUTPUT_EXTENSION}")
                 endif()
             endforeach()
         endif()
@@ -76,9 +76,9 @@ foreach(ISPC_FILE ${ISPC_FILES})
 	    VERBATIM
 	    DEPENDS ${ISPC_FILE})
 endforeach(ISPC_FILE)
-add_custom_target(ispc_objects ALL DEPENDS ${ISPC_OBJ_OUTPUT})
+add_custom_target(ispc_objects ALL DEPENDS ${ISPC_OBJ_FILES})
 
-add_library(ispc_kernels STATIC EXCLUDE_FROM_ALL ${ISPC_FILES})
+add_library(ispc_kernels STATIC EXCLUDE_FROM_ALL ${ISPC_FILES} ${ISPC_OBJ_FILES})
 add_dependencies(ispc_kernels ispc_objects)
 
 target_include_directories(ispc_kernels

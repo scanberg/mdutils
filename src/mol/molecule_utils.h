@@ -46,13 +46,11 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
 // phi   = dihedral( C[i-1], N[i],  CA[i],  C[i])
 // psi   = dihedral( N[i],  CA[i],   C[i],  N[i+1])
 // As seen here https://en.wikipedia.org/wiki/Ramachandran_plot.
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z);
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z);
 
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z,
-                                                    int64 count);
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z,
-                             int64 count);
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z);
+void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z);
 
 void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic);
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);

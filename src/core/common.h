@@ -62,7 +62,7 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
   #define TMP_ALIGNED_FREE(addr) _aligned_free(addr)
 #else
   #define TMP_ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
-  #define ALIGNED_FREE(addr) _mm_free(addr)
+  #define TMP_ALIGNED_FREE(addr) _mm_free(addr)
 #endif
 #define TMP_REALLOC(ptr, new_size) realloc(ptr, new_size)
 #define TMP_CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)

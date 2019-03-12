@@ -114,19 +114,17 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
     DynamicArray<CString> chunks = extract_chunks(filter);
     DynamicArray<bool> chunk_mask(mask.count);
 
-    struct {
-        bool and = true;
-        bool or = false;
-        bool not = false;
-    } state;
+    bool state_and = true;
+    bool state_or = false;
+    bool state_not = false;
 
     for (const auto& chunk : chunks) {
         if (compare_ignore_case(chunk, "and")) {
-            state.and = true;
+            state_and = true;
         } else if (compare_ignore_case(chunk, "or")) {
-            state.or = true;
+            state_or = true;
         } else if (compare_ignore_case(chunk, "not")) {
-            state.not = true;
+            state_not = true;
         } else {
             if (chunk.front() == '(') {
                 ASSERT(chunk.back() == ')');
@@ -143,7 +141,7 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
                 auto args = tokens.subarray(1);
 
                 while (args.count > 0 && compare_ignore_case(args[0], "not")) {
-                    state.not = !state.not;
+                    state_not = !state_not;
                     args = args.subarray(1);
                 }
 
@@ -158,17 +156,17 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
                 }
             }
 
-            if (state.and)
-                combine_mask_and(mask, mask, chunk_mask, state.not);
-            else if (state.or)
-                combine_mask_or(mask, mask, chunk_mask, state.not);
+            if (state_and)
+                combine_mask_and(mask, mask, chunk_mask, state_not);
+            else if (state_or)
+                combine_mask_or(mask, mask, chunk_mask, state_not);
 
-            state.and = false;
-            state.or = false;
-            state.not = false;
+            state_and = false;
+            state_or = false;
+            state_not = false;
         }
 
-        if (state.and &&state.or) {
+        if (state_and && state_or) {
             LOG_ERROR("Cannot use both 'and' and 'or' to combine filter options\n");
             return false;
         }

@@ -136,7 +136,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_res_idx, atom_element, num_atoms);
     auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
-    auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, atom_pos_x, atom_pos_y, atom_pos_z, num_atoms);
+    auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, atom_pos_x, atom_pos_y, atom_pos_z);
     auto chains = compute_chains(residues);
     auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
