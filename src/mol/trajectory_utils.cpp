@@ -51,18 +51,15 @@ bool load_and_allocate_trajectory(MoleculeTrajectory* traj, CString path) {
         return false;
     }
 
+    init_trajectory(traj, num_atoms, num_frames);
+
     traj->num_atoms = num_atoms;
     traj->num_frames = 0;
     traj->total_simulation_time = 0;
     traj->simulation_type = MoleculeTrajectory::NVT;
     traj->path_to_file = allocate_string(path);
     traj->file_handle = file_handle;
-
     traj->frame_offsets = {offsets, num_frames};
-    traj->position_data.x = (float*)ALIGNED_MALLOC(num_frames * num_atoms * sizeof(float), 64);
-    traj->position_data.y = (float*)ALIGNED_MALLOC(num_frames * num_atoms * sizeof(float), 64);
-    traj->position_data.z = (float*)ALIGNED_MALLOC(num_frames * num_atoms * sizeof(float), 64);
-    traj->frame_buffer = {(TrajectoryFrame*)MALLOC(num_frames * sizeof(TrajectoryFrame)), num_frames};
 
     return true;
 }
@@ -106,28 +103,24 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
     // Next index to be loaded
     int i = traj->num_frames;
 
-    TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
-    frame->atom_position.x = traj->position_data.x + (i * traj->num_atoms);
-    frame->atom_position.y = traj->position_data.y + (i * traj->num_atoms);
-    frame->atom_position.z = traj->position_data.z + (i * traj->num_atoms);
-    frame->index = i;
     int step;
     float precision;
+    float time;
     float matrix[3][3];
     float* pos_buf = (float*)TMP_MALLOC(traj->num_atoms * 3 * sizeof(float));
     defer { TMP_FREE(pos_buf); };
 
-    read_xtc((XDRFILE*)traj->file_handle, traj->num_atoms, &step, &frame->time, matrix, (float(*)[3])pos_buf, &precision);
-    frame->box = mat3(matrix[0][0], matrix[0][1], matrix[0][2], matrix[1][0], matrix[1][1], matrix[1][2], matrix[2][0], matrix[2][1], matrix[2][2]);
+    read_xtc((XDRFILE*)traj->file_handle, traj->num_atoms, &step, &time, matrix, (float(*)[3])pos_buf, &precision);
 
+    TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
     for (int j = 0; j < traj->num_atoms; j++) {
         frame->atom_position.x[j] = 10.f * pos_buf[j * 3 + 0];
         frame->atom_position.y[j] = 10.f * pos_buf[j * 3 + 1];
         frame->atom_position.z[j] = 10.f * pos_buf[j * 3 + 2];
     }
-    frame->box *= 10.f;
-    traj->num_frames++;
+    frame->box = mat3(matrix[0][0], matrix[0][1], matrix[0][2], matrix[1][0], matrix[1][1], matrix[1][2], matrix[2][0], matrix[2][1], matrix[2][2]) * 10.f;
 
+    traj->num_frames++;
     return true;
 }
 

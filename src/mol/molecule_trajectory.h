@@ -9,12 +9,12 @@
 struct TrajectoryFrame {
     int32 index = 0;
     float32 time = 0;
-	mat3 box{};
-	struct {
-		float* x = nullptr;
-		float* y = nullptr;
-		float* z = nullptr;
-	} atom_position;
+    mat3 box{};
+    struct {
+        float* x = nullptr;
+        float* y = nullptr;
+        float* z = nullptr;
+    } atom_position;
 };
 
 struct MoleculeTrajectory {
@@ -33,11 +33,11 @@ struct MoleculeTrajectory {
     Array<TrajectoryFrame> frame_buffer{};
 
     // This is the position data of the full trajectory
-	struct {
-		float* x = nullptr;
-		float* y = nullptr;
-		float* z = nullptr;
-	} position_data;
+    struct {
+        float* x = nullptr;
+        float* y = nullptr;
+        float* z = nullptr;
+    } position_data;
 
     // These are the offsets for each frame within the compressed blob of XTC data
     Array<int64> frame_offsets{};
@@ -45,8 +45,8 @@ struct MoleculeTrajectory {
     operator bool() const { return num_atoms > 0 && frame_buffer.count > 0; }
 };
 
-// Allocates space and initializes trajectory
-bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames);
+// Allocates memory and initializes trajectory
+bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames, float32 time_between_frames = 1.0f, const mat3& sim_box = {});
 
 // Frees memory allocated by trajectory
 void free_trajectory(MoleculeTrajectory* traj);

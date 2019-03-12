@@ -79,10 +79,10 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const flo
                              const float* p2_x, const float* p2_y, const float* p2_z, const float* p3_x, const float* p3_y, const float* p3_z, int64 count, float t, const mat3& sim_box);
 
 void compute_velocities(float* out_x, float* out_y, float* out_z, const float* prv_x, const float* prv_y, const float* prv_z, const float* cur_x, const float* cur_y, const float* cur_z, int64 count,
-                        float t);
+                        float dt);
 
 void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const float* prv_x, const float* prv_y, const float* prv_z, const float* cur_x, const float* cur_y, const float* cur_z,
-                            int64 count, float t, const mat3& sim_box);
+                            int64 count, float dt, const mat3& sim_box);
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
     const vec3 ext = sim_box * vec3(1, 1, 1);

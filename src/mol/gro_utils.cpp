@@ -47,27 +47,21 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
         return false;
     }
 
-    float* atom_pos_x = (float*)TMP_MALLOC(sizeof(float) * num_atoms);
-    float* atom_pos_y = (float*)TMP_MALLOC(sizeof(float) * num_atoms);
-    float* atom_pos_z = (float*)TMP_MALLOC(sizeof(float) * num_atoms);
-    float* atom_vel_x = (float*)TMP_MALLOC(sizeof(float) * num_atoms);
-    float* atom_vel_y = (float*)TMP_MALLOC(sizeof(float) * num_atoms);
-    float* atom_vel_z = (float*)TMP_MALLOC(sizeof(float) * num_atoms);
-    Label* atom_label = (Label*)TMP_MALLOC(sizeof(Label) * num_atoms);
-    Element* atom_element = (Element*)TMP_MALLOC(sizeof(Element*) * num_atoms);
-    ResIdx* atom_res_idx = (ResIdx*)TMP_MALLOC(sizeof(ResIdx) * num_atoms);
+    int64 mem_size = (sizeof(float) * (3 + 3 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
+    void* mem = TMP_MALLOC(mem_size);
+    defer { TMP_FREE(mem); };
+    memset(mem, 0, mem_size);
 
-    defer {
-        TMP_FREE(atom_pos_x);
-        TMP_FREE(atom_pos_y);
-        TMP_FREE(atom_pos_z);
-        TMP_FREE(atom_vel_x);
-        TMP_FREE(atom_vel_y);
-        TMP_FREE(atom_vel_z);
-        TMP_FREE(atom_label);
-        TMP_FREE(atom_element);
-        TMP_FREE(atom_res_idx);
-    };
+    float* atom_pos_x = (float*)mem;
+    float* atom_pos_y = (float*)(atom_pos_x + num_atoms);
+    float* atom_pos_z = (float*)(atom_pos_y + num_atoms);
+    float* atom_vel_x = (float*)(atom_pos_z + num_atoms);
+    float* atom_vel_y = (float*)(atom_vel_x + num_atoms);
+    float* atom_vel_z = (float*)(atom_vel_y + num_atoms);
+    float* atom_radius = (float*)(atom_vel_z + num_atoms);
+    Label* atom_label = (Label*)(atom_radius + num_atoms);
+    Element* atom_element = (Element*)(atom_label + num_atoms);
+    ResIdx* atom_res_idx = (ResIdx*)(atom_element + num_atoms);
 
     DynamicArray<Residue> residues;
 
@@ -81,8 +75,8 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     StringBuffer<256> line;
 
     for (int i = 0; i < num_atoms; ++i) {
-        float pos[3];
-        float vel[3];
+        float pos[3] = {0, 0, 0};
+        float vel[3] = {0, 0, 0};
         int atom_idx, res_id;
         char atom_name[8] = {};
         char res_name[8] = {};
@@ -133,6 +127,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     // Convert from nm to ångström
     box *= 10.f;
 
+    compute_atom_radii(atom_radius, atom_element, num_atoms);
     auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_res_idx, atom_element, num_atoms);
     auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
@@ -158,6 +153,8 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     memcpy(mol->atom.velocity.x, atom_vel_x, sizeof(float) * num_atoms);
     memcpy(mol->atom.velocity.y, atom_vel_y, sizeof(float) * num_atoms);
     memcpy(mol->atom.velocity.z, atom_vel_z, sizeof(float) * num_atoms);
+
+    memcpy(mol->atom.radius, atom_radius, sizeof(float) * num_atoms);
 
     memcpy(mol->atom.element, atom_element, sizeof(Element) * num_atoms);
     memcpy(mol->atom.label, atom_label, sizeof(Label) * num_atoms);

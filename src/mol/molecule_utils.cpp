@@ -14,13 +14,6 @@
 //#include "compute_velocity_ispc.h"
 //#include "interpolate_position_linear_ispc.h"
 
-inline __m128 de_periodize(const __m128 a, const __m128 b, const __m128 full_ext, const __m128 half_ext) {
-    const __m128 delta = simd::sub(b, a);
-    const __m128 signed_mask = simd::mul(delta, simd::step(half_ext, simd::abs(delta)));
-    const __m128 res = simd::sub(b, simd::mul(full_ext, signed_mask));
-    return res;
-}
-
 inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_float4()), box_ext);
     const __m128 sub = simd::bit_and(simd::cmp_gt(x, box_ext), box_ext);
@@ -28,31 +21,37 @@ inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     return res;
 }
 
+inline __m128 de_periodize(const __m128 a, const __m128 b, const __m128 full_ext, const __m128 half_ext) {
+    const __m128 delta = simd::sub(b, a);
+    const __m128 signed_mask = simd::mul(simd::sign(delta), simd::step(half_ext, simd::abs(delta)));
+    const __m128 res = simd::sub(b, simd::mul(full_ext, signed_mask));
+    return res;
+}
+
 inline float de_periodize(float a, float b, float full_ext, float half_ext) {
     const float delta = b - a;
     const float signed_mask = math::sign(delta) * math::step(half_ext, math::abs(delta));
-    const float res = b - full_ext * signed_mask;
+    const float res = b + full_ext * signed_mask;
     return res;
 }
 
 void translate_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const vec3& translation) {
-    __m128 t_x = _mm_set_ps1(translation.x);
-    __m128 t_y = _mm_set_ps1(translation.y);
-    __m128 t_z = _mm_set_ps1(translation.z);
+    __m128 t_x = simd::set_128(translation.x);
+    __m128 t_y = simd::set_128(translation.y);
+    __m128 t_z = simd::set_128(translation.z);
 
-    // No worries about loading out of range since we have strong guarantees on alignment
     for (int64 i = 0; i < count; i += 4) {
-        __m128 p_x = _mm_load_ps(pos_x + i);
-        __m128 p_y = _mm_load_ps(pos_y + i);
-        __m128 p_z = _mm_load_ps(pos_z + i);
+        __m128 p_x = simd::load128(pos_x + i);
+        __m128 p_y = simd::load128(pos_y + i);
+        __m128 p_z = simd::load128(pos_z + i);
 
-        p_x = _mm_add_ps(p_x, t_x);
-        p_y = _mm_add_ps(p_y, t_y);
-        p_z = _mm_add_ps(p_z, t_z);
+        p_x = simd::add(p_x, t_x);
+        p_y = simd::add(p_y, t_y);
+        p_z = simd::add(p_z, t_z);
 
-        _mm_store_ps(pos_x + i, p_x);
-        _mm_store_ps(pos_y + i, p_y);
-        _mm_store_ps(pos_z + i, p_z);
+        simd::store(pos_x + i, p_x);
+        simd::store(pos_y + i, p_y);
+        simd::store(pos_z + i, p_z);
     }
 }
 
@@ -213,13 +212,13 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const fl
         float y1 = in_y1[i];
         float z1 = in_z1[i];
 
-        x1 = de_periodize(x1, x0, full_ext_x, half_ext_x);
-        y1 = de_periodize(y1, y0, full_ext_y, half_ext_y);
-        z1 = de_periodize(z1, z0, full_ext_z, half_ext_z);
+        x1 = de_periodize(x0, x1, full_ext_x, half_ext_x);
+        y1 = de_periodize(y0, y1, full_ext_y, half_ext_y);
+        z1 = de_periodize(z0, z1, full_ext_z, half_ext_z);
 
-		const float x = x0 * (1.0f - t) + x1 * t;
-		const float y = y0 * (1.0f - t) + y1 * t;
-		const float z = z0 * (1.0f - t) + z1 * t;
+        const float x = x0 * (1.0f - t) + x1 * t;
+        const float y = y0 * (1.0f - t) + y1 * t;
+        const float z = z0 * (1.0f - t) + z1 * t;
 
         out_x[i] = x;
         out_y[i] = y;
@@ -273,62 +272,63 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const fl
 }
 */
 
+//#pragma optimize("", off)
 void cubic_interpolation(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
                          const float* in_x2, const float* in_y2, const float* in_z2, const float* in_x3, const float* in_y3, const float* in_z3, int64 count, float t) {
     for (int i = 0; i < count; i += 4) {
-        const __m128 x0 = _mm_load_ps(in_x0);
-        const __m128 y0 = _mm_load_ps(in_y0);
-        const __m128 z0 = _mm_load_ps(in_z0);
+        const __m128 x0 = simd::load128(in_x0 + i);
+        const __m128 y0 = simd::load128(in_y0 + i);
+        const __m128 z0 = simd::load128(in_z0 + i);
 
-        const __m128 x1 = _mm_load_ps(in_x1);
-        const __m128 y1 = _mm_load_ps(in_y1);
-        const __m128 z1 = _mm_load_ps(in_z1);
+        const __m128 x1 = simd::load128(in_x1 + i);
+        const __m128 y1 = simd::load128(in_y1 + i);
+        const __m128 z1 = simd::load128(in_z1 + i);
 
-        const __m128 x2 = _mm_load_ps(in_x2);
-        const __m128 y2 = _mm_load_ps(in_y2);
-        const __m128 z2 = _mm_load_ps(in_z2);
+        const __m128 x2 = simd::load128(in_x2 + i);
+        const __m128 y2 = simd::load128(in_y2 + i);
+        const __m128 z2 = simd::load128(in_z2 + i);
 
-        const __m128 x3 = _mm_load_ps(in_x3);
-        const __m128 y3 = _mm_load_ps(in_y3);
-        const __m128 z3 = _mm_load_ps(in_z3);
+        const __m128 x3 = simd::load128(in_x3 + i);
+        const __m128 y3 = simd::load128(in_y3 + i);
+        const __m128 z3 = simd::load128(in_z3 + i);
 
         const __m128 x = simd::cubic_spline(x0, x1, x2, x3, t);
         const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
         const __m128 z = simd::cubic_spline(z0, z1, z2, z3, t);
 
-        simd::store(out_x, x);
-        simd::store(out_y, y);
-        simd::store(out_z, z);
+        simd::store(out_x + i, x);
+        simd::store(out_y + i, y);
+        simd::store(out_z + i, z);
     }
 }
 
 void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
                              const float* in_x2, const float* in_y2, const float* in_z2, const float* in_x3, const float* in_y3, const float* in_z3, int64 count, float t, const mat3& sim_box) {
 
-    const __m128 full_box_ext_x = simd::set_float4(sim_box[0][0]);
-    const __m128 full_box_ext_y = simd::set_float4(sim_box[1][1]);
-    const __m128 full_box_ext_z = simd::set_float4(sim_box[2][2]);
+    const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
+    const __m128 full_box_ext_y = simd::set_128(sim_box[1][1]);
+    const __m128 full_box_ext_z = simd::set_128(sim_box[2][2]);
 
-    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_float4(0.5f));
-    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_float4(0.5f));
-    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_float4(0.5f));
+    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
+    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
+    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
 
     for (int i = 0; i < count; i += 4) {
-        __m128 x0 = _mm_load_ps(in_x0);
-        __m128 y0 = _mm_load_ps(in_y0);
-        __m128 z0 = _mm_load_ps(in_z0);
+        __m128 x0 = simd::load128(in_x0 + i);
+        __m128 y0 = simd::load128(in_y0 + i);
+        __m128 z0 = simd::load128(in_z0 + i);
 
-        __m128 x1 = _mm_load_ps(in_x1);
-        __m128 y1 = _mm_load_ps(in_y1);
-        __m128 z1 = _mm_load_ps(in_z1);
+        __m128 x1 = simd::load128(in_x1 + i);
+        __m128 y1 = simd::load128(in_y1 + i);
+        __m128 z1 = simd::load128(in_z1 + i);
 
-        __m128 x2 = _mm_load_ps(in_x2);
-        __m128 y2 = _mm_load_ps(in_y2);
-        __m128 z2 = _mm_load_ps(in_z2);
+        __m128 x2 = simd::load128(in_x2 + i);
+        __m128 y2 = simd::load128(in_y2 + i);
+        __m128 z2 = simd::load128(in_z2 + i);
 
-        __m128 x3 = _mm_load_ps(in_x3);
-        __m128 y3 = _mm_load_ps(in_y3);
-        __m128 z3 = _mm_load_ps(in_z3);
+        __m128 x3 = simd::load128(in_x3 + i);
+        __m128 y3 = simd::load128(in_y3 + i);
+        __m128 z3 = simd::load128(in_z3 + i);
 
         x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
         x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
@@ -346,31 +346,45 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const flo
         const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
         const __m128 z = simd::cubic_spline(z0, z1, z2, z3, t);
 
-        simd::store(out_x, x);
-        simd::store(out_y, y);
-        simd::store(out_z, z);
+        simd::store(out_x + i, x);
+        simd::store(out_y + i, y);
+        simd::store(out_z + i, z);
     }
 }
+//#pragma optimize("", on)
 
-void compute_velocities_pbc(Array<vec3> dst_vel, Array<const vec3> pos, Array<const vec3> old_pos, const vec3& box_ext) {
-    ASSERT(dst_vel.size() == pos.size());
-    ASSERT(dst_vel.size() == old_pos.size());
+void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
+                            int64 count, float dt, const mat3& sim_box) {
 
-    const float dt = 1.f;
-    // ispc::compute_velocity(dst_vel.data(), pos.data(), old_pos.data(), dt, dst_vel.size());
-    /*
-for (int64 i = 0; i < dst_vel.size(); i++) {
-    // De-periodize previous position
-    const vec3 p1 = pos[i];
-    const vec3 p0 = old_pos[i];
+    const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
+    const __m128 full_box_ext_y = simd::set_128(sim_box[1][1]);
+    const __m128 full_box_ext_z = simd::set_128(sim_box[2][2]);
 
-    const vec3 delta = p1 - p0;
-    const vec3 signed_mask = sign(delta) * step(box_ext * 0.5f, abs(delta));
-    const vec3 dp_p0 = p0 + box_ext * signed_mask;
+    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
+    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
+    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
 
-    dst_vel[i] = p1 - dp_p0;
-}
-    */
+    for (int i = 0; i < count; i += 4) {
+        __m128 x0 = simd::load128(in_x0 + i);
+        __m128 y0 = simd::load128(in_y0 + i);
+        __m128 z0 = simd::load128(in_z0 + i);
+
+        __m128 x1 = simd::load128(in_x1 + i);
+        __m128 y1 = simd::load128(in_y1 + i);
+        __m128 z1 = simd::load128(in_z1 + i);
+
+        x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
+        y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
+        z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
+
+        const __m128 dx = simd::sub(x1, x0);
+        const __m128 dy = simd::sub(y1, y0);
+        const __m128 dz = simd::sub(z1, z0);
+
+        simd::store(out_x + i, dx);
+        simd::store(out_y + i, dy);
+        simd::store(out_z + i, dz);
+    }
 }
 
 /*

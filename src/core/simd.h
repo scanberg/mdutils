@@ -21,11 +21,11 @@
 namespace simd {
 
 typedef __m128 float4;
-// typedef __m256 float8;
-// typedef __m512 float16;
+typedef __m256 float8;
+typedef __m512 float16;
 
-INLINE float4 set_float4(float v) { return _mm_set1_ps(v); }
-INLINE float4 set_float4(float x, float y, float z, float w) { return _mm_set_ps(w, z, y, x); }
+INLINE float4 set_128(float v) { return _mm_set1_ps(v); }
+INLINE float4 set_128(float x, float y, float z, float w) { return _mm_set_ps(w, z, y, x); }
 
 INLINE float4 zero_float4() { return _mm_setzero_ps(); }
 
@@ -35,8 +35,11 @@ INLINE bool all_zero(const float4 v) {
     return mask == 0x0000000F;
 }
 
-INLINE float4 load(const float* addr) { return _mm_load_ps(addr); }
-INLINE void store(float* addr, float4 v) { _mm_store_ps(addr, v); }
+INLINE float4 load128(const float* addr) { return _mm_loadu_ps(addr); }
+INLINE float4 load_aligned128(const float* addr) { return _mm_load_ps(addr); }
+
+INLINE void store(float* addr, float4 v) { _mm_storeu_ps(addr, v); }
+INLINE void store_aligned(float* addr, float4 v) { _mm_store_ps(addr, v); }
 
 INLINE float4 add(const float4 a, const float4 b) { return _mm_add_ps(a, b); }
 INLINE float4 sub(const float4 a, const float4 b) { return _mm_sub_ps(a, b); }
@@ -58,34 +61,34 @@ INLINE float4 sign(float4 x) {
     const float4 zero = zero_float4();
     const float4 lz = cmp_lt(x, zero);
     const float4 gz = cmp_gt(x, zero);
-    const float4 neg = bit_and(lz, set_float4(-1.0f));
-    const float4 pos = bit_and(gz, set_float4(1.0f));
+    const float4 neg = bit_and(lz, set_128(-1.0f));
+    const float4 pos = bit_and(gz, set_128(1.0f));
     const float4 res = bit_or(neg, pos);
     return res;
 }
 
 INLINE float4 step(const float4 edge, const float4 x) {
     const float4 cmp = cmp_ge(x, edge);
-    const float4 res = bit_and(cmp, set_float4(1.f));
+    const float4 res = bit_and(cmp, set_128(1.f));
     return res;
 }
 
-INLINE __m128 lerp(const float4 a, const float4 b, float t) {
-    const float4 one_minus_alpha = set_float4(1.0f - t);
-    const float4 alpha = set_float4(t);
+INLINE float4 lerp(const float4 a, const float4 b, float t) {
+    const float4 one_minus_alpha = set_128(1.0f - t);
+    const float4 alpha = set_128(t);
     const float4 res = add(mul(a, one_minus_alpha), mul(b, alpha));
     return res;
 };
 
-INLINE __m128 cubic_spline(const __m128 p0, const __m128 p1, const __m128 p2, const __m128 p3, float s, float tension = 0.5f) {
-    const float4 s1 = set_float4(s);
+INLINE float4 cubic_spline(const __m128 p0, const __m128 p1, const __m128 p2, const __m128 p3, float s, float tension = 0.5f) {
+    const float4 vt = set_128(tension);
+    const float4 s1 = set_128(s);
     const float4 s2 = mul(s1, s1);
     const float4 s3 = mul(s2, s1);
-    const float4 vt = set_float4(tension);
     const float4 v0 = mul(sub(p2, p0), vt);
     const float4 v1 = mul(sub(p3, p1), vt);
-    const float4 x0 = add(mul(set_float4(2), sub(p1, p2)), add(v0, v1));
-    const float4 x1 = sub(mul(set_float4(3), sub(p2, p1)), add(mul(set_float4(2), v0), v1));
+    const float4 x0 = add(mul(set_128(2), sub(p1, p2)), add(v0, v1));
+    const float4 x1 = sub(mul(set_128(3), sub(p2, p1)), add(mul(set_128(2), v0), v1));
     const float4 r0 = add(mul(x0, s3), mul(x1, s2));
     const float4 r1 = add(mul(v0, s1), p1);
     const float4 res = add(r0, r1);

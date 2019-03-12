@@ -182,7 +182,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
         auto covalent_bonds = compute_covalent_bonds(residues, mol_pos_x.data(), mol_pos_y.data(), mol_pos_z.data(), residue_indices.data(), elements.data(), num_atoms);
         auto backbone_segments = compute_backbone_segments(residues, labels);
         auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
-        auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, mol_pos_x.data(), mol_pos_y.data(), mol_pos_z.data(), num_atoms);
+        auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, mol_pos_x.data(), mol_pos_y.data(), mol_pos_z.data());
         auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
         auto acceptors = hydrogen_bond::compute_acceptors(elements);
 
@@ -216,22 +216,12 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
     }
 
     if (num_frames > 0) {
-        init_trajectory(&md->trajectory, num_atoms, num_frames);
-        // COPY POSITION DATA
+        const float time_between_frames = 1.0f;
+        init_trajectory(&md->trajectory, num_atoms, num_frames, time_between_frames, box);
 
         memcpy(md->trajectory.position_data.x, pos_x.data(), pos_x.size_in_bytes());
         memcpy(md->trajectory.position_data.y, pos_y.data(), pos_y.size_in_bytes());
         memcpy(md->trajectory.position_data.z, pos_z.data(), pos_z.size_in_bytes());
-
-        for (int i = 0; i < md->trajectory.num_frames; i++) {
-            int index = i;
-            float time = 0;
-            float* frame_pos_x = md->trajectory.position_data.x + i * num_atoms;
-            float* frame_pos_y = md->trajectory.position_data.y + i * num_atoms;
-            float* frame_pos_z = md->trajectory.position_data.z + i * num_atoms;
-
-            md->trajectory.frame_buffer[i] = {index, time, box, {frame_pos_x, frame_pos_y, frame_pos_z}};
-        }
     }
 
     return true;

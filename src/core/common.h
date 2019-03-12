@@ -39,18 +39,18 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define UNUSED(x) (void)(x)
 
 #ifndef MALLOC
-  #define MALLOC(size) malloc(size)
+#define MALLOC(size) malloc(size)
 #if _MSC_VER && !__INTEL_COMPILER
 #include <malloc.h>
-  #define ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
-  #define ALIGNED_FREE(addr) _aligned_free(addr)
+#define ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
+#define ALIGNED_FREE(addr) _aligned_free(addr)
 #else
-  #define ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
-  #define ALIGNED_FREE(addr) _mm_free(addr)
+#define ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
+#define ALIGNED_FREE(addr) _mm_free(addr)
 #endif
-  #define REALLOC(ptr, new_size) realloc(ptr, new_size)
-  #define CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
-  #define FREE(addr) free(addr)
+#define REALLOC(ptr, new_size) realloc(ptr, new_size)
+#define CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
+#define FREE(addr) free(addr)
 #endif
 
 // This is bogus atm and should be implemented properly
@@ -58,20 +58,23 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define TMP_MALLOC(size) malloc(size)
 #if _MSC_VER && !__INTEL_COMPILER
 #include <malloc.h>
-  #define TMP_ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
-  #define TMP_ALIGNED_FREE(addr) _aligned_free(addr)
+#define TMP_ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
+#define TMP_ALIGNED_FREE(addr) _aligned_free(addr)
 #else
-  #define TMP_ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
-  #define TMP_ALIGNED_FREE(addr) _mm_free(addr)
+#define TMP_ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
+#define TMP_ALIGNED_FREE(addr) _mm_free(addr)
 #endif
 #define TMP_REALLOC(ptr, new_size) realloc(ptr, new_size)
 #define TMP_CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
 #define TMP_FREE(addr) free(addr)
 #endif
 
-inline void* get_next_aligned_adress(void* mem, int alignment) {
-	return ((void *)(((uintptr_t)mem + (alignment - 1)) & ~(uintptr_t)alignment));
+inline void* get_next_aligned_adress(void* mem, uintptr_t align) {
+    const uintptr_t addr = (uintptr_t)mem;
+    return (void*)((addr + (align - 1)) & -align);
 }
+
+#define IS_ALIGNED(ptr, alignment) (((uintptr_t)ptr % alignment) == 0)
 
 // implementation of 'defer' in c++.
 // from here https://pastebin.com/suTkpYp4
