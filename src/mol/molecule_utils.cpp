@@ -271,7 +271,7 @@ void compute_velocities_pbc(Array<vec3> dst_vel, Array<const vec3> pos, Array<co
     ASSERT(dst_vel.size() == old_pos.size());
 
     const float dt = 1.f;
-    ispc::compute_velocity(dst_vel.data(), pos.data(), old_pos.data(), dt, dst_vel.size());
+    // ispc::compute_velocity(dst_vel.data(), pos.data(), old_pos.data(), dt, dst_vel.size());
     /*
 for (int64 i = 0; i < dst_vel.size(); i++) {
     // De-periodize previous position
