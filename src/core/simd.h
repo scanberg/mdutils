@@ -37,13 +37,13 @@ INLINE bool all_zero(const float4 v) {
 
 INLINE float4 load128(const float* addr) { return _mm_loadu_ps(addr); }
 INLINE float4 load_aligned128(const float* addr) {
-    ASSERT(IS_ALIGNED(addr), 16);
+    ASSERT(IS_ALIGNED(addr, 16));
     return _mm_load_ps(addr);
 }
 
 INLINE void store(float* addr, float4 v) { _mm_storeu_ps(addr, v); }
 INLINE void store_aligned(float* addr, float4 v) {
-    ASSERT(IS_ALIGNED(addr), 16);
+    ASSERT(IS_ALIGNED(addr, 16));
     _mm_store_ps(addr, v);
 }
 

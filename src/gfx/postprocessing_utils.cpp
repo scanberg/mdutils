@@ -712,6 +712,7 @@ namespace velocity {
 struct {
     GLuint program = 0;
     struct {
+		GLint tex_depth = -1;
         GLint curr_clip_to_prev_clip_mat = -1;
     } uniform_loc;
 } blit_velocity;
@@ -737,6 +738,7 @@ void initialize(int32 width, int32 height) {
         String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_velocity.frag");
         defer { free_string(&f_shader_src); };
         setup_program(&blit_velocity.program, "screen-space velocity", f_shader_src);
+		blit_velocity.uniform_loc.tex_depth = glGetUniformLocation(blit_velocity.program, "u_tex_depth");
         blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat = glGetUniformLocation(blit_velocity.program, "u_curr_clip_to_prev_clip_mat");
     }
     {
@@ -1213,10 +1215,14 @@ void apply_tonemapping(GLuint color_tex, Tonemapping tonemapping, float exposure
     glUseProgram(0);
 }
 
-void blit_velocity(const ViewParam& view_param) {
+void blit_static_velocity(GLuint depth_tex, const ViewParam& view_param) {
     mat4 curr_clip_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view_proj;
 
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, depth_tex);
+
     glUseProgram(velocity::blit_velocity.program);
+	glUniform1i(velocity::blit_velocity.uniform_loc.tex_depth, 0);
     glUniformMatrix4fv(velocity::blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat, 1, GL_FALSE, &curr_clip_to_prev_clip_mat[0][0]);
     glBindVertexArray(gl.vao);
     glDrawArrays(GL_TRIANGLES, 0, 3);

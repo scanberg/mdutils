@@ -5,6 +5,10 @@
 #define NUM_SUBDIVISIONS 16
 #endif
 
+#ifndef ORTHONORMALIZE
+#define ORTHONORMALIZE 0
+#endif
+
 uniform float u_tension = 0.5;
 
 layout(lines_adjacency) in;
@@ -127,7 +131,9 @@ void main() {
         vec3 v = normalize(spline(sv[0], sv[1], sv[2], sv[3], s));
         vec3 t = normalize(spline_tangent(cp[0], cp[1], cp[2], cp[3], s));
 
+#if ORTHONORMALIZE
         v = normalize(v - t*dot(v,t)); // Othonormalize v with respect to t
+#endif
 
         out_control_point = p;
         out_support_vector_xy = packSnorm2x16(v.xy);

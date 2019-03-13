@@ -53,15 +53,21 @@ void main() {
     z[1].xyz *= flip_sign;
 #endif
 
+    x[0] *= u_scale.x;
+    x[1] *= u_scale.x;
+    y[0] *= u_scale.y;
+    y[1] *= u_scale.y;
+    float sz = 1.f;
+
     mat4 M[2];
     M[0] = mat4(x[0], y[0], z[0], p[0]);
     M[1] = mat4(x[1], y[1], z[1], p[1]);
 
     vec4 v0[4];
-    v0[0] = M[0] * vec4(vec2(-1,-1) * u_scale, 0, 1);
-    v0[1] = M[0] * vec4(vec2( 1,-1) * u_scale, 0, 1);
-    v0[2] = M[0] * vec4(vec2(-1, 1) * u_scale, 0, 1);
-    v0[3] = M[0] * vec4(vec2( 1, 1) * u_scale, 0, 1);
+    v0[0] = M[0] * vec4(vec2(-1,-1), 0, 1);
+    v0[1] = M[0] * vec4(vec2( 1,-1), 0, 1);
+    v0[2] = M[0] * vec4(vec2(-1, 1), 0, 1);
+    v0[3] = M[0] * vec4(vec2( 1, 1), 0, 1);
 
     vec4 curr_clip0[4];
     curr_clip0[0] = u_view_proj_mat * v0[0];
@@ -70,10 +76,10 @@ void main() {
     curr_clip0[3] = u_view_proj_mat * v0[3];
 
     vec4 v1[4];
-    v1[0] = M[1] * vec4(vec2(-1,-1) * u_scale, 0, 1);
-    v1[1] = M[1] * vec4(vec2( 1,-1) * u_scale, 0, 1);
-    v1[2] = M[1] * vec4(vec2(-1, 1) * u_scale, 0, 1);
-    v1[3] = M[1] * vec4(vec2( 1, 1) * u_scale, 0, 1);
+    v1[0] = M[1] * vec4(vec2(-1,-1), 0, 1);
+    v1[1] = M[1] * vec4(vec2( 1,-1), 0, 1);
+    v1[2] = M[1] * vec4(vec2(-1, 1), 0, 1);
+    v1[3] = M[1] * vec4(vec2( 1, 1), 0, 1);
 
     vec4 curr_clip1[4];
     curr_clip1[0] = u_view_proj_mat * v1[0];
