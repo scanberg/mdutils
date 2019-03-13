@@ -56,32 +56,48 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
 
-void translate_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const vec3& translation);
-void transform_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat4& transformation);
+void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation);
+void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation);
 
-void compute_bounding_box(vec3* out_min_box, vec3* out_max_box, const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
-void compute_bounding_box(vec3* out_min_box, vec3* out_max_box, const float* pos_x, const float* pos_y, const float* pos_z, const float* radii, int64 count);
+void compute_bounding_box(vec3* out_min_box, vec3* out_max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count);
+void compute_bounding_box(vec3* out_min_box, vec3* out_max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* radii, int64 count);
 
-vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, int64 count);
-vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const float* mass, int64 count);
-vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);
+vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count);
+vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* RESTRICT mass, int64 count);
+vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const Element* RESTRICT element, int64 count);
 
-void linear_interpolation(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, int64 count,
-                          float t);
+void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+						  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+						  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+						  int64 count, float t);
 
-void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, int64 count,
-                              float t, const mat3& sim_box);
+void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							  const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
+							  const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
+							  int64 count, float t, const mat3& sim_box);
 
-void cubic_interpolation(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, const float* p2_x,
-                         const float* p2_y, const float* p2_z, const float* p3_x, const float* p3_y, const float* p3_z, int64 count, float t);
+void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+						 const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
+						 const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
+						 const float* RESTRICT p2_x, const float* RESTRICT p2_y, const float* RESTRICT p2_z,
+						 const float* RESTRICT p3_x, const float* RESTRICT p3_y, const float* RESTRICT p3_z,
+						 int64 count, float t);
 
-void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z,
-                             const float* p2_x, const float* p2_y, const float* p2_z, const float* p3_x, const float* p3_y, const float* p3_z, int64 count, float t, const mat3& sim_box);
+void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							 const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
+							 const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
+                             const float* RESTRICT p2_x, const float* RESTRICT p2_y, const float* RESTRICT p2_z,
+							 const float* RESTRICT p3_x, const float* RESTRICT p3_y, const float* RESTRICT p3_z,
+							 int64 count, float t, const mat3& sim_box);
 
-void compute_velocities(float* out_x, float* out_y, float* out_z, const float* prv_x, const float* prv_y, const float* prv_z, const float* cur_x, const float* cur_y, const float* cur_z, int64 count,
-                        float dt);
+void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+						const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+						const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+						int64 count, float dt);
 
-void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const float* prv_x, const float* prv_y, const float* prv_z, const float* cur_x, const float* cur_y, const float* cur_z,
+void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							const float* RESTRICT prv_x, const float* RESTRICT prv_y, const float* RESTRICT prv_z,
+							const float* RESTRICT cur_x, const float* RESTRICT cur_y, const float* RESTRICT cur_z,
                             int64 count, float dt, const mat3& sim_box);
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {

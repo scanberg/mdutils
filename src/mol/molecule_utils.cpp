@@ -35,7 +35,7 @@ inline float de_periodize(float a, float b, float full_ext, float half_ext) {
     return res;
 }
 
-void translate_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const vec3& translation) {
+void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation) {
     __m128 t_x = simd::set_128(translation.x);
     __m128 t_y = simd::set_128(translation.y);
     __m128 t_z = simd::set_128(translation.z);
@@ -55,7 +55,7 @@ void translate_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, 
     }
 }
 
-void transform_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat4& transformation) {
+void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
         vec4 p{pos_x[i], pos_y[i], pos_z[i], 1.0f};
         p = transformation * p;
@@ -65,7 +65,7 @@ void transform_positions(float* pos_x, float* pos_y, float* pos_z, int64 count, 
     }
 }
 
-void compute_bounding_box(vec3* min_box, vec3* max_box, const float* pos_x, const float* pos_y, const float* pos_z, int64 count) {
+void compute_bounding_box(vec3* min_box, vec3* max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count) {
     ASSERT(min_box);
     ASSERT(max_box);
 
@@ -82,7 +82,7 @@ void compute_bounding_box(vec3* min_box, vec3* max_box, const float* pos_x, cons
     }
 }
 
-void compute_bounding_box(vec3* min_box, vec3* max_box, const float* pos_x, const float* pos_y, const float* pos_z, const float* radii, int64 count) {
+void compute_bounding_box(vec3* min_box, vec3* max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* radii, int64 count) {
     ASSERT(min_box);
     ASSERT(max_box);
 
@@ -100,7 +100,7 @@ void compute_bounding_box(vec3* min_box, vec3* max_box, const float* pos_x, cons
     }
 }
 
-vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, int64 count) {
+vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count) {
     if (count == 0) return vec3(0);
     if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
@@ -112,7 +112,7 @@ vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, int
     return sum / (float)count;
 }
 
-vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const float* mass, int64 count) {
+vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* RESTRICT mass, int64 count) {
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
@@ -125,7 +125,7 @@ vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, con
     return sum / (float)count;
 }
 
-vec3 compute_com(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
+vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const Element* RESTRICT element, int64 count) {
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
@@ -179,9 +179,10 @@ void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
 }
 */
 
-void linear_interpolation(float* out_x, float* out_y, float* out_z, const float* p0_x, const float* p0_y, const float* p0_z, const float* p1_x, const float* p1_y, const float* p1_z, int64 count,
-                          float t) {
-
+void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+						  const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
+						  const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
+						  int64 count, float t) {
     for (int64 i = 0; i < count; i++) {
         const float x = p0_x[i] * (1.0f - t) + p1_x[i] * t;
         const float y = p0_y[i] * (1.0f - t) + p1_y[i] * t;
@@ -192,7 +193,9 @@ void linear_interpolation(float* out_x, float* out_y, float* out_z, const float*
     }
 }
 
-void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
+void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+						      const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
                               int64 count, float t, const mat3& sim_box) {
 
     const float full_ext_x = sim_box[0][0];
@@ -273,8 +276,12 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z, const fl
 */
 
 //#pragma optimize("", off)
-void cubic_interpolation(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
-                         const float* in_x2, const float* in_y2, const float* in_z2, const float* in_x3, const float* in_y3, const float* in_z3, int64 count, float t) {
+void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+						 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+						 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+                         const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
+						 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+						 int64 count, float t) {
     for (int i = 0; i < count; i += 4) {
         const __m128 x0 = simd::load128(in_x0 + i);
         const __m128 y0 = simd::load128(in_y0 + i);
@@ -302,8 +309,12 @@ void cubic_interpolation(float* out_x, float* out_y, float* out_z, const float* 
     }
 }
 
-void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
-                             const float* in_x2, const float* in_y2, const float* in_z2, const float* in_x3, const float* in_y3, const float* in_z3, int64 count, float t, const mat3& sim_box) {
+void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+                             const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
+							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+							 int64 count, float t, const mat3& sim_box) {
 
     const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
     const __m128 full_box_ext_y = simd::set_128(sim_box[1][1]);
@@ -351,9 +362,36 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z, const flo
         simd::store(out_z + i, z);
     }
 }
-//#pragma optimize("", on)
 
-void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const float* in_x0, const float* in_y0, const float* in_z0, const float* in_x1, const float* in_y1, const float* in_z1,
+void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+	const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+	const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+	int64 count, float dt) {
+
+	const __m128 dt128 = simd::set_128(dt);
+
+	for (int i = 0; i < count; i += 4) {
+		const __m128 x0 = simd::load128(in_x0 + i);
+		const __m128 y0 = simd::load128(in_y0 + i);
+		const __m128 z0 = simd::load128(in_z0 + i);
+
+		const __m128 x1 = simd::load128(in_x1 + i);
+		const __m128 y1 = simd::load128(in_y1 + i);
+		const __m128 z1 = simd::load128(in_z1 + i);
+
+		const __m128 dx = simd::mul(simd::sub(x1, x0), dt128);
+		const __m128 dy = simd::mul(simd::sub(y1, y0), dt128);
+		const __m128 dz = simd::mul(simd::sub(z1, z0), dt128);
+
+		simd::store(out_x + i, dx);
+		simd::store(out_y + i, dy);
+		simd::store(out_z + i, dz);
+	}
+}
+
+void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+							const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
                             int64 count, float dt, const mat3& sim_box) {
 
     const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
@@ -363,6 +401,8 @@ void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const floa
     const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
     const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
     const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
+
+	const __m128 dt128 = simd::set_128(dt);
 
     for (int i = 0; i < count; i += 4) {
         __m128 x0 = simd::load128(in_x0 + i);
@@ -377,9 +417,9 @@ void compute_velocities_pbc(float* out_x, float* out_y, float* out_z, const floa
         y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
         z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
 
-        const __m128 dx = simd::sub(x1, x0);
-        const __m128 dy = simd::sub(y1, y0);
-        const __m128 dz = simd::sub(z1, z0);
+        const __m128 dx = simd::mul(simd::sub(x1, x0), dt128);
+        const __m128 dy = simd::mul(simd::sub(y1, y0), dt128);
+        const __m128 dz = simd::mul(simd::sub(z1, z0), dt128);
 
         simd::store(out_x + i, dx);
         simd::store(out_y + i, dy);
@@ -446,7 +486,7 @@ inline bool covelent_bond_heuristic(float x0, float y0, float z0, Element e0, fl
     const float dx = x1 - x0;
     const float dy = y1 - y0;
     const float dz = z1 - z0;
-    const float d2 = sqrtf(dx * dx + dy * dy + dz * dx);
+    const float d2 = dx * dx + dy * dy + dz * dz;
     return (d_min * d_min) < d2 && d2 < (d_max * d_max);
 }
 
@@ -468,13 +508,13 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* 
 
     // @NOTE: The assumtion is that a bond is either within a single residue or between concecutive residues.
 
-    for (int32 i = 0; i < residues.size(); i++) {
-        auto& res = residues[i];
+    for (ResIdx ri = 0; ri < (ResIdx)residues.size(); ri++) {
+        auto& res = residues[ri];
 
-        if (i > 0) {
+        if (ri > 0) {
             // Include potential shared bonds from previous residue
-            res.bond_idx.beg = residues[i - 1].bond_idx.end_internal;
-            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = residues[i - 1].bond_idx.end;
+            res.bond_idx.beg = residues[ri - 1].bond_idx.end_internal;
+            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = residues[ri - 1].bond_idx.end;
         } else {
             res.bond_idx.beg = res.bond_idx.end = (BondIdx)bonds.size();
             res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = (BondIdx)bonds.size();
@@ -508,23 +548,6 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* 
             });
         }
     }
-
-    /*
-        // Old approach which does not give internal then external bonds for residues
-for (int atom_i = 0; atom_i < atom_pos.count; atom_i++) {
-spatialhash::for_each_within(
-    frame, atom_pos[atom_i], max_covelent_bond_length,
-    [&bonds, &atom_pos, &atom_elem, &atom_res_idx, atom_i](int atom_j, const vec3& atom_j_pos) {
-        (void)atom_j_pos;
-        if (atom_i < atom_j &&
-            (math::abs(atom_res_idx[atom_i] - atom_res_idx[atom_j]) <
-                2) &&  // only create bonds where i < j and res_idx is concecutive (abs(res_idx[i] - res_idx[j]) < 2)
-            covelent_bond_heuristic(atom_pos[atom_i], atom_elem[atom_i], atom_pos[atom_j], atom_elem[atom_j])) {
-            bonds.push_back({atom_i, atom_j});
-        }
-    });
-}
-    */
 
     return bonds;
 }

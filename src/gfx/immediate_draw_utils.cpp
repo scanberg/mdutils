@@ -213,7 +213,7 @@ void flush() {
     // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(program);
-    glLineWidth(1.f);
+    glLineWidth(2.f);
 
     glUniform1f(uniform_loc_point_size, 4.f);
 
@@ -362,7 +362,7 @@ void draw_aabb(const vec3& min_box, const vec3& max_box) {
 }
 */
 
-void draw_aabb_lines(const vec3& min_box, const vec3& max_box, uint32 color) {
+void draw_aabb_wireframe(const vec3& min_box, const vec3& max_box, uint32 color) {
     // Z = min
     draw_line(vec3(min_box[0], min_box[1], min_box[2]), vec3(max_box[0], min_box[1], min_box[2]), color);
     draw_line(vec3(min_box[0], min_box[1], min_box[2]), vec3(min_box[0], max_box[1], min_box[2]), color);

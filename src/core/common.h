@@ -69,9 +69,15 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define TMP_FREE(addr) free(addr)
 #endif
 
+#if _MSC_VER && !__INTEL_COMPILER
+#define RESTRICT __restrict
+#else
+#define RESTRICT restrict
+#endif
+
 inline void* get_next_aligned_adress(void* mem, uintptr_t align) {
     const uintptr_t addr = (uintptr_t)mem;
-    return (void*)((addr + (align - 1)) & -align);
+    return (void*)((addr + (align - 1)) & (~align + 1));
 }
 
 #define IS_ALIGNED(ptr, alignment) (((uintptr_t)ptr % alignment) == 0)
