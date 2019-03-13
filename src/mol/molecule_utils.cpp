@@ -928,6 +928,19 @@ void compute_atom_radii(float* out_radius, const Element* element, int64 count) 
     }
 }
 
+DynamicArray<float> compute_atom_mass(Array<const Element> elements) {
+	DynamicArray<float> mass(elements.size(), 0);
+	compute_atom_radii(mass.data(), elements.data(), mass.size());
+	return mass;
+}
+
+void compute_atom_mass(float* out_mass, const Element* element, int64 count) {
+	for (int64 i = 0; i < count; i++) {
+		out_mass[i] = element::vdw_radius(element[i]);
+	}
+}
+
+
 bool is_amino_acid(const Residue& res) { return aminoacid::get_from_string(res.name) != AminoAcid::Unknown; }
 
 bool is_dna(const Residue& res) {

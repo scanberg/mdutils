@@ -130,5 +130,8 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residue);
 DynamicArray<float> compute_atom_radii(Array<const Element> elements);
 void compute_atom_radii(float* out_radii, const Element* element, int64 count);
 
+DynamicArray<float> compute_atom_mass(Array<const Element> elements);
+void compute_atom_mass(float* out_mass, const Element* element, int64 count);
+
 bool is_amino_acid(const Residue& res);
 bool is_dna(const Residue& res);
