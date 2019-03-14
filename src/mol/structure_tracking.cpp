@@ -22,8 +22,15 @@ struct Structure {
 			float* x = nullptr;
 			float* y = nullptr;
 			float* z = nullptr;
+		} com;							// center of mass of tracked structure for each frame
+
+		struct {
+			float* x = nullptr;
+			float* y = nullptr;
+			float* z = nullptr;
 		} rbf;							// rbf weights encoding the residual error after linear transform (frames are stored consecutively) 0-1-2-3-4 | 0-1-2-3-4
-		mat4* matrix = nullptr;			// transform matrix from the frame to reference
+
+		mat3* matrix = nullptr;			// transform matrix from the frame to reference
 	} data;
 };
 
@@ -156,25 +163,21 @@ static void decompose(const mat3& M, mat3* R, mat3* S) {
 	*R = M * math::inverse(*S);
 }
 
-static void compute_linear_transform(mat4* dst_mat,
-								const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
-								const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
-								const float* RESTRICT mass, int64 count) {
-	
-	const vec3 com_a = compute_com(x0, y0, z0, mass, count);
-	const vec3 com_b = compute_com(x1, y1, z1, mass, count);
-
+static void compute_linear_transform(mat3* dst_mat,
+									 const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
+								     const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
+									 const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1) {
 	mat3 Apq{ 0 };
 	mat3 Aqq{ 0 };
 
 	for (int32 i = 0; i < count; i++) {
-		const float q_x = x0[i] - com_a.x;
-		const float q_y = y0[i] - com_a.y;
-		const float q_z = z0[i] - com_a.z;
+		const float q_x = x0[i] - com0.x;
+		const float q_y = y0[i] - com0.y;
+		const float q_z = z0[i] - com0.z;
 
-		const float p_x = x1[i] - com_b.x;
-		const float p_y = y1[i] - com_b.y;
-		const float p_z = z1[i] - com_b.z;
+		const float p_x = x1[i] - com1.x;
+		const float p_y = y1[i] - com1.y;
+		const float p_z = z1[i] - com1.z;
 
 		Apq[0][0] += mass[i] * p_x * q_x;
 		Apq[0][1] += mass[i] * p_y * q_x;
@@ -198,7 +201,24 @@ static void compute_linear_transform(mat4* dst_mat,
 	}
 
 	*dst_mat = Apq / Aqq;
-	(*dst_mat)[3] = vec4(0, 0, 0, 1); // @TODO: Possibly translate here
+}
+
+static void compute_residual_error(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+								   const float* RESTRICT src_x, const float* RESTRICT src_y, const float* RESTRICT src_z,
+								   const float* RESTRICT ref_x, const float* RESTRICT ref_y, const float* RESTRICT ref_z,
+								   int64 count, const mat4& matrix) {
+	for (int32 i = 0; i < count; i++) {
+		// @TODO: Vectorize this...
+
+		const vec4 r = { ref_x[i], ref_y[i], ref_z[i], 1.0f };
+		const vec4 v = { src_x[i], src_y[i], src_z[i], 1.0f };
+		const vec4 u = matrix * v;
+		const vec4 d = u - r;
+
+		out_x[i] = d.x;
+		out_y[i] = d.y;
+		out_z[i] = d.z;
+	}
 }
 
 // RBF functions
@@ -216,8 +236,8 @@ inline float Gaussian(float r) {
 #define RBF_FUNCTION Wendland_3_1
 
 static void compute_rbf_weights(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						 const float* in_pos_x, const float* in_pos_y, const float* in_pos_z,
-						 const float* in_val_x, const float* in_val_y, const float* in_val_z,
+						 const float* RESTRICT in_pos_x, const float* RESTRICT in_pos_y, const float* RESTRICT in_pos_z,
+						 const float* RESTRICT in_val_x, const float* RESTRICT in_val_y, const float* RESTRICT in_val_z,
 						 int64 count, const float radial_cutoff = 10.f) {
 
 	const float d2_max = radial_cutoff * radial_cutoff;
@@ -268,10 +288,13 @@ static void init_structure_data(Structure* s, ID id, int32 ref_frame_idx, int32 
 	s->num_frames = num_frames;
 	s->num_points = num_points;
 	s->radial_cutoff = radial_cutoff;
-	s->data.matrix = (mat4*)MALLOC(sizeof(mat4) * num_frames);
+	s->data.com.x = (float*)MALLOC(sizeof(float) * num_frames * 3);
+	s->data.com.y = s->data.com.x + num_frames;
+	s->data.com.z = s->data.com.y + num_frames;
 	s->data.rbf.x = (float*)MALLOC(sizeof(float) * num_points * num_frames * 3);
 	s->data.rbf.y = s->data.rbf.x + num_points * num_frames;
 	s->data.rbf.z = s->data.rbf.y + num_points * num_frames;
+	s->data.matrix = (mat3*)MALLOC(sizeof(mat3) * num_frames);
 
 }
 
@@ -279,12 +302,12 @@ static Structure* find_structure(ID id) {
 	for (const auto& e : context->entries) {
 		if (e.id == id) return e.ptr;
 	}
+	return nullptr;
 }
 
 void initialize() {
 	if (!context) {
-		context = (Context*)MALLOC(sizeof(Context));
-		context = {};
+		context = new (MALLOC(sizeof(Context))) Context();
 		context->entries.reserve(8);
 	}
 }
@@ -292,16 +315,22 @@ void initialize() {
 void shutdown() {
 	if (context) {
 		clear_structures();
-		context->entries.clear();
+		context->~Context();
+		FREE(context);
 	}
 }
 
 bool create_structure(ID id) {
 	ASSERT(context);
+	ASSERT(id != 0);
+
 	if (find_structure(id) != NULL) {
 		LOG_ERROR("Could not create structure: it already exists!");
 		return false;
 	}
+	Structure* s = new (MALLOC(sizeof(Structure))) Structure();
+	context->entries.push_back({id, s});
+	return true;
 }
 
 bool remove_structure(ID id) {
@@ -309,6 +338,7 @@ bool remove_structure(ID id) {
 	for (auto& e : context->entries) {
 		if (e.id == id) {
 			if (e.ptr) free_structure_data(e.ptr);
+			FREE(e.ptr);
 			context->entries.swap_back_and_pop(&e);
 			return true;
 		}
@@ -335,23 +365,25 @@ void extract_data_from_indices(T* RESTRICT dst_data, const T* RESTRICT src_data,
 bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStructure& mol, const MoleculeTrajectory& traj, int32 ref_idx, float rbf_radial_cutoff) {
 	ASSERT(context);
 
+	const int32 num_frames = (int32)traj.num_frames;
+	if (ref_idx >= num_frames) {
+		LOG_ERROR("Supplied reference frame index is out of range.");
+		return false;
+	}
+
 	Structure* s = find_structure(id);
 	if (s == nullptr) {
 		LOG_ERROR("Could not compute tracking data, supplied id is not valid.");
 		return false;
 	}
 
-	DynamicArray<int> index_list;
-	for (int i = 0; i < atom_mask.size(); i++) {
-		if (atom_mask[i]) index_list.push_back(i);
-	}
-
-	const int32 num_points = (int32)index_list.size();
-	const int32 num_frames = (int32)traj.num_frames;
-
-	if (ref_idx >= num_frames) {
-		LOG_ERROR("Supplied reference frame index is out of range.");
-		return false;
+	int* indices = (int*)TMP_MALLOC(sizeof(int) * atom_mask.size());
+	int num_points = 0;
+	for (int i = 0; i < (int32)atom_mask.size(); i++) {
+		if (atom_mask[i]) {
+			indices[num_points] = i;
+			num_points++;
+		}
 	}
 
 	if (num_points == 0) {
@@ -367,7 +399,7 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 	s->data.matrix[ref_idx] = mat4(1); // Identity
 
 	// Scratch data
-	const int64 mem_size = sizeof(float) * num_points * 7;
+	const int64 mem_size = sizeof(float) * num_points * 10;
 	void* mem = TMP_MALLOC(mem_size);
 	defer{ TMP_FREE(mem); };
 
@@ -375,31 +407,47 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 	float* ref_x = mass + num_points;
 	float* ref_y = ref_x + num_points;
 	float* ref_z = ref_y + num_points;
-	float* pos_x = ref_z + num_points;
-	float* pos_y = pos_x + num_points;
-	float* pos_z = pos_y + num_points;
+	float* cur_x = ref_z + num_points;
+	float* cur_y = cur_x + num_points;
+	float* cur_z = cur_y + num_points;
+	float* err_x = cur_z + num_points;
+	float* err_y = err_x + num_points;
+	float* err_z = err_y + num_points;
 
-	for (int32 i = 0; i < index_list.size(); i++) {
-		mass[i] = element::atomic_mass(mol.atom.element[index_list[i]]);
+	for (int32 i = 0; i < num_points; i++) {
+		mass[i] = element::atomic_mass(mol.atom.element[indices[i]]);
 	}
-	extract_data_from_indices(ref_x, get_trajectory_position_x(traj, ref_idx).data(), index_list.data(), index_list.size());
-	extract_data_from_indices(ref_y, get_trajectory_position_y(traj, ref_idx).data(), index_list.data(), index_list.size());
-	extract_data_from_indices(ref_z, get_trajectory_position_z(traj, ref_idx).data(), index_list.data(), index_list.size());
+	extract_data_from_indices(ref_x, get_trajectory_position_x(traj, ref_idx).data(), indices, num_points);
+	extract_data_from_indices(ref_y, get_trajectory_position_y(traj, ref_idx).data(), indices, num_points);
+	extract_data_from_indices(ref_z, get_trajectory_position_z(traj, ref_idx).data(), indices, num_points);
+	const vec3 ref_com = compute_com(cur_x, cur_y, cur_z, mass, num_points);
 
 	for (int i = 0; i < traj.num_frames; i++) {
 		if (i == ref_idx) continue;
-		extract_data_from_indices(pos_x, get_trajectory_position_x(traj, ref_idx).data(), index_list.data(), index_list.size());
-		extract_data_from_indices(pos_y, get_trajectory_position_y(traj, ref_idx).data(), index_list.data(), index_list.size());
-		extract_data_from_indices(pos_z, get_trajectory_position_z(traj, ref_idx).data(), index_list.data(), index_list.size());
+		extract_data_from_indices(cur_x, get_trajectory_position_x(traj, ref_idx).data(), indices, num_points);
+		extract_data_from_indices(cur_y, get_trajectory_position_y(traj, ref_idx).data(), indices, num_points);
+		extract_data_from_indices(cur_z, get_trajectory_position_z(traj, ref_idx).data(), indices, num_points);
+		const vec3 cur_com = compute_com(cur_x, cur_y, cur_z, num_points);
 
-		compute_linear_transform(s->data.matrix + i, pos_x, pos_y, pos_z, ref_x, ref_y, ref_z, mass, num_points);
-		// @TODO: Encode residual error as rbf
+		mat3* M = s->data.matrix + i;
+		float* rbf_x = s->data.rbf.x + i * num_points;
+		float* rbf_y = s->data.rbf.y + i * num_points;
+		float* rbf_z = s->data.rbf.z + i * num_points;
+
+		// @NOTE: Compute linear transformation matrix between the two sets of points.
+		compute_linear_transform(M, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
+	
+		// @NOTE: Compute residual error between the two sets of points.
+		compute_residual_error(err_x, err_y, err_z, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, num_points, *M);
+
+		// @NOTE: Encode residual error as rbf
+		compute_rbf_weights(rbf_x, rbf_y, rbf_z, cur_x, cur_y, cur_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
 	}
 
 	return true;
 }
 
-bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, ID id, int32 frame_idx) {
+bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID id, int32 frame_idx) {
 	ASSERT(context);
 	Structure* s = find_structure(id);
 	if (s == nullptr) {
@@ -411,6 +459,10 @@ bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, fl
 		LOG_ERROR("Supplied frame_idx is out of range.");
 		return false;
 	}
+
+	for (int32 i)
+
+	return true;
 }
 
-}
+} // namespace structure_tracking

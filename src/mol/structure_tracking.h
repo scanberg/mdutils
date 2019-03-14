@@ -22,6 +22,10 @@ bool remove_structure(ID structure_id);
 void clear_structures();
 
 bool compute_tracking_data(ID structure_id, Array<const bool> atom_mask, const MoleculeStructure& mol, const MoleculeTrajectory& traj, int32 reference_frame_idx = 0, float rbf_radial_cutoff = 10.f);
-bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, ID structure_id, int32 frame_idx);
+
+bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count,
+										ID structure_id, int32 frame_idx);
+
+bool compute_and_transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z);
 
 }  // namespace structure_tracking

@@ -309,6 +309,54 @@ void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RE
     }
 }
 
+void cubic_interpolation_pdb_scalar(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
+							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+							 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
+							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+							 int64 count, float t, const mat3& sim_box) {
+	const vec3 full_box_ext = sim_box * vec3(1);
+	const vec3 half_box_ext = full_box_ext * 0.5f;
+
+	for (int i = 0; i < count; i ++) {
+		float x0 = in_x0[i];
+		float y0 = in_y0[i];
+		float z0 = in_z0[i];
+
+		float x1 = in_x1[i];
+		float y1 = in_y1[i];
+		float z1 = in_z1[i];
+
+		float x2 = in_x2[i];
+		float y2 = in_y2[i];
+		float z2 = in_z2[i];
+
+		float x3 = in_x3[i];
+		float y3 = in_y3[i];
+		float z3 = in_z3[i];
+
+		x0 = de_periodize(x1, x0, full_box_ext.x, half_box_ext.x);
+		x2 = de_periodize(x1, x2, full_box_ext.x, half_box_ext.x);
+		x3 = de_periodize(x1, x3, full_box_ext.x, half_box_ext.x);
+
+		y0 = de_periodize(y1, y0, full_box_ext.y, half_box_ext.y);
+		y2 = de_periodize(y1, y2, full_box_ext.y, half_box_ext.y);
+		y3 = de_periodize(y1, y3, full_box_ext.y, half_box_ext.y);
+
+		z0 = de_periodize(z1, z0, full_box_ext.z, half_box_ext.z);
+		z2 = de_periodize(z1, z2, full_box_ext.z, half_box_ext.z);
+		z3 = de_periodize(z1, z3, full_box_ext.z, half_box_ext.z);
+
+		const float x = math::cubic_spline(x0, x1, x2, x3, t);
+		const float y = math::cubic_spline(y0, y1, y2, y3, t);
+		const float z = math::cubic_spline(z0, z1, z2, z3, t);
+
+		out_x[i] = x;
+		out_y[i] = y;
+		out_z[i] = z;
+	}
+}
+
 void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
 							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
 							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,

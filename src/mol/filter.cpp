@@ -6,7 +6,12 @@
 #include <mol/molecule_utils.h>
 
 namespace filter {
-static DynamicArray<FilterCommand> filter_commands;
+
+struct Context {
+	DynamicArray<FilterCommand> filter_commands{};
+};
+
+Context* context = nullptr;
 
 static bool is_modifier(CString str) {
     if (compare_ignore_case(str, "and")) return true;
@@ -88,7 +93,8 @@ DynamicArray<CString> extract_chunks(CString str) {
 }
 
 FilterCommand* find_filter_command(CString command) {
-    for (auto& f : filter_commands) {
+	ASSERT(context);
+    for (auto& f : context->filter_commands) {
         if (compare(command, f.keyword)) return &f;
     }
     return nullptr;
@@ -212,6 +218,9 @@ void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale) {
 
 void initialize() {
 
+	if (context) return;
+	context = new (MALLOC(sizeof(Context))) Context();
+
     /*
             all
             water
@@ -256,11 +265,11 @@ void initialize() {
         return true;
     };
 
-    filter_commands.push_back({"all", [](Array<bool> mask, const MoleculeDynamic&, Array<const CString>) {
+    context->filter_commands.push_back({"all", [](Array<bool> mask, const MoleculeDynamic&, Array<const CString>) {
                                    memset(mask.ptr, 1, mask.size_in_bytes());
                                    return true;
                                }});
-    filter_commands.push_back({"water", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
+    context->filter_commands.push_back({"water", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    for (const auto& res : dyn.molecule.residues) {
                                        const auto res_size = res.atom_idx.end - res.atom_idx.beg;
@@ -278,10 +287,10 @@ void initialize() {
                                    }
                                    return true;
                                }});
-    filter_commands.push_back({"aminoacid", filter_amino_acid});
-    filter_commands.push_back({"backbone", [](Array<bool>, const MoleculeDynamic&, Array<const CString>) { return true; }});  // NOT DONE
-    filter_commands.push_back({"protein", filter_amino_acid});
-    filter_commands.push_back({"dna", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
+    context->filter_commands.push_back({"aminoacid", filter_amino_acid});
+    context->filter_commands.push_back({"backbone", [](Array<bool>, const MoleculeDynamic&, Array<const CString>) { return true; }});  // NOT DONE
+    context->filter_commands.push_back({"protein", filter_amino_acid});
+    context->filter_commands.push_back({"dna", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    for (const auto& res : dyn.molecule.residues) {
                                        if (is_dna(res)) {
@@ -291,11 +300,11 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"name", filter_atom_name});
-    filter_commands.push_back({"label", filter_atom_name});
-    filter_commands.push_back({"type", filter_atom_name});
+    context->filter_commands.push_back({"name", filter_atom_name});
+    context->filter_commands.push_back({"label", filter_atom_name});
+    context->filter_commands.push_back({"type", filter_atom_name});
 
-    filter_commands.push_back({"element", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"element", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    Array<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
                                    defer { TMP_FREE(elements.ptr); };
                                    for (int64 i = 0; i < elements.count; i++) {
@@ -315,7 +324,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"atomicnumber", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"atomicnumber", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
@@ -333,7 +342,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"atom", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"atom", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    if (dyn.molecule.atom.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
@@ -351,7 +360,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"residue", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"residue", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    if (dyn.molecule.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
@@ -370,7 +379,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"resname", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"resname", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    memset(mask.ptr, 0, mask.count);
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& res : dyn.molecule.residues) {
@@ -384,7 +393,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"resid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"resid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    if (dyn.molecule.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
@@ -403,7 +412,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"chain", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"chain", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    memset(mask.ptr, 0, mask.size_in_bytes());
                                    if (dyn.molecule.chains.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
@@ -421,7 +430,7 @@ void initialize() {
                                    return true;
                                }});
 
-    filter_commands.push_back({"chainid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"chainid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
                                    memset(mask.ptr, 0, mask.count);
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& chain : dyn.molecule.chains) {
@@ -434,6 +443,11 @@ void initialize() {
                                }});
 }
 
-void shutdown() {}
+void shutdown() {
+	if (context) {
+		context->~Context();
+		FREE(context);
+	}
+}
 
 }  // namespace filter
