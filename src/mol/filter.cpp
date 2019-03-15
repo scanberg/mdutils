@@ -7,6 +7,18 @@
 
 namespace filter {
 
+struct FilterContext {
+	const MoleculeDynamic& md;
+	const Array<const StoredSelection> sel;
+};
+
+typedef bool(*FilterCommandFunc)(Array<bool> mask, const FilterContext& ctx, Array<const CString> args);
+
+struct FilterCommand {
+	StringBuffer<16> keyword{};
+	FilterCommandFunc func = nullptr;
+};
+
 struct Context {
 	DynamicArray<FilterCommand> filter_commands{};
 };
@@ -116,7 +128,7 @@ void combine_mask_or(Array<bool> dst, Array<bool> src_a, Array<bool> src_b, bool
     }
 }
 
-bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString filter) {
+bool internal_filter_mask(Array<bool> mask, CString filter, const FilterContext& ctx) {
     DynamicArray<CString> chunks = extract_chunks(filter);
     DynamicArray<bool> chunk_mask(mask.count);
 
@@ -134,7 +146,7 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
         } else {
             if (chunk.front() == '(') {
                 ASSERT(chunk.back() == ')');
-                if (!internal_filter_mask(chunk_mask, dyn, CString(chunk.beg() + 1, chunk.end() - 1))) return false;
+                if (!internal_filter_mask(chunk_mask, CString(chunk.beg() + 1, chunk.end() - 1), ctx)) return false;
             } else {
                 auto tokens = ctokenize(chunk);
                 auto cmd = find_filter_command(tokens[0]);
@@ -151,7 +163,7 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
                     args = args.subarray(1);
                 }
 
-                if (!cmd->func(chunk_mask, dyn, args)) {
+                if (!cmd->func(chunk_mask, ctx, args)) {
                     StringBuffer<32> buf = tokens[0];
                     LOG_ERROR("Could not parse command: '%s' with arguments: ", buf.beg());
                     for (const auto& arg : args) {
@@ -181,16 +193,19 @@ bool internal_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString 
     return true;
 }
 
-bool compute_filter_mask(Array<bool> mask, const MoleculeDynamic& dyn, CString filter) {
-    ASSERT(dyn.molecule.atom.count == mask.count);
+bool compute_filter_mask(Array<bool> mask, const CString filter, const MoleculeDynamic& dynamic, Array<const StoredSelection> stored_selections) {
+	ASSERT(dynamic.molecule);
+    ASSERT(dynamic.molecule.atom.count == mask.count);
 
     if (count_parentheses(filter) != 0) {
         LOG_ERROR("Unmatched parentheses\n");
         return false;
     }
 
-    memset(mask.ptr, 1, mask.count);
-    return internal_filter_mask(mask, dyn, filter);
+	const FilterContext ctx{ dynamic, stored_selections };
+
+    memset(mask.data(), 1, mask.count);
+    return internal_filter_mask(mask, filter, ctx);
 }
 
 void filter_colors(Array<uint32> colors, Array<bool> mask) {
@@ -240,23 +255,23 @@ void initialize() {
             chainid
     */
 
-    auto filter_amino_acid = [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
-        memset(mask.ptr, 0, mask.count);
-        for (const auto& res : dyn.molecule.residues) {
+    auto filter_amino_acid = [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
+        memset(mask.data(), 0, mask.count);
+        for (const auto& res : ctx.md.molecule.residues) {
             if (is_amino_acid(res)) {
-                memset(mask.ptr + res.atom_idx.beg, 1, res.atom_idx.end - res.atom_idx.beg);
+                memset(mask.data() + res.atom_idx.beg, 1, res.atom_idx.end - res.atom_idx.beg);
             }
         }
         return true;
     };
 
-    auto filter_atom_name = [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    auto filter_atom_name = [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
         if (args.count == 0) return false;
 
-        for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
+        for (int64 i = 0; i < ctx.md.molecule.atom.count; i++) {
             mask[i] = false;
             for (const auto& arg : args) {
-                if (compare(dyn.molecule.atom.label[i], arg)) {
+                if (compare(ctx.md.molecule.atom.label[i], arg)) {
                     mask[i] = true;
                     break;
                 }
@@ -265,36 +280,44 @@ void initialize() {
         return true;
     };
 
-    context->filter_commands.push_back({"all", [](Array<bool> mask, const MoleculeDynamic&, Array<const CString>) {
-                                   memset(mask.ptr, 1, mask.size_in_bytes());
+    context->filter_commands.push_back({"all", [](Array<bool> mask, const FilterContext&, Array<const CString>) {
+                                   memset(mask.data(), 1, mask.size_in_bytes());
                                    return true;
                                }});
-    context->filter_commands.push_back({"water", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
-                                   memset(mask.ptr, 0, mask.size_in_bytes());
-                                   for (const auto& res : dyn.molecule.residues) {
+    context->filter_commands.push_back({"water", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
+                                   memset(mask.data(), 0, mask.size_in_bytes());
+                                   for (const auto& res : ctx.md.molecule.residues) {
                                        const auto res_size = res.atom_idx.end - res.atom_idx.beg;
                                        if (res_size == 3) {
                                            int32 h_count = 0;
                                            int32 o_count = 0;
-                                           for (auto e : get_elements(dyn.molecule, res)) {
+                                           for (auto e : get_elements(ctx.md.molecule, res)) {
                                                if (e == Element::H) h_count++;
                                                if (e == Element::O) o_count++;
                                            }
                                            if (h_count == 2 && o_count == 1) {
-                                               memset(mask.ptr + res.atom_idx.beg, 1, res_size);
+                                               memset(mask.data() + res.atom_idx.beg, 1, res_size);
                                            }
                                        }
                                    }
                                    return true;
                                }});
     context->filter_commands.push_back({"aminoacid", filter_amino_acid});
-    context->filter_commands.push_back({"backbone", [](Array<bool>, const MoleculeDynamic&, Array<const CString>) { return true; }});  // NOT DONE
+	context->filter_commands.push_back({ "backbone", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
+									memset(mask.data(), 0, mask.size_in_bytes());
+									for (int64 i = 0; i < ctx.md.molecule.atom.count; i++) {
+										if (compare_n(ctx.md.molecule.atom.label[i], "CA", 2)) {
+											mask[i] = true;
+										}
+									}
+									return true;
+								}});
     context->filter_commands.push_back({"protein", filter_amino_acid});
-    context->filter_commands.push_back({"dna", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString>) {
-                                   memset(mask.ptr, 0, mask.size_in_bytes());
-                                   for (const auto& res : dyn.molecule.residues) {
+    context->filter_commands.push_back({"dna", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
+                                   memset(mask.data(), 0, mask.size_in_bytes());
+                                   for (const auto& res : ctx.md.molecule.residues) {
                                        if (is_dna(res)) {
-                                           memset(mask.ptr + res.atom_idx.beg, 1, res.atom_idx.end - res.atom_idx.beg);
+                                           memset(mask.data() + res.atom_idx.beg, 1, res.atom_idx.end - res.atom_idx.beg);
                                        }
                                    }
                                    return true;
@@ -304,18 +327,18 @@ void initialize() {
     context->filter_commands.push_back({"label", filter_atom_name});
     context->filter_commands.push_back({"type", filter_atom_name});
 
-    context->filter_commands.push_back({"element", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"element", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
                                    Array<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
-                                   defer { TMP_FREE(elements.ptr); };
+                                   defer { TMP_FREE(elements.data()); };
                                    for (int64 i = 0; i < elements.count; i++) {
                                        elements[i] = element::get_from_string(args[i]);
                                        if (elements[i] == Element::Unknown) return false;
                                    }
 
-                                   for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
+                                   for (int64 i = 0; i < ctx.md.molecule.atom.count; i++) {
                                        mask[i] = false;
                                        for (const auto& ele : elements) {
-                                           if (dyn.molecule.atom.element[i] == ele) {
+                                           if (ctx.md.molecule.atom.element[i] == ele) {
                                                mask[i] = true;
                                                break;
                                            }
@@ -324,11 +347,11 @@ void initialize() {
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"atomicnumber", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
+    context->filter_commands.push_back({"atomicnumber", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   for (int64 i = 0; i < dyn.molecule.atom.count; i++) {
-                                       int atomnr = (int)dyn.molecule.atom.element[i];
+                                   for (int64 i = 0; i < ctx.md.molecule.atom.count; i++) {
+                                       int atomnr = (int)ctx.md.molecule.atom.element[i];
                                        mask[i] = false;
                                        for (auto range : ranges) {
                                            if (range.x == -1) range.x = 0;
@@ -342,105 +365,119 @@ void initialize() {
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"atom", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   memset(mask.ptr, 0, mask.size_in_bytes());
-                                   if (dyn.molecule.atom.count == 0) return true;
+    context->filter_commands.push_back({"atom", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+                                   memset(mask.data(), 0, mask.size_in_bytes());
+                                   if (ctx.md.molecule.atom.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (auto range : ranges) {
                                        if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)dyn.molecule.atom.count - 1;
-                                       range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.atom.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.atom.count - 1);
+                                       if (range.y == -1) range.y = (int32)ctx.md.molecule.atom.count - 1;
+                                       range.x = math::clamp(range.x - 1, 0, (int32)ctx.md.molecule.atom.count - 1);
+                                       range.y = math::clamp(range.y - 1, 0, (int32)ctx.md.molecule.atom.count - 1);
                                        if (range.x == range.y)
                                            mask[range.x] = true;
                                        else
-                                           memset(mask.ptr + range.x, 1, range.y - range.x);
+                                           memset(mask.data() + range.x, 1, range.y - range.x);
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"residue", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   memset(mask.ptr, 0, mask.size_in_bytes());
-                                   if (dyn.molecule.residues.count == 0) return true;
+    context->filter_commands.push_back({"residue", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+                                   memset(mask.data(), 0, mask.size_in_bytes());
+                                   if (ctx.md.molecule.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (auto range : ranges) {
                                        if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)dyn.molecule.atom.count - 1;
-                                       range.x = math::clamp(range.x, 0, (int32)dyn.molecule.residues.count - 1);
-                                       range.y = math::clamp(range.y, 0, (int32)dyn.molecule.residues.count - 1);
+                                       if (range.y == -1) range.y = (int32)ctx.md.molecule.atom.count - 1;
+                                       range.x = math::clamp(range.x, 0, (int32)ctx.md.molecule.residues.count - 1);
+                                       range.y = math::clamp(range.y, 0, (int32)ctx.md.molecule.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           const auto beg = dyn.molecule.residues[i].atom_idx.beg;
-                                           const auto end = dyn.molecule.residues[i].atom_idx.end;
-                                           memset(mask.ptr + beg, 1, end - beg);
+                                           const auto beg = ctx.md.molecule.residues[i].atom_idx.beg;
+                                           const auto end = ctx.md.molecule.residues[i].atom_idx.end;
+                                           memset(mask.data() + beg, 1, end - beg);
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"resname", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   memset(mask.ptr, 0, mask.count);
+    context->filter_commands.push_back({"resname", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+                                   memset(mask.data(), 0, mask.count);
                                    for (int i = 0; i < args.count; i++) {
-                                       for (const auto& res : dyn.molecule.residues) {
+                                       for (const auto& res : ctx.md.molecule.residues) {
                                            if (compare(args[i], res.name)) {
                                                const auto beg = res.atom_idx.beg;
                                                const auto end = res.atom_idx.end;
-                                               memset(mask.ptr + beg, 1, end - beg);
+                                               memset(mask.data() + beg, 1, end - beg);
                                            }
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"resid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   memset(mask.ptr, 0, mask.size_in_bytes());
-                                   if (dyn.molecule.residues.count == 0) return true;
+    context->filter_commands.push_back({"resid", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+                                   memset(mask.data(), 0, mask.size_in_bytes());
+                                   if (ctx.md.molecule.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (auto range : ranges) {
                                        if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)dyn.molecule.residues.count - 1;
-                                       range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.residues.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.residues.count - 1);
+                                       if (range.y == -1) range.y = (int32)ctx.md.molecule.residues.count - 1;
+                                       range.x = math::clamp(range.x - 1, 0, (int32)ctx.md.molecule.residues.count - 1);
+                                       range.y = math::clamp(range.y - 1, 0, (int32)ctx.md.molecule.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           const auto beg = dyn.molecule.residues[i].atom_idx.beg;
-                                           const auto end = dyn.molecule.residues[i].atom_idx.end;
-                                           memset(mask.ptr + beg, 1, end - beg);
+                                           const auto beg = ctx.md.molecule.residues[i].atom_idx.beg;
+                                           const auto end = ctx.md.molecule.residues[i].atom_idx.end;
+                                           memset(mask.data() + beg, 1, end - beg);
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"chain", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   memset(mask.ptr, 0, mask.size_in_bytes());
-                                   if (dyn.molecule.chains.count == 0) return true;
+    context->filter_commands.push_back({"chain", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+                                   memset(mask.data(), 0, mask.size_in_bytes());
+                                   if (ctx.md.molecule.chains.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (auto range : ranges) {
                                        if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)dyn.molecule.atom.count - 1;
-                                       range.x = math::clamp(range.x - 1, 0, (int32)dyn.molecule.chains.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)dyn.molecule.chains.count - 1);
+                                       if (range.y == -1) range.y = (int32)ctx.md.molecule.atom.count - 1;
+                                       range.x = math::clamp(range.x - 1, 0, (int32)ctx.md.molecule.chains.count - 1);
+                                       range.y = math::clamp(range.y - 1, 0, (int32)ctx.md.molecule.chains.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           Chain chain = get_chain(dyn.molecule, (ChainIdx)i);
-                                           memset(mask.ptr + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
+                                           Chain chain = get_chain(ctx.md.molecule, (ChainIdx)i);
+                                           memset(mask.data() + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"chainid", [](Array<bool> mask, const MoleculeDynamic& dyn, Array<const CString> args) {
-                                   memset(mask.ptr, 0, mask.count);
+    context->filter_commands.push_back({"chainid", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+                                   memset(mask.data(), 0, mask.count);
                                    for (int i = 0; i < args.count; i++) {
-                                       for (const auto& chain : dyn.molecule.chains) {
+                                       for (const auto& chain : ctx.md.molecule.chains) {
                                            if (compare(args[i], chain.id)) {
-                                               memset(mask.ptr + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
+                                               memset(mask.data() + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
+											   break;
                                            }
                                        }
                                    }
                                    return true;
                                }});
+
+	context->filter_commands.push_back({ "selection", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+							   memset(mask.data(), 0, mask.count);
+							   for (int i = 0; i < args.count; i++) {
+								   for (const auto& s : ctx.sel) {
+									   if (compare(args[i], s.name)) {
+										   memcpy(mask.data(), s.mask.data(), mask.size_in_bytes());
+										   break;
+									   }
+								   }
+							   }
+							   return true;
+						   } });
 }
 
 void shutdown() {

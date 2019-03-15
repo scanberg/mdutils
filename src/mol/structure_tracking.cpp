@@ -25,10 +25,18 @@ struct Structure {
 		} com;							// center of mass of tracked structure for each frame
 
 		struct {
-			float* x = nullptr;
-			float* y = nullptr;
-			float* z = nullptr;
-		} rbf;							// rbf weights encoding the residual error after linear transform (frames are stored consecutively) 0-1-2-3-4 | 0-1-2-3-4
+			struct {
+				float* x = nullptr;
+				float* y = nullptr;
+				float* z = nullptr;
+			} weight;					// rbf weights encoding the residual error after linear transform (frames are stored consecutively) 0-1-2-3-4 | 0-1-2-3-4
+
+			struct {
+				float* x = nullptr;
+				float* y = nullptr;
+				float* z = nullptr;
+			} pos;						// position of control points in reference frame
+		} rbf;							
 
 		mat3* matrix = nullptr;			// transform matrix from the frame to reference
 	} data;
@@ -277,7 +285,8 @@ static void compute_rbf_weights(float* RESTRICT out_x, float* RESTRICT out_y, fl
 static void free_structure_data(Structure* s) {
 	ASSERT(s);
 	if (s->data.matrix) FREE(s->data.matrix);
-	if (s->data.rbf.x) FREE(s->data.rbf.x);
+	if (s->data.rbf.weight.x) FREE(s->data.rbf.weight.x);
+	if (s->data.rbf.pos.x) FREE(s->data.rbf.pos.x);
 }
 
 static void init_structure_data(Structure* s, ID id, int32 ref_frame_idx, int32 num_points, int32 num_frames, float radial_cutoff) {
@@ -291,9 +300,12 @@ static void init_structure_data(Structure* s, ID id, int32 ref_frame_idx, int32 
 	s->data.com.x = (float*)MALLOC(sizeof(float) * num_frames * 3);
 	s->data.com.y = s->data.com.x + num_frames;
 	s->data.com.z = s->data.com.y + num_frames;
-	s->data.rbf.x = (float*)MALLOC(sizeof(float) * num_points * num_frames * 3);
-	s->data.rbf.y = s->data.rbf.x + num_points * num_frames;
-	s->data.rbf.z = s->data.rbf.y + num_points * num_frames;
+	s->data.rbf.weight.x = (float*)MALLOC(sizeof(float) * num_points * num_frames * 3);
+	s->data.rbf.weight.y = s->data.rbf.weight.x + num_points * num_frames;
+	s->data.rbf.weight.z = s->data.rbf.weight.y + num_points * num_frames;
+	s->data.rbf.pos.x = (float*)MALLOC(sizeof(float) * num_points * 3);
+	s->data.rbf.pos.y = s->data.rbf.pos.x + num_points;
+	s->data.rbf.pos.z = s->data.rbf.pos.y + num_points;
 	s->data.matrix = (mat3*)MALLOC(sizeof(mat3) * num_frames);
 
 }
@@ -393,26 +405,24 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 
 	// Allocate memory for all data
 	init_structure_data(s, id, ref_idx, num_points, num_frames, rbf_radial_cutoff);
-	memset(s->data.rbf.x, 0, sizeof(float) * num_points * num_frames);
-	memset(s->data.rbf.y, 0, sizeof(float) * num_points * num_frames);
-	memset(s->data.rbf.z, 0, sizeof(float) * num_points * num_frames);
 	s->data.matrix[ref_idx] = mat4(1); // Identity
 
 	// Scratch data
-	const int64 mem_size = sizeof(float) * num_points * 10;
+	const int64 mem_size = sizeof(float) * num_points * 7;
 	void* mem = TMP_MALLOC(mem_size);
 	defer{ TMP_FREE(mem); };
 
 	float* mass = (float*)mem;
-	float* ref_x = mass + num_points;
-	float* ref_y = ref_x + num_points;
-	float* ref_z = ref_y + num_points;
-	float* cur_x = ref_z + num_points;
+	float* cur_x = mass + num_points;
 	float* cur_y = cur_x + num_points;
 	float* cur_z = cur_y + num_points;
 	float* err_x = cur_z + num_points;
 	float* err_y = err_x + num_points;
 	float* err_z = err_y + num_points;
+
+	float* ref_x = s->data.rbf.pos.x;
+	float* ref_y = s->data.rbf.pos.y;
+	float* ref_z = s->data.rbf.pos.z;
 
 	for (int32 i = 0; i < num_points; i++) {
 		mass[i] = element::atomic_mass(mol.atom.element[indices[i]]);
@@ -430,9 +440,9 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 		const vec3 cur_com = compute_com(cur_x, cur_y, cur_z, num_points);
 
 		mat3* M = s->data.matrix + i;
-		float* rbf_x = s->data.rbf.x + i * num_points;
-		float* rbf_y = s->data.rbf.y + i * num_points;
-		float* rbf_z = s->data.rbf.z + i * num_points;
+		float* rbf_x = s->data.rbf.weight.x + i * num_points;
+		float* rbf_y = s->data.rbf.weight.y + i * num_points;
+		float* rbf_z = s->data.rbf.weight.z + i * num_points;
 
 		// @NOTE: Compute linear transformation matrix between the two sets of points.
 		compute_linear_transform(M, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
@@ -440,14 +450,14 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 		// @NOTE: Compute residual error between the two sets of points.
 		compute_residual_error(err_x, err_y, err_z, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, num_points, *M);
 
-		// @NOTE: Encode residual error as rbf
-		compute_rbf_weights(rbf_x, rbf_y, rbf_z, cur_x, cur_y, cur_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
+		// @NOTE: Encode residual error as rbf at reference points
+		compute_rbf_weights(rbf_x, rbf_y, rbf_z, ref_x, ref_y, ref_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
 	}
 
 	return true;
 }
 
-bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID id, int32 frame_idx) {
+bool transform_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID id, int32 frame_idx) {
 	ASSERT(context);
 	Structure* s = find_structure(id);
 	if (s == nullptr) {
@@ -460,7 +470,7 @@ bool transform_coordinates_to_reference(float* RESTRICT x, float* RESTRICT y, fl
 		return false;
 	}
 
-	for (int32 i)
+	
 
 	return true;
 }
