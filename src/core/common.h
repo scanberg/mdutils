@@ -69,11 +69,16 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define TMP_FREE(addr) free(addr)
 #endif
 
-#if _MSC_VER && !__INTEL_COMPILER
+
+// Blatantly stolen from ImGui (thanks Omar!)
+struct NewDummy {};
+inline void* operator new(size_t, NewDummy, void* ptr) { return ptr; }
+inline void  operator delete(void*, NewDummy, void*)   {} // This is only required so we can use the symetrical new()
+#define PLACEMENT_NEW(_PTR)              new(NewDummy(), _PTR)
+#define NEW(_TYPE)                       new(NewDummy(), MALLOC(sizeof(_TYPE))) _TYPE
+template<typename T> void DELETE(T* p)   { if (p) { p->~T(); FREE(p); } }
+
 #define RESTRICT __restrict
-#else
-#define RESTRICT restrict
-#endif
 
 inline void* get_next_aligned_adress(void* mem, uintptr_t align) {
     const uintptr_t addr = (uintptr_t)mem;
@@ -82,8 +87,9 @@ inline void* get_next_aligned_adress(void* mem, uintptr_t align) {
 
 #define IS_ALIGNED(ptr, alignment) (((uintptr_t)ptr % alignment) == 0)
 
-// implementation of 'defer' in c++.
-// from here https://pastebin.com/suTkpYp4
+// Implementation of 'defer' in c++.
+// From here https://pastebin.com/suTkpYp4
+// With some slight modifications
 
 #define CONCAT_INTERNAL(x, y) x##y
 #define CONCAT(x, y) CONCAT_INTERNAL(x, y)

@@ -81,6 +81,7 @@ struct MoleculeStructure {
             float* z = nullptr;
         } velocity;
         float* radius = nullptr;
+        float* mass = nullptr;
         Element* element = nullptr;
         Label* label = nullptr;
         ResIdx* res_idx = nullptr;

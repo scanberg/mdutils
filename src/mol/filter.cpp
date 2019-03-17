@@ -5,6 +5,8 @@
 #include <mol/trajectory_utils.h>
 #include <mol/molecule_utils.h>
 
+
+
 namespace filter {
 
 struct FilterContext {
@@ -234,7 +236,7 @@ void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale) {
 void initialize() {
 
 	if (context) return;
-	context = new (MALLOC(sizeof(Context))) Context();
+	context = NEW(Context);
 
     /*
             all

@@ -19,11 +19,11 @@ in Vertex {
     vec4 control_point;
     vec4 support_vector;
     vec4 support_tangent;
-    bool discard_vert;
+    int discard_vert;
 } in_vert[];
 
 void main() {
-    if (in_vert[0].discard_vert || in_vert[1].discard_vert) {
+    if (in_vert[0].discard_vert != 0 || in_vert[1].discard_vert != 0) {
         EndPrimitive();
         return;
     }

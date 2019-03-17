@@ -35,19 +35,23 @@ inline __m128 de_periodize(const __m128 a, const __m128 b, const __m128 full_ext
     return res;
 }
 
+#ifdef __AVX__
 inline __m256 de_periodize(const __m256 a, const __m256 b, const __m256 full_ext, const __m256 half_ext) {
 	const __m256 delta = simd::sub(b, a);
 	const __m256 signed_mask = simd::mul(simd::sign(delta), simd::step(half_ext, simd::abs(delta)));
 	const __m256 res = simd::sub(b, simd::mul(full_ext, signed_mask));
 	return res;
 }
+#endif
 
+#if 0
 inline __m512 de_periodize(const __m512 a, const __m512 b, const __m512 full_ext, const __m512 half_ext) {
 	const __m512 delta = simd::sub(b, a);
 	const __m512 signed_mask = simd::mul(simd::sign(delta), simd::step(half_ext, simd::abs(delta)));
 	const __m512 res = simd::sub(b, simd::mul(full_ext, signed_mask));
 	return res;
 }
+#endif
 
 void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation) {
     __m128 t_x = simd::set_128(translation.x);
@@ -425,6 +429,7 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
     }
 }
 
+#ifdef __AVX__
 void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
 	const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
 	const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
@@ -478,6 +483,8 @@ void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, f
 		simd::store(out_z + i, z);
 	}
 }
+
+#endif
 
 void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
 	const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
@@ -1044,13 +1051,13 @@ void compute_atom_radii(float* out_radius, const Element* element, int64 count) 
     }
 }
 
-DynamicArray<float> compute_atom_mass(Array<const Element> elements) {
+DynamicArray<float> compute_atom_masses(Array<const Element> elements) {
 	DynamicArray<float> mass(elements.size(), 0);
 	compute_atom_radii(mass.data(), elements.data(), mass.size());
 	return mass;
 }
 
-void compute_atom_mass(float* out_mass, const Element* element, int64 count) {
+void compute_atom_masses(float* out_mass, const Element* element, int64 count) {
 	for (int64 i = 0; i < count; i++) {
 		out_mass[i] = element::vdw_radius(element[i]);
 	}

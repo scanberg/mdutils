@@ -56,6 +56,17 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
 
+template <typename T>
+int64 extract_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, const bool* RESTRICT src_mask, int64 src_count) {
+    int64 dst_count = 0;
+    for (int64 i = 0; i < src_count; i++) {
+        if (src_mask[i]) {
+            dst_data[out_count] = src_data[i];
+        }
+    }
+    return dst_count;
+}
+
 void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation);
 void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation);
 
@@ -144,8 +155,8 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residue);
 DynamicArray<float> compute_atom_radii(Array<const Element> elements);
 void compute_atom_radii(float* out_radii, const Element* element, int64 count);
 
-DynamicArray<float> compute_atom_mass(Array<const Element> elements);
-void compute_atom_mass(float* out_mass, const Element* element, int64 count);
+DynamicArray<float> compute_atom_masses(Array<const Element> elements);
+void compute_atom_masses(float* out_mass, const Element* element, int64 count);
 
 bool is_amino_acid(const Residue& res);
 bool is_dna(const Residue& res);

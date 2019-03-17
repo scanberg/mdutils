@@ -47,7 +47,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
         return false;
     }
 
-    int64 mem_size = (sizeof(float) * (3 + 3 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
+    int64 mem_size = (sizeof(float) * (3 + 3 + 1 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
     void* mem = TMP_MALLOC(mem_size);
     defer { TMP_FREE(mem); };
     memset(mem, 0, mem_size);
@@ -59,7 +59,8 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     float* atom_vel_y = (float*)(atom_vel_x + num_atoms);
     float* atom_vel_z = (float*)(atom_vel_y + num_atoms);
     float* atom_radius = (float*)(atom_vel_z + num_atoms);
-    Label* atom_label = (Label*)(atom_radius + num_atoms);
+    float* atom_mass = (float*)(atom_radius + num_atoms);
+    Label* atom_label = (Label*)(atom_mass + num_atoms);
     Element* atom_element = (Element*)(atom_label + num_atoms);
     ResIdx* atom_res_idx = (ResIdx*)(atom_element + num_atoms);
 
@@ -128,6 +129,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     box *= 10.f;
 
     compute_atom_radii(atom_radius, atom_element, num_atoms);
+    compute_atom_masses(atom_mass, atom_element, num_atoms);
     auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_res_idx, atom_element, num_atoms);
     auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
@@ -155,6 +157,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     memcpy(mol->atom.velocity.z, atom_vel_z, sizeof(float) * num_atoms);
 
     memcpy(mol->atom.radius, atom_radius, sizeof(float) * num_atoms);
+    memcpy(mol->atom.mass, atom_mass, sizeof(float) * num_atoms);
 
     memcpy(mol->atom.element, atom_element, sizeof(Element) * num_atoms);
     memcpy(mol->atom.label, atom_label, sizeof(Label) * num_atoms);

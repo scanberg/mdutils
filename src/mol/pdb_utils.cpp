@@ -178,6 +178,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
         auto mol_pos_y = pos_y.subarray(0, num_atoms);
         auto mol_pos_z = pos_z.subarray(0, num_atoms);
 
+        auto masses = compute_atom_masses(elements);
         auto radii = compute_atom_radii(elements);
         auto covalent_bonds = compute_covalent_bonds(residues, mol_pos_x.data(), mol_pos_y.data(), mol_pos_z.data(), residue_indices.data(), elements.data(), num_atoms);
         auto backbone_segments = compute_backbone_segments(residues, labels);
@@ -201,6 +202,7 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
         memset(md->molecule.atom.velocity.y, 0, num_atoms * sizeof(float));
         memset(md->molecule.atom.velocity.z, 0, num_atoms * sizeof(float));
         memcpy(md->molecule.atom.radius, radii.data(), num_atoms * sizeof(float));
+        memcpy(md->molecule.atom.mass, masses.data(), num_atoms * sizeof(float));
         memcpy(md->molecule.atom.element, elements.ptr, elements.size_in_bytes());
         memcpy(md->molecule.atom.label, labels.ptr, labels.size_in_bytes());
         memcpy(md->molecule.atom.res_idx, residue_indices.ptr, residue_indices.size_in_bytes());

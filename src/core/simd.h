@@ -114,6 +114,7 @@ INLINE float4 cubic_spline(const __m128 p0, const __m128 p1, const __m128 p2, co
 }
 
 // 256-bit wide
+#ifdef __AVX__
 
 INLINE float8 set_256(float v) { return _mm256_set1_ps(v); }
 INLINE float8 set_256(float x0, float y0, float z0, float w0, float x1, float y1, float z1, float w1) { return _mm256_set_ps(w1, z1, y1, x1, w0, z0, y0, x0); }
@@ -204,7 +205,11 @@ INLINE float8 cubic_spline(const __m256 p0, const __m256 p1, const __m256 p2, co
 	return res;
 }
 
+#endif
+
 // 512-bit wide
+
+#if 0
 
 INLINE float16 set_512(float v) { return _mm512_set1_ps(v); }
 INLINE float16 set_512(float x0, float y0, float z0, float w0,
@@ -283,5 +288,7 @@ INLINE float16 cubic_spline(const __m512 p0, const __m512 p1, const __m512 p2, c
 	const float16 res = add(r0, r1);
 	return res;
 }
+
+#endif
 
 }  // namespace simd

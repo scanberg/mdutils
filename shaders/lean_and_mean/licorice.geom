@@ -7,7 +7,7 @@ layout (lines) in;
 layout (triangle_strip, max_vertices = 24) out;
 
 in Vertex {
-    flat bool discard_vert;
+    flat int discard_vert;
 } in_vert[];
 
 out Fragment {
@@ -44,7 +44,7 @@ vec3 get_ortho_vec(vec3 v, vec3 A, vec3 B){
 
 void main()
 {
-    if (in_vert[0].discard_vert || in_vert[1].discard_vert) {
+    if (in_vert[0].discard_vert != 0 || in_vert[1].discard_vert != 0) {
         EndPrimitive();
         return;
     }

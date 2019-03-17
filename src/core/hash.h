@@ -132,8 +132,8 @@ constexpr uint64 crc64(const char (&cstr)[N]) {
     return crc64(cstr, N - 1);
 }
 
+#if 0
 // --- MEOW (fast) ---
-
 inline uint32 meow32(const void* ptr, size_t size) {
 	meow_hash hash = MeowHash_Accelerated(0, size, (void*)ptr);
 	return MeowU32From(hash, 0);
@@ -176,5 +176,6 @@ constexpr uint64 meow64(const char(&cstr)[N]) {
 	STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
 	return meow64(cstr, N - 1);
 }
+#endif
 
 }  // namespace hash
