@@ -75,8 +75,7 @@ void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RE
 
 void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
-        vec4 p{pos_x[i], pos_y[i], pos_z[i], 1.0f};
-        p = transformation * p;
+        const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
         pos_x[i] = p.x;
         pos_y[i] = p.y;
         pos_z[i] = p.z;
@@ -134,27 +133,32 @@ vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
-    vec3 sum{0};
+    vec3 p_sum{0};
+	float m_sum = 0.0f;
     for (int32 i = 0; i < count; i++) {
-        const vec3 pos = {pos_x[i], pos_y[i], pos_z[i]};
-        sum += pos * mass[i];
+        const vec3 p = {pos_x[i], pos_y[i], pos_z[i]};
+		const float m = mass[i];
+        p_sum += p * m;
+		m_sum += m;
     }
 
-    return sum / (float)count;
+    return p_sum / m_sum;
 }
 
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const Element* RESTRICT element, int64 count) {
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
 
-    vec3 sum{0};
+    vec3 p_sum{0};
+	float m_sum = 0.0f;
     for (int32 i = 0; i < count; i++) {
-        const vec3 pos = {pos_x[i], pos_y[i], pos_z[i]};
-        const float mass = element::atomic_mass(element[i]);
-        sum += pos * mass;
+        const vec3 p = {pos_x[i], pos_y[i], pos_z[i]};
+        const float m = element::atomic_mass(element[i]);
+        p_sum += p * m;
+		m_sum += m;
     }
 
-    return sum / (float)count;
+    return p_sum / m_sum;
 }
 
 /*
@@ -619,7 +623,7 @@ bool valid_segment(const BackboneSegment& segment) { return segment.ca_idx != -1
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
 // The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_idx, const Element* element, int64 count) {
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_range, const Element* element, int64 count) {
     if (residues.count == 0) {
         LOG_WARNING("Cannot compute covalent bonds, no residues were given.");
         return {};
@@ -644,12 +648,12 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* 
         }
 
         // Internal bonds
-        for (AtomIdx i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
+        for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
             const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, pos_x, pos_y, pos_z, res_idx, element, i](int j, const vec3& atom_j_pos) {
+            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, pos_x, pos_y, pos_z, res_range, element, i](int j, const vec3& atom_j_pos) {
                 (void)atom_j_pos;
                 const bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
-                if (i < j && res_idx[i] == res_idx[j] && has_bond) {
+                if (i < j && res_range[i] == res_range[j] && has_bond) {
                     bonds.push_back({{i, j}});
                     res.bond_idx.end++;
                 }
@@ -658,12 +662,12 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* 
         res.bond_idx.end_internal = res.bond_idx.end;
 
         // Now locate external bonds to next residue
-        for (AtomIdx i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
+        for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
             const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, pos_x, pos_y, pos_z, res_idx, element, i](int j, const vec3& atom_j_pos) {
+            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, pos_x, pos_y, pos_z, res_range, element, i](int j, const vec3& atom_j_pos) {
                 (void)atom_j_pos;
                 const bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
-                const bool consecutive_res = math::abs(res_idx[i] - res_idx[j]) == 1;
+                const bool consecutive_res = math::abs(res_range[i] - res_range[j]) == 1;
                 if (i < j && consecutive_res && has_bond) {
                     bonds.push_back({{i, j}});
                     res.bond_idx.end++;
@@ -737,13 +741,13 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
             chains.push_back({lbl, {(ResIdx)i, (ResIdx)i}, {}});
         }
         if (chains.size() > 0) {
-            chains.back().res_idx.end++;
+            chains.back().res_range.end++;
         }
     }
 
     for (auto& c : chains) {
-        c.atom_idx.beg = residues[c.res_idx.beg].atom_idx.beg;
-        c.atom_idx.end = residues[c.res_idx.end - 1].atom_idx.end;
+        c.atom_range.beg = residues[c.res_range.beg].atom_range.beg;
+        c.atom_range.end = residues[c.res_range.end - 1].atom_range.end;
     }
 
     return chains;
@@ -780,7 +784,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
     int64 invalid_segments = 0;
     constexpr int32 min_atom_count = 4;  // Must contain at least 8 atoms to be considered as an amino acid.
     for (auto& res : residues) {
-        const int32 atom_count = res.atom_idx.end - res.atom_idx.beg;
+        const int32 atom_count = res.atom_range.end - res.atom_range.beg;
         if (atom_count < min_atom_count) {
             segments.push_back({-1, -1, -1, -1});
             invalid_segments++;
@@ -790,7 +794,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
         BackboneSegment seg{};
         // if (is_amino_acid(res)) {
         // find atoms
-        for (int32 i = res.atom_idx.beg; i < res.atom_idx.end; i++) {
+        for (int32 i = res.atom_range.beg; i < res.atom_range.end; i++) {
             const auto& lbl = atom_labels[i];
             if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
             if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
@@ -801,7 +805,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
         // Could not match "O"
         if (seg.o_idx == -1) {
             // Pick first atom containing O after C atom
-            for (int32 i = seg.c_idx; i < res.atom_idx.end; i++) {
+            for (int32 i = seg.c_idx; i < res.atom_range.end; i++) {
                 const auto& lbl = atom_labels[i];
                 if (lbl[0] == 'o' || lbl[0] == 'O') seg.o_idx = i;
             }

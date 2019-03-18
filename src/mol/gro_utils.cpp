@@ -78,12 +78,12 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     for (int i = 0; i < num_atoms; ++i) {
         float pos[3] = {0, 0, 0};
         float vel[3] = {0, 0, 0};
-        int atom_idx, res_id;
+        int atom_range, res_id;
         char atom_name[8] = {};
         char res_name[8] = {};
 
         line = extract_line(gro_string);
-        int result = sscanf(line, format, &res_id, res_name, atom_name, &atom_idx, &pos[0], &pos[1], &pos[2], &vel[0], &vel[1], &vel[2]);
+        int result = sscanf(line, format, &res_id, res_name, atom_name, &atom_range, &pos[0], &pos[1], &pos[2], &vel[0], &vel[1], &vel[2]);
         if (result > 0) {
             if (cur_res != res_id) {
                 cur_res = res_id;
@@ -93,10 +93,10 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
                 res.name = res_name_trim;
                 res.id = res_id;
                 res.chain_idx = 0;
-                res.atom_idx = {i, i};
+                res.atom_range = {i, i};
                 residues.push_back(res);
             }
-            residues.back().atom_idx.end++;
+            residues.back().atom_range.end++;
 
             CString atom_name_trim = trim(CString(atom_name));
             CString element_str = atom_name_trim;
@@ -139,7 +139,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
 
     for (ChainIdx c = 0; c < chains.count; c++) {
-        for (auto i = chains[c].res_idx.beg; i < chains[c].res_idx.end; i++) {
+        for (auto i = chains[c].res_range.beg; i < chains[c].res_range.end; i++) {
             residues[i].chain_idx = c;
         }
     }

@@ -35,7 +35,7 @@ inline int32 get_backbone_angles_trajectory_current_frame_count(const BackboneAn
 }
 
 inline Array<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index, Chain chain) {
-    return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_idx.beg, chain.res_idx.end - chain.res_idx.end);
+    return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_range.beg, chain.res_range.end - chain.res_range.end);
 }
 
 DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues);
@@ -57,14 +57,15 @@ void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
 
 template <typename T>
-int64 extract_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, const bool* RESTRICT src_mask, int64 src_count) {
-    int64 dst_count = 0;
-    for (int64 i = 0; i < src_count; i++) {
-        if (src_mask[i]) {
-            dst_data[out_count] = src_data[i];
+int64 extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Array<const bool> mask) {
+    int64 out_count = 0;
+    for (int64 i = 0; i < mask.size(); i++) {
+        if (mask[i]) {
+            out_data[out_count] = in_data[i];
+			out_count++;
         }
     }
-    return dst_count;
+    return out_count;
 }
 
 void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation);
@@ -142,7 +143,7 @@ void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx);
 
 // This computes heuristical covalent bonds in a hierarchical way (first internal, then external per residue) and stores the indices to the bonds
 // within the residues. Only adjacent residues can form external covalent bonds in this function.
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_idx, const Element* element, int64 count);
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_range, const Element* element, int64 count);
 
 // This is computes heuristical covalent bonds between any atoms without hierarchical constraints.
 DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);

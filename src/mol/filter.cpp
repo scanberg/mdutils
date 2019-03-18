@@ -261,7 +261,7 @@ void initialize() {
         memset(mask.data(), 0, mask.count);
         for (const auto& res : ctx.md.molecule.residues) {
             if (is_amino_acid(res)) {
-                memset(mask.data() + res.atom_idx.beg, 1, res.atom_idx.end - res.atom_idx.beg);
+                memset(mask.data() + res.atom_range.beg, 1, res.atom_range.end - res.atom_range.beg);
             }
         }
         return true;
@@ -289,7 +289,7 @@ void initialize() {
     context->filter_commands.push_back({"water", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
                                    memset(mask.data(), 0, mask.size_in_bytes());
                                    for (const auto& res : ctx.md.molecule.residues) {
-                                       const auto res_size = res.atom_idx.end - res.atom_idx.beg;
+                                       const auto res_size = res.atom_range.end - res.atom_range.beg;
                                        if (res_size == 3) {
                                            int32 h_count = 0;
                                            int32 o_count = 0;
@@ -298,7 +298,7 @@ void initialize() {
                                                if (e == Element::O) o_count++;
                                            }
                                            if (h_count == 2 && o_count == 1) {
-                                               memset(mask.data() + res.atom_idx.beg, 1, res_size);
+                                               memset(mask.data() + res.atom_range.beg, 1, res_size);
                                            }
                                        }
                                    }
@@ -319,7 +319,7 @@ void initialize() {
                                    memset(mask.data(), 0, mask.size_in_bytes());
                                    for (const auto& res : ctx.md.molecule.residues) {
                                        if (is_dna(res)) {
-                                           memset(mask.data() + res.atom_idx.beg, 1, res.atom_idx.end - res.atom_idx.beg);
+                                           memset(mask.data() + res.atom_range.beg, 1, res.atom_range.end - res.atom_range.beg);
                                        }
                                    }
                                    return true;
@@ -396,8 +396,8 @@ void initialize() {
                                        range.x = math::clamp(range.x, 0, (int32)ctx.md.molecule.residues.count - 1);
                                        range.y = math::clamp(range.y, 0, (int32)ctx.md.molecule.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           const auto beg = ctx.md.molecule.residues[i].atom_idx.beg;
-                                           const auto end = ctx.md.molecule.residues[i].atom_idx.end;
+                                           const auto beg = ctx.md.molecule.residues[i].atom_range.beg;
+                                           const auto end = ctx.md.molecule.residues[i].atom_range.end;
                                            memset(mask.data() + beg, 1, end - beg);
                                        }
                                    }
@@ -409,8 +409,8 @@ void initialize() {
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& res : ctx.md.molecule.residues) {
                                            if (compare(args[i], res.name)) {
-                                               const auto beg = res.atom_idx.beg;
-                                               const auto end = res.atom_idx.end;
+                                               const auto beg = res.atom_range.beg;
+                                               const auto end = res.atom_range.end;
                                                memset(mask.data() + beg, 1, end - beg);
                                            }
                                        }
@@ -429,8 +429,8 @@ void initialize() {
                                        range.x = math::clamp(range.x - 1, 0, (int32)ctx.md.molecule.residues.count - 1);
                                        range.y = math::clamp(range.y - 1, 0, (int32)ctx.md.molecule.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           const auto beg = ctx.md.molecule.residues[i].atom_idx.beg;
-                                           const auto end = ctx.md.molecule.residues[i].atom_idx.end;
+                                           const auto beg = ctx.md.molecule.residues[i].atom_range.beg;
+                                           const auto end = ctx.md.molecule.residues[i].atom_range.end;
                                            memset(mask.data() + beg, 1, end - beg);
                                        }
                                    }
@@ -449,7 +449,7 @@ void initialize() {
                                        range.y = math::clamp(range.y - 1, 0, (int32)ctx.md.molecule.chains.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
                                            Chain chain = get_chain(ctx.md.molecule, (ChainIdx)i);
-                                           memset(mask.data() + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
+                                           memset(mask.data() + chain.atom_range.beg, 1, chain.atom_range.end - chain.atom_range.beg);
                                        }
                                    }
                                    return true;
@@ -460,7 +460,7 @@ void initialize() {
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& chain : ctx.md.molecule.chains) {
                                            if (compare(args[i], chain.id)) {
-                                               memset(mask.data() + chain.atom_idx.beg, 1, chain.atom_idx.end - chain.atom_idx.beg);
+                                               memset(mask.data() + chain.atom_range.beg, 1, chain.atom_range.end - chain.atom_range.beg);
 											   break;
                                            }
                                        }

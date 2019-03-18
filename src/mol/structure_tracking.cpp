@@ -143,23 +143,15 @@ static void diagonalize(const mat3& M, mat3* Q, mat3* D) {
 static void decompose(const mat3& M, mat3* R, mat3* S) {
 	ASSERT(R);
 	ASSERT(S);
-	mat3 Q, D;
 	mat3 AtA = math::transpose(M) * M;
+	mat3 Q, D;
 	diagonalize(AtA, &Q, &D);
-	float det = math::determinant(AtA);
+	const float det = math::determinant(AtA); // For debugging
 	D[0][0] = sqrtf(D[0][0]);
 	D[1][1] = sqrtf(D[1][1]);
 	D[2][2] = sqrtf(D[2][2]);
 	*S = math::inverse(Q) * D * Q;
 	*R = M * math::inverse(*S);
-}
-
-static mat3 covariance_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass,
-							  int64 count, const vec3& com) {
-	mat3 cov;
-	for (int64 i = 0; i < count; i++) {
-
-	}
 }
 
 static mat3 compute_linear_transform(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
@@ -199,7 +191,7 @@ static mat3 compute_linear_transform(const float* RESTRICT x0, const float* REST
 		Aqq[2][2] += mass[i] * q_z * q_z;
 	}
 
-	*dst_mat = Apq / Aqq;
+	return Apq / Aqq;
 }
 
 static void compute_residual_error(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
@@ -371,22 +363,22 @@ void extract_data_from_indices(T* RESTRICT dst_data, const T* RESTRICT src_data,
 	}
 }
 
-void compute_transform(Transform* transform,
-					   const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT* z0
-					   const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT* z1,
-					   const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1)
+mat3 compute_rotation(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
+					  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
+					  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1)
 {
-	ASSERT(trans);
-	transform->translation = compute_com(cur_x, cur_y, cur_z, mass, num_points);
-	transform->rotation = compute_linear_transform(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
+	mat3 M = compute_linear_transform(x0, y0, z0, x1, y1, z1, mass, count, com0, com1);
+	mat3 R, S;
+	decompose(M, &R, &S);
+	return R;
 }
 
-bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStructure& mol, const MoleculeTrajectory& traj, int32 ref_idx) {
+bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx) {
 	ASSERT(context);
 
-	const int32 num_frames = (int32)traj.num_frames;
-	if (ref_idx >= num_frames) {
-		LOG_ERROR("Supplied reference frame index is out of range.");
+	const int32 num_frames = (int32)dynamic.trajectory.num_frames;
+	if (target_frame_idx >= num_frames) {
+		LOG_ERROR("Supplied target frame index is out of range.");
 		return false;
 	}
 
@@ -412,8 +404,8 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 	}
 
 	// Allocate memory for all data
-	init_structure_data(s, id, ref_idx, num_points, num_frames, rbf_radial_cutoff);
-	s->transform[ref_idx] = {};
+	init_structure_data(s, id, target_frame_idx, num_points, num_frames);
+	s->transform[target_frame_idx] = {};
 
 	// Scratch data
 	const auto mem_size = sizeof(float) * num_points * 3;
@@ -435,105 +427,62 @@ bool compute_tracking_data(ID id, Array<const bool> atom_mask, const MoleculeStr
 	float* ref_z = s->reference.z;
 	float* mass = s->reference.mass;
 
-	for (int32 i = 0; i < num_points; i++) {
-		mass[i] = element::atomic_mass(mol.atom.element[indices[i]]);
-	}
-	extract_data_from_indices(ref_x, get_trajectory_position_x(traj, ref_idx).data(), indices, num_points);
-	extract_data_from_indices(ref_y, get_trajectory_position_y(traj, ref_idx).data(), indices, num_points);
-	extract_data_from_indices(ref_z, get_trajectory_position_z(traj, ref_idx).data(), indices, num_points);
+	extract_data_from_indices(ref_x, get_trajectory_position_x(dynamic.trajectory, target_frame_idx).data(), indices, num_points);
+	extract_data_from_indices(ref_y, get_trajectory_position_y(dynamic.trajectory, target_frame_idx).data(), indices, num_points);
+	extract_data_from_indices(ref_z, get_trajectory_position_z(dynamic.trajectory, target_frame_idx).data(), indices, num_points);
 	const vec3 ref_com = compute_com(ref_x, ref_y, ref_z, mass, num_points);
 
-	for (int32 cur_idx = 0; cur_idx < traj.num_frames; cur_idx++) {
-		if (cur_idx == ref_idx) continue;
-		extract_data_from_indices(cur_x, get_trajectory_position_x(traj, cur_idx).data(), indices, num_points);
-		extract_data_from_indices(cur_y, get_trajectory_position_y(traj, cur_idx).data(), indices, num_points);
-		extract_data_from_indices(cur_z, get_trajectory_position_z(traj, cur_idx).data(), indices, num_points);
+	for (int32 cur_idx = 0; cur_idx < num_frames; cur_idx++) {
+		if (cur_idx == target_frame_idx) continue;
+		extract_data_from_indices(cur_x, get_trajectory_position_x(dynamic.trajectory, cur_idx).data(), indices, num_points);
+		extract_data_from_indices(cur_y, get_trajectory_position_y(dynamic.trajectory, cur_idx).data(), indices, num_points);
+		extract_data_from_indices(cur_z, get_trajectory_position_z(dynamic.trajectory, cur_idx).data(), indices, num_points);
 
-		vec3& cur_com = s->transform[cur_idx].com;
-		mat3& cur_ori = s->transform[cur_idx].rotation;
-
-		cur_com = compute_com(cur_x, cur_y, cur_z, mass, num_points);
+		const vec3 cur_com = compute_com(cur_x, cur_y, cur_z, mass, num_points);
 		
 		//float* rbf_x = s->data.rbf.weight.x + i * num_points;
 		//float* rbf_y = s->data.rbf.weight.y + i * num_points;
 		//float* rbf_z = s->data.rbf.weight.z + i * num_points;
 
 		// @NOTE: Compute linear transformation matrix between the two sets of points.
-		cor_ori = compute_linear_transform(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
+		const mat3 cur_rot = compute_linear_transform(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
 	
 		// @NOTE: Compute residual error between the two sets of points.
 		//compute_residual_error(err_x, err_y, err_z, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, num_points, *M);
 
 		// @NOTE: Encode residual error as rbf at reference points
 		//compute_rbf_weights(rbf_x, rbf_y, rbf_z, ref_x, ref_y, ref_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
+
+		s->transform->rotation = cur_rot;
+		s->transform->translation = cur_com;
 	}
 
 	return true;
 }
 
-bool transform_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID id, int32 frame_idx) {
+const Transform& get_transform_to_target_frame(ID id, int32 source_frame) {
 	ASSERT(context);
+	static const Transform invalid_transform{};
+
 	Structure* s = find_structure(id);
 	if (s == nullptr) {
 		LOG_ERROR("Supplied id is not valid.");
-		return false;
+		return invalid_transform;
 	}
 
-	if (frame_idx < 0 || s->num_frames <= frame_idx) {
-		LOG_ERROR("Supplied frame_idx is out of range.");
-		return false;
+	if (source_frame < 0 || s->num_frames <= source_frame) {
+		LOG_ERROR("Supplied frame is out of range");
+		return invalid_transform;
 	}
 
-	mat4 R = s->frame_data.transform[i].rotation;
-	mat4 T = mat4(vec4(1,0,0,0), vec4(0,1,0,0), vec4(0,0,1,0), vec4(-s->frame_data.transform[i].com, 1));
-	mat4 M = R * T;
-
-	transform_positions(x, y, z, count, M);
-	return true;
+	return s->transform[source_frame];
 }
 
-bool transform_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID id, int32 frame_idx) {
-	ASSERT(context);
-	Structure* s = find_structure(id);
-	if (s == nullptr) {
-		LOG_ERROR("Supplied id is not valid.");
-		return false;
-	}
-
-	if (frame_idx < 0 || s->num_frames <= frame_idx) {
-		LOG_ERROR("Supplied frame_idx is out of range.");
-		return false;
-	}
-
-	mat4 R = s->transform[i].rotation;
-	mat4 T = mat4(vec4(1,0,0,0), vec4(0,1,0,0), vec4(0,0,1,0), vec4(-s->transform[i].com, 1));
-	mat4 M = R * T;
-
+void apply_transform(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, const Transform& t, TransformFlags flags) {
+	const mat4 R = (flags & TransformFlag_Rotate) ? t.rotation : mat4(1);
+	const mat4 T = (flags & TransformFlag_Translate) ? mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(t.translation, 1)) : mat4(1);
+	const mat4 M = T * R;
 	transform_positions(x, y, z, count, M);
-	return true;
-}
-
-bool transform_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID id) {
-	ASSERT(context);
-	Structure* s = find_structure(id);
-	if (s == nullptr) {
-		LOG_ERROR("Supplied id is not valid.");
-		return false;
-	}
-
-	const float* ref_x = s->reference.x;
-	const float* ref_y = s->reference.y;
-	const float* ref_z = s->reference.z;
-	const float* mass = s->reference.mass;
-	const vec3& ref_com = s->transform[s->ref_frame_idx].com;
-	const vec3& com = compute_com(x, y, z, mass, count);
-
-	mat4 R = compute_linear_transform(x, y, z, ref_x, ref_y, ref_z, mass, count, com, ref_com);
-	mat4 T = mat4(vec4(1,0,0,0), vec4(0,1,0,0), vec4(0,0,1,0), vec4(-ref_com, 1));
-	mat4 M = R * T;
-
-	transform_positions(x, y, z, count, M);
-	return true;
 }
 
 } // namespace structure_tracking

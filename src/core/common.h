@@ -69,6 +69,17 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define TMP_FREE(addr) free(addr)
 #endif
 
+#ifdef NEW
+#undef NEW
+#endif
+
+#ifdef PLACEMENT_NEW
+#undef PLACEMENT_NEW
+#endif
+
+#ifdef DELETE
+#undef DELETE
+#endif
 
 // Blatantly stolen from ImGui (thanks Omar!)
 struct NewDummy {};

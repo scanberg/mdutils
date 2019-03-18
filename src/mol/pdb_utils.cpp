@@ -133,8 +133,8 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
             if (current_chain_id != chain_id && chain_id != ' ') {
                 current_chain_id = chain_id;
                 Chain chain;
-                chain.res_idx = {(ResIdx)residues.size(), (ResIdx)residues.size()};
-                chain.atom_idx = {num_atoms, num_atoms};
+                chain.res_range = {(ResIdx)residues.size(), (ResIdx)residues.size()};
+                chain.atom_range = {num_atoms, num_atoms};
                 chain.id = chain_id;
                 chains.push_back(chain);
             }
@@ -146,14 +146,14 @@ bool allocate_and_parse_pdb_from_string(MoleculeDynamic* md, CString pdb_string)
                 res.name = trim(line.substr(17, 3));
                 res.id = res_id;
                 res.chain_idx = (ChainIdx)(chains.size() - 1);
-                res.atom_idx = {num_atoms, num_atoms};
+                res.atom_range = {num_atoms, num_atoms};
                 residues.push_back(res);
                 if (chains.size() > 0) {
-                    chains.back().res_idx.end++;
+                    chains.back().res_range.end++;
                 }
             }
-            if (residues.size() > 0) residues.back().atom_idx.end++;
-            if (chains.size() > 0) chains.back().atom_idx.end++;
+            if (residues.size() > 0) residues.back().atom_range.end++;
+            if (chains.size() > 0) chains.back().atom_range.end++;
 
             residue_indices.push_back((ResIdx)(residues.size() - 1));
 

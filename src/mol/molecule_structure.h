@@ -43,7 +43,7 @@ struct Residue {
     ResIdx id = -1;
     ChainIdx chain_idx = -1;
 
-    AtomRange atom_idx;
+    AtomRange atom_range;
 
     struct {
         // Covalent bonds for a residue
@@ -61,8 +61,8 @@ struct Residue {
 struct Chain {
     Label id{};
 
-    ResRange res_idx;
-    AtomRange atom_idx;
+    ResRange res_range;
+    AtomRange atom_range;
 };
 
 // Interface to access molecular data
@@ -169,41 +169,41 @@ inline Chain get_chain(const MoleculeStructure& mol, ChainIdx idx) {
 }
 
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, const Chain& chain) {
-    ASSERT(0 <= chain.res_idx.beg && chain.res_idx.end <= mol.residues.count);
+    ASSERT(0 <= chain.res_range.beg && chain.res_range.end <= mol.residues.count);
     if (mol.backbone.segments.count == 0) return {};
-    return mol.backbone.segments.subarray(chain.res_idx);
+    return mol.backbone.segments.subarray(chain.res_range);
 }
 
 inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, const Chain& chain) {
-    ASSERT(0 <= chain.res_idx.beg && chain.res_idx.end <= mol.residues.count);
+    ASSERT(0 <= chain.res_range.beg && chain.res_range.end <= mol.residues.count);
     if (mol.backbone.segments.count == 0) return {};
-    return mol.backbone.segments.subarray(chain.res_idx);
+    return mol.backbone.segments.subarray(chain.res_range);
 }
 
-inline Array<Residue> get_residues(MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_idx); }
-inline Array<const Residue> get_residues(const MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_idx); }
+inline Array<Residue> get_residues(MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
+inline Array<const Residue> get_residues(const MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
 
 inline Array<Element> get_elements(MoleculeStructure& mol, Chain& chain) {
-    return get_elements(mol).subarray(chain.atom_idx);
+    return get_elements(mol).subarray(chain.atom_range);
 }
 
 inline Array<const Element> get_elements(const MoleculeStructure& mol, const Chain& chain) {
-    return get_elements(mol).subarray(chain.atom_idx);
+    return get_elements(mol).subarray(chain.atom_range);
 }
 
 inline Array<Label> get_labels(MoleculeStructure& mol, Chain& chain) {
-    return get_labels(mol).subarray(chain.atom_idx);
+    return get_labels(mol).subarray(chain.atom_range);
 }
 
 inline Array<const Label> get_labels(const MoleculeStructure& mol, const Chain& chain) {
-    return get_labels(mol).subarray(chain.atom_idx);
+    return get_labels(mol).subarray(chain.atom_range);
 }
 
 // Res func
-inline Array<Element> get_elements(MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_idx); }
-inline Array<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_idx); }
-inline Array<Label> get_labels(MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_idx); }
-inline Array<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_idx); }
+inline Array<Element> get_elements(MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_range); }
+inline Array<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_range); }
+inline Array<Label> get_labels(MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_range); }
+inline Array<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_range); }
 inline Array<Bond> get_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
 inline Array<const Bond> get_bonds(const MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
 inline Array<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }

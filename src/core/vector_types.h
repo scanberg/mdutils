@@ -1,7 +1,7 @@
 #pragma once
 
-#define GLM_FORCE_INTRINSICS
-#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+//#define GLM_FORCE_INTRINSICS
+//#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>

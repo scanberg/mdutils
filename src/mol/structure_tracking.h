@@ -5,14 +5,13 @@
 #include <core/vector_types.h>
 #include <core/hash.h>
 
-struct MoleculeStructure;
-struct MoleculeTrajectory;
+struct MoleculeDynamic;
 
 enum TransformFlag_ {
-    TransformFlag_Translate = 1,
-    TransformFlag_Rotate = 2,
-    TransformFlag_All = 0xFFFFFFFF
-}
+	TransformFlag_Translate = 1,
+	TransformFlag_Rotate = 2,
+	TransformFlag_All = 0xFFFFFFFF
+};
 
 typedef int TransformFlags;
 
@@ -34,18 +33,14 @@ bool remove_structure(ID structure_id);
 
 void clear_structures();
 
-bool compute_transform(Transform* transform,
-                       const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
-                       const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
-                       const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1);
+mat3 compute_rotation(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
+					  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
+					  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1);
 
 bool compute_trajectory_transform_data(ID structure_id, Array<const bool> atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx = 0);
 
 const Transform& get_transform_to_target_frame(ID structure_id, int32 source_frame);
 
-//bool transform_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID structure_id, int32 frame_idx);
-//bool transform_to_reference(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, ID structure_id);
-
-void apply_transform(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const Transform& t, TransformFlags flags = TransformFlag_All);
+void apply_transform(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, const Transform& t, TransformFlags flags = TransformFlag_All);
 
 }  // namespace structure_tracking

@@ -45,7 +45,7 @@ struct AtomMask {
 };
 
 struct Bond {
-    uint32 atom_idx[2];
+    uint32 atom_range[2];
 };
 
 void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint atom_color_buffer, GLuint atom_velocity_buffer, int32 atom_count, const ViewParam& view_param, float radius_scale = 1.f);
