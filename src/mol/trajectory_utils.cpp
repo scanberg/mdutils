@@ -124,9 +124,8 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
     return true;
 }
 
-bool all_trajectory_frames_read(MoleculeTrajectory* traj) {
-    ASSERT(traj);
-    return (traj->num_frames == (int32)traj->frame_offsets.count);
+bool all_trajectory_frames_read(const MoleculeTrajectory& traj) {
+    return (traj.num_frames == (int32)traj.frame_offsets.count);
 }
 
 bool close_file_handle(MoleculeTrajectory* traj) {

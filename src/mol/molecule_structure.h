@@ -69,6 +69,7 @@ struct Chain {
 struct MoleculeStructure {
     // SOA Layout for Atom data
     struct {
+		// Aligned data
         int64 count = 0;
         struct {
             float* x = nullptr;
@@ -82,6 +83,8 @@ struct MoleculeStructure {
         } velocity;
         float* radius = nullptr;
         float* mass = nullptr;
+
+		// Non aligned data
         Element* element = nullptr;
         Label* label = nullptr;
         ResIdx* res_idx = nullptr;

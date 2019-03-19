@@ -5,13 +5,12 @@
 // Reads the header info of a trajectory and allocates space for it
 // Only supports XTC currently
 bool load_and_allocate_trajectory(MoleculeTrajectory* traj, CString path);
+bool close_file_handle(MoleculeTrajectory* traj);
 
 // Reads the actual trajectory position information... Necessary?
 bool read_trajectory_data(MoleculeTrajectory* traj);
-
 bool read_next_trajectory_frame(MoleculeTrajectory* traj);
-bool all_trajectory_frames_read(MoleculeTrajectory* traj);
-bool close_file_handle(MoleculeTrajectory* traj);
+bool all_trajectory_frames_read(const MoleculeTrajectory& traj);
 
 //void copy_trajectory_frame(TrajectoryFrame* dst, const MoleculeTrajectory& src_traj, int frame_index);
 //void copy_trajectory_positions(Array<vec3> dst_array, const MoleculeTrajectory& traj, int frame_index);

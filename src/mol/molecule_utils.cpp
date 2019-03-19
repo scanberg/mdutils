@@ -76,9 +76,9 @@ void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RE
 void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
         const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
-        pos_x[i] = p.x;
-        pos_y[i] = p.y;
-        pos_z[i] = p.z;
+        pos_x[i] = p.x / p.w;
+        pos_y[i] = p.y / p.w;
+        pos_z[i] = p.z / p.w;
     }
 }
 

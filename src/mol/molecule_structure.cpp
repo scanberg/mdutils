@@ -1,6 +1,7 @@
 #include "molecule_structure.h"
 
-#define ALIGNMENT 64
+// 32-byte alignment for 256-bit vectorization (AVX+ architectures)
+#define ALIGNMENT 32
 
 bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_backbone_segments, int32 num_backbone_sequences,
                              int32 num_hydrogen_bond_donors, int32 num_hydrogen_bond_acceptors) {
@@ -17,8 +18,7 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     alloc_size += num_hydrogen_bond_donors * sizeof(HydrogenBondDonor);
     alloc_size += num_hydrogen_bond_acceptors * sizeof(HydrogenBondAcceptor);
 
-    // Aligned
-
+    // Allocate Aligned data (@NOTE: Is perhaps not necessary as trajectory data is not aligned anyways...)
     void* data = MALLOC(alloc_size);
     void* pos_data = ALIGNED_MALLOC((num_atoms * sizeof(float) + ALIGNMENT) * 3, ALIGNMENT);
     void* vel_data = ALIGNED_MALLOC((num_atoms * sizeof(float) + ALIGNMENT) * 3, ALIGNMENT);

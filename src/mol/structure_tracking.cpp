@@ -31,6 +31,7 @@ struct Entry {
 };
 
 struct Context {
+	uint32 next_hash = 0xb00bf00d;
 	DynamicArray<Entry> entries{};
 };
 
@@ -322,17 +323,17 @@ void shutdown() {
 	}
 }
 
-bool create_structure(ID id) {
+ID create_structure() {
 	ASSERT(context);
-	ASSERT(id != 0);
+	ID id = context->next_hash;
+	context->next_hash = hash::crc32(context->next_hash);
 
-	if (find_structure(id) != NULL) {
-		LOG_ERROR("Could not create structure: it already exists!");
-		return false;
-	}
+	// This is to ensure that no collision happens
+	ASSERT(find_structure(id) == nullptr);
+
 	Structure* s = new (MALLOC(sizeof(Structure))) Structure();
 	context->entries.push_back({id, s});
-	return true;
+	return id;
 }
 
 bool remove_structure(ID id) {
@@ -455,7 +456,6 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 		//compute_rbf_weights(rbf_x, rbf_y, rbf_z, ref_x, ref_y, ref_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
 
 		s->transform->rotation = cur_rot;
-		s->transform->translation = cur_com;
 	}
 
 	return true;
@@ -477,13 +477,6 @@ const Transform& get_transform_to_target_frame(ID id, int32 source_frame) {
 	}
 
 	return s->transform[source_frame];
-}
-
-void apply_transform(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, const Transform& t, TransformFlags flags) {
-	const mat4 R = (flags & TransformFlag_Rotate) ? mat4(t.rotation) : mat4(1);
-	const mat4 T = (flags & TransformFlag_Translate) ? mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(t.translation, 1)) : mat4(1);
-	const mat4 M = T * R;
-	transform_positions(x, y, z, count, M);
 }
 
 } // namespace structure_tracking
