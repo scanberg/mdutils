@@ -150,6 +150,7 @@ static void decompose(const mat3& M, mat3* R, mat3* S) {
 	D[0][0] = sqrtf(D[0][0]);
 	D[1][1] = sqrtf(D[1][1]);
 	D[2][2] = sqrtf(D[2][2]);
+	// @NOTE: Should one zero every non diagonal element???
 	*S = math::inverse(Q) * D * Q;
 	*R = M * math::inverse(*S);
 }
@@ -479,7 +480,7 @@ const Transform& get_transform_to_target_frame(ID id, int32 source_frame) {
 }
 
 void apply_transform(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, int64 count, const Transform& t, TransformFlags flags) {
-	const mat4 R = (flags & TransformFlag_Rotate) ? t.rotation : mat4(1);
+	const mat4 R = (flags & TransformFlag_Rotate) ? mat4(t.rotation) : mat4(1);
 	const mat4 T = (flags & TransformFlag_Translate) ? mat4(vec4(1, 0, 0, 0), vec4(0, 1, 0, 0), vec4(0, 0, 1, 0), vec4(t.translation, 1)) : mat4(1);
 	const mat4 M = T * R;
 	transform_positions(x, y, z, count, M);
