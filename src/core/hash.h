@@ -4,8 +4,10 @@
 #include <core/array_types.h>
 #include <core/string_utils.h>
 
+#if USE_MEOW_HASH == 1
 #include "ext/meow_hash/meow_intrinsics.h"
 #include "ext/meow_hash/meow_hash.h"
+#endif
 
 /*
 https://github.com/LordJZ/consthash
@@ -132,7 +134,7 @@ constexpr uint64 crc64(const char (&cstr)[N]) {
     return crc64(cstr, N - 1);
 }
 
-#if 0
+#if USE_MEOW_HASH == 1
 // --- MEOW (fast) ---
 inline uint32 meow32(const void* ptr, size_t size) {
 	meow_hash hash = MeowHash_Accelerated(0, size, (void*)ptr);

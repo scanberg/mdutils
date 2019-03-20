@@ -9,6 +9,7 @@ struct MoleculeDynamic;
 
 struct Transform {
     mat3 rotation = {};
+	vec3 com = {};
 };
 
 namespace structure_tracking {

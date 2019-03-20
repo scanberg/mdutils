@@ -12,7 +12,7 @@ source_group("core" FILES ${CORE_FILES})
 source_group("gfx" FILES ${GFX_FILES})
 source_group("mol" FILES ${MOL_FILES})
 
-add_subdirectory(ispc_kernels)
+#add_subdirectory(ispc_kernels)
 add_subdirectory(ext/gl3w)
 add_subdirectory(ext/libxdrfile)
 add_subdirectory(ext/stb)
@@ -55,5 +55,5 @@ target_link_libraries(mdutils
     PRIVATE
 		libxdrfile
 		stb
-		ispc_kernels
+		#ispc_kernels
 )

@@ -4,6 +4,8 @@
 #include <mol/molecule_utils.h>
 #include <mol/trajectory_utils.h>
 
+#include <iostream>
+
 #pragma warning( disable : 4127 ) // disable warnings about expressions which could be constexpr in Eigen
 #include <Eigen/Eigen>
 
@@ -31,7 +33,7 @@ struct Entry {
 };
 
 struct Context {
-	uint32 next_hash = 0xb00bf00d;
+	uint32 next_hash = 0xdeadf00d;
 	DynamicArray<Entry> entries{};
 };
 
@@ -196,6 +198,65 @@ static mat3 compute_linear_transform(const float* RESTRICT x0, const float* REST
 	return Apq / Aqq;
 }
 
+
+
+mat3 compute_rotation(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
+					  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
+					  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1)
+{
+	const mat3 M = compute_linear_transform(x0, y0, z0, x1, y1, z1, mass, count, com0, com1);
+	Eigen::Matrix3f A = Eigen::Matrix3f({
+						{M[0][0], M[1][0], M[2][0]},
+						{M[0][1], M[1][1], M[2][1]},
+						{M[0][2], M[1][2], M[2][2]} });
+
+	//A.transposeInPlace();
+	Eigen::EigenSolver<Eigen::Matrix3f> es(A);
+
+	//std::cout << "Eigenvectors: \n" << es.eigenvectors() << "\n";
+	//std::cout << "Eigenvalues: \n" << es.eigenvalues() << "\n";
+
+
+	auto vec = es.eigenvectors().real();
+	auto val = es.eigenvalues().real();
+
+	mat3 Q;
+	Q[0] = { vec.col(0)[0], vec.col(0)[1], vec.col(0)[2] };
+	Q[1] = { vec.col(1)[0], vec.col(1)[1], vec.col(1)[2] };
+	Q[2] = { vec.col(2)[0], vec.col(2)[1], vec.col(2)[2] };
+	
+	int32 min_dim = 0;
+	if (val[1] < val[min_dim]) min_dim = 1;
+	if (val[2] < val[min_dim]) min_dim = 2;
+
+	mat3 D;
+	D[0] = { val[0], 0, 0 };
+	D[1] = { 0, val[1], 0 };
+	D[2] = { 0, 0, val[2] };
+
+	if (min_dim == 0) {
+		D[0][0] = 1.0f;
+		Q[0] = math::cross(Q[1], Q[2]);
+	}
+	else if (min_dim == 1) {
+		D[1][1] = 1.0f;
+		Q[1] = math::cross(Q[2], Q[0]);
+	}
+	else if (min_dim == 2) {
+		D[2][2] = 1.0f;
+		Q[2] = math::cross(Q[0], Q[1]);
+	}
+
+	mat3 M2 = Q * D * math::inverse(Q);
+
+	
+
+	mat3 R, S;
+	decompose(M, &R, &S);
+	
+	return R;
+}
+
 static void compute_residual_error(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
 								   const float* RESTRICT src_x, const float* RESTRICT src_y, const float* RESTRICT src_z,
 								   const float* RESTRICT ref_x, const float* RESTRICT ref_y, const float* RESTRICT ref_z,
@@ -269,7 +330,7 @@ static void compute_rbf_weights(float* RESTRICT out_x, float* RESTRICT out_y, fl
 
 static void free_structure_data(Structure* s) {
 	ASSERT(s);
-	if (s->reference.x) FREE(s->reference.x);
+	//if (s->reference.x) FREE(s->reference.x);
 	if (s->transform) FREE(s->transform);
 	/*
 	if (s->data.rbf.weight.x) FREE(s->data.rbf.weight.x);
@@ -285,10 +346,11 @@ static void init_structure_data(Structure* s, ID id, int32 ref_frame_idx, int32 
 	s->num_frames = num_frames;
 	s->num_points = num_points;
 
-	s->reference.x = (float*)MALLOC(sizeof(float) * num_points * 4);
+	/*s->reference.x = (float*)MALLOC(sizeof(float) * num_points * 4);
 	s->reference.y = s->reference.x + num_points;
 	s->reference.z = s->reference.y + num_points;
 	s->reference.mass = s->reference.z + num_points;
+	*/
 	s->transform = (Transform*)MALLOC(sizeof(Transform) * num_frames);
 /*
 	s->data.rbf.radial_cutoff = radial_cutoff;
@@ -365,16 +427,6 @@ void extract_data_from_indices(T* RESTRICT dst_data, const T* RESTRICT src_data,
 	}
 }
 
-mat3 compute_rotation(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
-					  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
-					  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1)
-{
-	mat3 M = compute_linear_transform(x0, y0, z0, x1, y1, z1, mass, count, com0, com1);
-	mat3 R, S;
-	decompose(M, &R, &S);
-	return R;
-}
-
 bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx) {
 	ASSERT(context);
 
@@ -407,32 +459,28 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 
 	// Allocate memory for all data
 	init_structure_data(s, id, target_frame_idx, num_points, num_frames);
-	s->transform[target_frame_idx] = {};
 
 	// Scratch data
-	const auto mem_size = sizeof(float) * num_points * 3;
+	const auto mem_size = sizeof(float) * num_points * 7;
 	void* mem = TMP_MALLOC(mem_size);
 	defer{ TMP_FREE(mem); };
 
 	float* cur_x = (float*)mem;
 	float* cur_y = cur_x + num_points;
 	float* cur_z = cur_y + num_points;
-	//float* ref_x = cur_z + num_points;
-	//float* ref_y = ref_x + num_points;
-	//float* ref_z = ref_y + num_points;
-	//float* err_x = cur_z + num_points;
-	//float* err_y = err_x + num_points;
-	//float* err_z = err_y + num_points;
-
-	float* ref_x = s->reference.x;
-	float* ref_y = s->reference.y;
-	float* ref_z = s->reference.z;
-	float* mass = s->reference.mass;
+	float* ref_x = cur_z + num_points;
+	float* ref_y = ref_x + num_points;
+	float* ref_z = ref_y + num_points;
+	float* mass = ref_z + num_points;
 
 	extract_data_from_indices(ref_x, get_trajectory_position_x(dynamic.trajectory, target_frame_idx).data(), indices, num_points);
 	extract_data_from_indices(ref_y, get_trajectory_position_y(dynamic.trajectory, target_frame_idx).data(), indices, num_points);
 	extract_data_from_indices(ref_z, get_trajectory_position_z(dynamic.trajectory, target_frame_idx).data(), indices, num_points);
+	extract_data_from_indices(mass, dynamic.molecule.atom.mass, indices, num_points);
 	const vec3 ref_com = compute_com(ref_x, ref_y, ref_z, mass, num_points);
+
+	// Set target frame explicitly
+	s->transform[target_frame_idx] = { mat3(1), ref_com };
 
 	for (int32 cur_idx = 0; cur_idx < num_frames; cur_idx++) {
 		if (cur_idx == target_frame_idx) continue;
@@ -447,7 +495,7 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 		//float* rbf_z = s->data.rbf.weight.z + i * num_points;
 
 		// @NOTE: Compute linear transformation matrix between the two sets of points.
-		const mat3 cur_rot = compute_linear_transform(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
+		const mat3 cur_rot = compute_rotation(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
 	
 		// @NOTE: Compute residual error between the two sets of points.
 		//compute_residual_error(err_x, err_y, err_z, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, num_points, *M);
@@ -455,7 +503,8 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 		// @NOTE: Encode residual error as rbf at reference points
 		//compute_rbf_weights(rbf_x, rbf_y, rbf_z, ref_x, ref_y, ref_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
 
-		s->transform->rotation = cur_rot;
+		s->transform[cur_idx].rotation = cur_rot;
+		s->transform[cur_idx].com = cur_com;
 	}
 
 	return true;
