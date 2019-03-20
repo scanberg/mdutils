@@ -456,19 +456,6 @@ bool contains_character(CString str, uint8 c) { return find_character(str, c) !=
 CString find_string(CString target, CString pattern) {
     if (target.count == 0 || pattern.count == 0) return {};
 
-    /*
-const uint8* ptr = str.beg();
-
-while (ptr != str.end()) {
-    if (*ptr == *match.beg()) {
-        CString candidate(ptr, MIN(str.end() - ptr, match.count));
-        if (compare(candidate, match)) return candidate;
-    }
-    ptr++;
-}
-return {};
-    */
-
     char* ptr = Railgun_Trolldom((char*)target.ptr, (char*)pattern.ptr, (uint32)target.count, (uint32)pattern.count);
     if (ptr) {
         return {(uint8*)ptr, pattern.length()};

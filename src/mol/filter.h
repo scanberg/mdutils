@@ -5,17 +5,16 @@
 #include <core/string_types.h>
 #include <mol/molecule_dynamic.h>
 
-typedef bool (*FilterCommandFunc)(Array<bool> mask, const MoleculeDynamic& dynamic, Array<const CString> args);
-
-struct FilterCommand {
-    StringBuffer<16> keyword{};
-    FilterCommandFunc func = nullptr;
+struct StoredSelection {
+	CString name;
+	Array<const bool> mask;
 };
 
 namespace filter {
 void initialize();
 void shutdown();
-bool compute_filter_mask(Array<bool> mask, const MoleculeDynamic& dynamic, CString filter);
+bool compute_filter_mask(Array<bool> mask, CString filter, const MoleculeDynamic& dynamic, Array<const StoredSelection> stored_selectons = {});
+
 void filter_colors(Array<uint32> colors, Array<bool> mask);
 void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale);
 

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <stdlib.h>
+
 #ifndef NDEBUG
 #define DEBUG
 inline void _assert(const char* file, const char* func, int line, bool cond, const char* fmt, ...) {
@@ -36,35 +38,69 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 
 #define UNUSED(x) (void)(x)
 
-// @TODO: This has to be changed so that the default version is only used when neither malloc nor free is defined
 #ifndef MALLOC
-#define USE_DEFAULT_MALLOC_AND_FREE
+#define MALLOC(size) malloc(size)
+#if _MSC_VER && !__INTEL_COMPILER
+#include <malloc.h>
+#define ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
+#define ALIGNED_FREE(addr) _aligned_free(addr)
+#else
+#define ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
+#define ALIGNED_FREE(addr) _mm_free(addr)
+#endif
+#define REALLOC(ptr, new_size) realloc(ptr, new_size)
+#define CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
+#define FREE(addr) free(addr)
 #endif
 
+// This is bogus atm and should be implemented properly
 #ifndef TMP_MALLOC
-#define USE_DEFAULT_TMP_MALLOC_AND_FREE
+#define TMP_MALLOC(size) malloc(size)
+#if _MSC_VER && !__INTEL_COMPILER
+#include <malloc.h>
+#define TMP_ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
+#define TMP_ALIGNED_FREE(addr) _aligned_free(addr)
+#else
+#define TMP_ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
+#define TMP_ALIGNED_FREE(addr) _mm_free(addr)
+#endif
+#define TMP_REALLOC(ptr, new_size) realloc(ptr, new_size)
+#define TMP_CALLOC(num_items, size_of_item) calloc(num_items, size_of_item)
+#define TMP_FREE(addr) free(addr)
 #endif
 
-#if defined USE_DEFAULT_MALLOC_AND_FREE || defined USE_DEFAULT_TMP_MALLOC_AND_FREE
-#include <stdlib.h>
+#ifdef NEW
+#undef NEW
 #endif
 
-#ifdef USE_DEFAULT_MALLOC_AND_FREE
-#define MALLOC(x) malloc(x)
-#define REALLOC(x, y) realloc(x, y)
-#define CALLOC(x, y) calloc(x, y)
-#define FREE(x) free(x)
+#ifdef PLACEMENT_NEW
+#undef PLACEMENT_NEW
 #endif
 
-#ifdef USE_DEFAULT_TMP_MALLOC_AND_FREE
-#define TMP_MALLOC(x) malloc(x)
-#define TMP_REALLOC(x, y) realloc(x, y)
-#define TMP_CALLOC(x, y) calloc(x, y)
-#define TMP_FREE(x) free(x)
+#ifdef DELETE
+#undef DELETE
 #endif
 
-// implementation of 'defer' in c++.
-// from here https://pastebin.com/suTkpYp4
+// Blatantly stolen from ImGui (thanks Omar!)
+struct NewDummy {};
+inline void* operator new(size_t, NewDummy, void* ptr) { return ptr; }
+inline void  operator delete(void*, NewDummy, void*)   {} // This is only required so we can use the symetrical new()
+#define PLACEMENT_NEW(_PTR)              new(NewDummy(), _PTR)
+#define NEW(_TYPE)                       new(NewDummy(), MALLOC(sizeof(_TYPE))) _TYPE
+template<typename T> void DELETE(T* p)   { if (p) { p->~T(); FREE(p); } }
+
+#define RESTRICT __restrict
+
+inline void* get_next_aligned_adress(void* mem, uintptr_t align) {
+    const uintptr_t addr = (uintptr_t)mem;
+    return (void*)((addr + (align - 1)) & (~align + 1));
+}
+
+#define IS_ALIGNED(ptr, alignment) (((uintptr_t)ptr % alignment) == 0)
+
+// Implementation of 'defer' in c++.
+// From here https://pastebin.com/suTkpYp4
+// With some slight modifications
 
 #define CONCAT_INTERNAL(x, y) x##y
 #define CONCAT(x, y) CONCAT_INTERNAL(x, y)

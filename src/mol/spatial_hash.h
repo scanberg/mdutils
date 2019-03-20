@@ -90,10 +90,10 @@ void for_each_within(const Frame& frame, vec3 coord, float radius, Callback cb) 
     }
 }
 
-Frame compute_frame(Array<const vec3> positions, vec3 cell_ext);
-void compute_frame(Frame* frame, Array<const vec3> positions, vec3 cell_ext);
+Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext);
+void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext);
 
-Frame compute_frame(Array<const vec3> positions, vec3 cell_ext, vec3 min_box, vec3 max_box);
-void compute_frame(Frame* frame, Array<const vec3> positions, vec3 cell_ext, vec3 min_box, vec3 max_box);
+Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
+void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
 
 }  // namespace spatialhash

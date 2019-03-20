@@ -66,7 +66,7 @@ struct Descriptor {
 void shade_and_postprocess(const Descriptor& desc, const ViewParam& view_param);
 
 // void compute_linear_depth(GLuint depth_tex, float near_plane, float far_plane, bool orthographic = false);
-// void blit_velocity(const ViewParam& view_param);
+void blit_static_velocity(GLuint tex_depth, const ViewParam& view_param);
 
 // void shade_deferred(GLuint depth_tex, GLuint color_tex, GLuint normal_tex, const mat4& inv_proj_matrix);
 // void highlight_selection(GLuint atom_idx_tex, GLuint selection_buffer, const vec3& highlight, const vec3& selection, const vec3& outline);

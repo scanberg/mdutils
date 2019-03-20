@@ -47,11 +47,23 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
         return false;
     }
 
-    DynamicArray<vec3> positions;
-    DynamicArray<vec3> velocities;
-    DynamicArray<Label> labels;
-    DynamicArray<Element> elements;
-    DynamicArray<ResIdx> residue_indices;
+    int64 mem_size = (sizeof(float) * (3 + 3 + 1 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
+    void* mem = TMP_MALLOC(mem_size);
+    defer { TMP_FREE(mem); };
+    memset(mem, 0, mem_size);
+
+    float* atom_pos_x = (float*)mem;
+    float* atom_pos_y = (float*)(atom_pos_x + num_atoms);
+    float* atom_pos_z = (float*)(atom_pos_y + num_atoms);
+    float* atom_vel_x = (float*)(atom_pos_z + num_atoms);
+    float* atom_vel_y = (float*)(atom_vel_x + num_atoms);
+    float* atom_vel_z = (float*)(atom_vel_y + num_atoms);
+    float* atom_radius = (float*)(atom_vel_z + num_atoms);
+    float* atom_mass = (float*)(atom_radius + num_atoms);
+    Label* atom_label = (Label*)(atom_mass + num_atoms);
+    Element* atom_element = (Element*)(atom_label + num_atoms);
+    ResIdx* atom_res_idx = (ResIdx*)(atom_element + num_atoms);
+
     DynamicArray<Residue> residues;
 
     const char* format = get_format(peek_line(gro_string));
@@ -64,26 +76,27 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     StringBuffer<256> line;
 
     for (int i = 0; i < num_atoms; ++i) {
-        vec3 pos, vel;
-        int atom_idx, res_idx;
+        float pos[3] = {0, 0, 0};
+        float vel[3] = {0, 0, 0};
+        int atom_range, res_id;
         char atom_name[8] = {};
         char res_name[8] = {};
 
-        line = extract_line(gro_string);  // line becomes zero terminated upon assignment
-        auto result = sscanf(line, format, &res_idx, res_name, atom_name, &atom_idx, &pos.x, &pos.y, &pos.z, &vel.x, &vel.y, &vel.z);
+        line = extract_line(gro_string);
+        int result = sscanf(line, format, &res_id, res_name, atom_name, &atom_range, &pos[0], &pos[1], &pos[2], &vel[0], &vel[1], &vel[2]);
         if (result > 0) {
-            if (cur_res != res_idx) {
-                cur_res = res_idx;
+            if (cur_res != res_id) {
+                cur_res = res_id;
                 res_count = (int)residues.count;
                 CString res_name_trim = trim(CString(res_name));
                 Residue res{};
                 res.name = res_name_trim;
-                res.id = res_idx;
+                res.id = res_id;
                 res.chain_idx = 0;
-                res.atom_idx = {i, i};
+                res.atom_range = {i, i};
                 residues.push_back(res);
             }
-            residues.back().atom_idx.end++;
+            residues.back().atom_range.end++;
 
             CString atom_name_trim = trim(CString(atom_name));
             CString element_str = atom_name_trim;
@@ -94,11 +107,17 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
             }
             Element elem = element::get_from_string(element_str);
 
-            positions.push_back(pos);
-            velocities.push_back(vel);
-            labels.push_back(atom_name_trim);
-            elements.push_back(elem);
-            residue_indices.push_back((ResIdx)res_count);
+            // Convert from nm to ångström
+            atom_pos_x[i] = pos[0] * 10.f;
+            atom_pos_y[i] = pos[1] * 10.f;
+            atom_pos_z[i] = pos[2] * 10.f;
+            atom_vel_x[i] = vel[0] * 10.f;
+            atom_vel_y[i] = vel[1] * 10.f;
+            atom_vel_z[i] = vel[2] * 10.f;
+
+            atom_label[i] = atom_name_trim;
+            atom_element[i] = elem;
+            atom_res_idx[i] = res_count;
         }
     }
 
@@ -107,24 +126,20 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     sscanf(line, "%8f %8f %8f", &box.x, &box.y, &box.z);
 
     // Convert from nm to ångström
-    for (auto& p : positions) {
-        p *= 10.f;
-    }
-    for (auto& v : velocities) {
-        v *= 10.f;
-    }
     box *= 10.f;
 
-    auto covalent_bonds = compute_covalent_bonds(residues, residue_indices, positions, elements);
-    auto backbone_segments = compute_backbone_segments(residues, labels);
+    compute_atom_radii(atom_radius, atom_element, num_atoms);
+    compute_atom_masses(atom_mass, atom_element, num_atoms);
+    auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_res_idx, atom_element, num_atoms);
+    auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
-    auto backbone_angles = compute_backbone_angles(positions, backbone_segments, backbone_sequences);
+    auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, atom_pos_x, atom_pos_y, atom_pos_z);
     auto chains = compute_chains(residues);
-    auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
-    auto acceptors = hydrogen_bond::compute_acceptors(elements);
+    auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
+    auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
 
     for (ChainIdx c = 0; c < chains.count; c++) {
-        for (auto i = chains[c].res_idx.beg; i < chains[c].res_idx.end; i++) {
+        for (auto i = chains[c].res_range.beg; i < chains[c].res_range.end; i++) {
             residues[i].chain_idx = c;
         }
     }
@@ -133,10 +148,20 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
                             (int32)donors.size(), (int32)acceptors.size());
 
     // Copy data into molecule
-    memcpy(mol->atom.positions, positions.ptr, positions.size_in_bytes());
-    memcpy(mol->atom.elements, elements.ptr, elements.size_in_bytes());
-    memcpy(mol->atom.labels, labels.ptr, labels.size_in_bytes());
-    memcpy(mol->atom.residue_indices, residue_indices.ptr, residue_indices.size_in_bytes());
+    memcpy(mol->atom.position.x, atom_pos_x, sizeof(float) * num_atoms);
+    memcpy(mol->atom.position.y, atom_pos_y, sizeof(float) * num_atoms);
+    memcpy(mol->atom.position.z, atom_pos_z, sizeof(float) * num_atoms);
+
+    memcpy(mol->atom.velocity.x, atom_vel_x, sizeof(float) * num_atoms);
+    memcpy(mol->atom.velocity.y, atom_vel_y, sizeof(float) * num_atoms);
+    memcpy(mol->atom.velocity.z, atom_vel_z, sizeof(float) * num_atoms);
+
+    memcpy(mol->atom.radius, atom_radius, sizeof(float) * num_atoms);
+    memcpy(mol->atom.mass, atom_mass, sizeof(float) * num_atoms);
+
+    memcpy(mol->atom.element, atom_element, sizeof(Element) * num_atoms);
+    memcpy(mol->atom.label, atom_label, sizeof(Label) * num_atoms);
+    memcpy(mol->atom.res_idx, atom_res_idx, sizeof(ResIdx) * num_atoms);
 
     memcpy(mol->residues.ptr, residues.ptr, residues.size_in_bytes());
     memcpy(mol->chains.ptr, chains.ptr, chains.size_in_bytes());
