@@ -2,6 +2,7 @@
 
 //#define GLM_FORCE_INTRINSICS
 //#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+#define GLM_FORCE_SILENT_WARNINGS // silence warnings induced by glm
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>

@@ -91,8 +91,8 @@ template<typename T> void DELETE(T* p)   { if (p) { p->~T(); FREE(p); } }
 
 #define RESTRICT __restrict
 
-inline void* get_next_aligned_adress(void* mem, uintptr_t align) {
-    const uintptr_t addr = (uintptr_t)mem;
+inline void* get_next_aligned_adress(void* mem, size_t align) {
+    const size_t addr = (size_t)mem;
     return (void*)((addr + (align - 1)) & (~align + 1));
 }
 

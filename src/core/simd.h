@@ -96,7 +96,7 @@ INLINE float4 lerp(const float4 a, const float4 b, float t) {
     const float4 alpha = set_128(t);
     const float4 res = add(mul(a, one_minus_alpha), mul(b, alpha));
     return res;
-};
+}
 
 INLINE float4 mix(const float4 a, const float4 b, float t) {
 	return lerp(a, b, t);
@@ -192,7 +192,7 @@ INLINE float8 lerp(const float8 a, const float8 b, float t) {
 	const float8 alpha = set_256(t);
 	const float8 res = add(mul(a, one_minus_alpha), mul(b, alpha));
 	return res;
-};
+}
 
 INLINE float8 mix(const float8 a, const float8 b, float t) {
 	return lerp(a, b, t);

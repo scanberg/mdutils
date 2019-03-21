@@ -345,9 +345,9 @@ void linear_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, 
 	const __m256 full_box_ext_y = simd::set_256(sim_box[1][1]);
 	const __m256 full_box_ext_z = simd::set_256(sim_box[2][2]);
 
-	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
-	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
-	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
+	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_256(0.5f));
+	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_256(0.5f));
+	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_256(0.5f));
 
 	for (int64 i = 0; i < count; i += 8) {
 		__m256 x0 = simd::load256(in_x0 + i);

@@ -316,7 +316,7 @@ struct DynamicArray : Array<T> {
 
     T* insert(T* it, const T& v) {
         ASSERT(this->beg() <= it && it <= this->end());
-        const ptrdiff_t off = it - this->beg();
+        const auto off = it - this->beg();
         if (this->count == m_capacity) reserve(_grow_capacity(this->count + 1));
         if (off < (int64)this->count) memmove(this->beg() + off + 1, this->beg() + off, ((size_t)this->count - (size_t)off) * sizeof(T));
         this->ptr[off] = v;
