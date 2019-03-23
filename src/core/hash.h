@@ -4,11 +4,6 @@
 #include <core/array_types.h>
 #include <core/string_utils.h>
 
-#if USE_MEOW_HASH == 1
-#include "ext/meow_hash/meow_intrinsics.h"
-#include "ext/meow_hash/meow_hash.h"
-#endif
-
 /*
 https://github.com/LordJZ/consthash
 The MIT License(MIT)
@@ -133,51 +128,5 @@ constexpr uint64 crc64(const char (&cstr)[N]) {
     STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
     return crc64(cstr, N - 1);
 }
-
-#if USE_MEOW_HASH == 1
-// --- MEOW (fast) ---
-inline uint32 meow32(const void* ptr, size_t size) {
-	meow_hash hash = MeowHash_Accelerated(0, size, (void*)ptr);
-	return MeowU32From(hash, 0);
-}
-
-inline uint64 meow64(const void* ptr, size_t size) {
-	meow_hash hash = MeowHash_Accelerated(0, size, (void*)ptr);
-	return MeowU32From(hash, 0);
-}
-
-// Array template
-template <typename T>
-constexpr uint32 meow32(Array<T> arr) {
-	return meow32(arr.data(), arr.size_in_bytes());
-}
-
-inline uint32 meow32(CString str) { return meow32(str.ptr, str.count); }
-
-template <size_t N>
-constexpr uint32 meow32(const char(&cstr)[N]) {
-	STATIC_ASSERT(N > 0, "crc32: length of cstr was zero!");
-	return meow32(cstr, N);
-}
-
-template <typename T>
-constexpr uint32 meow32(const T& data) {
-	static_assert(std::is_pointer<T>::value == false, "Pointers are not supported");
-	return meow32(&data, sizeof(T));
-}
-
-template <typename T>
-constexpr uint64 meow64(Array<T> arr) {
-	return meow64(arr.data(), arr.size_in_bytes());
-}
-
-inline uint64 meow64(CString str) { return meow64(str.ptr, str.count); }
-
-template <size_t N>
-constexpr uint64 meow64(const char(&cstr)[N]) {
-	STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
-	return meow64(cstr, N - 1);
-}
-#endif
 
 }  // namespace hash
