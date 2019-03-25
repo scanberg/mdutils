@@ -33,9 +33,8 @@ target_include_directories(mdutils
 		${CMAKE_CURRENT_SOURCE_DIR}/src
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/glm
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/libxdrfile/src
-		#${CMAKE_CURRENT_SOURCE_DIR}/ext/meow_hash
         ${CMAKE_CURRENT_SOURCE_DIR}/ext/Eigen
-		${ISPC_BUILD_DIR}
+		#${ISPC_BUILD_DIR}
 )
 
 set(RESOURCE_DIR "${PROJECT_SOURCE_DIR}/")
