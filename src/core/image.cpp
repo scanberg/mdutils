@@ -59,7 +59,7 @@ bool read_image(Image* img, CString filename) {
 
 bool write_image(const Image& img, CString filename) {
 	StringBuffer<512> zstr = filename;
-	return stbi_write_bmp(zstr, img.width, img.height, 4, img.data) != 0;
+	return stbi_write_bmp(zstr.cstr(), img.width, img.height, 4, img.data) != 0;
 }
 
 // All this is ported and stolen from here and needs to be verified

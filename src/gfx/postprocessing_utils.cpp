@@ -258,10 +258,10 @@ static bool setup_program(GLuint* program, CString name, CString f_shader_src, C
         if (compare_n(f_shader_src, "#version", 8)) {
             version_str = extract_line(f_shader_src);
         }
-        const char* sources[5] = {version_str, "\n", defines, "\n", f_shader_src};
+        const char* sources[5] = {version_str.cstr(), "\n", defines.cstr(), "\n", f_shader_src.cstr()};
         glShaderSource(f_shader, 5, sources, 0);
     } else {
-        const char* sources[1] = {f_shader_src};
+        const char* sources[1] = {f_shader_src.cstr()};
         glShaderSource(f_shader, 1, sources, 0);
     }
 
@@ -492,7 +492,7 @@ static struct {
 
 void initialize() {
     String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/highlight.frag");
-    defer { FREE(f_shader_src); };
+    defer { FREE(f_shader_src.cstr()); };
     setup_program(&highlight.program, "highlight", f_shader_src);
     if (!highlight.selection_texture) glGenTextures(1, &highlight.selection_texture);
     highlight.uniform_loc.texture_atom_idx = glGetUniformLocation(highlight.program, "u_texture_atom_idx");
@@ -519,7 +519,7 @@ static struct {
 
 void initialize() {
     String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/scale_hsv.frag");
-    defer { FREE(f_shader_src); };
+    defer { FREE(f_shader_src.cstr()); };
     setup_program(&gl.program, "scale hsv", f_shader_src);
     gl.uniform_loc.texture_color = glGetUniformLocation(gl.program, "u_texture_atom_color");
     gl.uniform_loc.hsv_scale = glGetUniformLocation(gl.program, "u_hsv_scale");
@@ -545,7 +545,7 @@ static struct {
 
 void initialize() {
     String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/deferred_shading.frag");
-    defer { FREE(f_shader_src); };
+    defer { FREE(f_shader_src.cstr()); };
     setup_program(&deferred.program, "deferred", f_shader_src);
     deferred.uniform_loc.texture_depth = glGetUniformLocation(deferred.program, "u_texture_depth");
     deferred.uniform_loc.texture_color = glGetUniformLocation(deferred.program, "u_texture_color");
@@ -590,7 +590,7 @@ void initialize() {
     {
         // PASSTHROUGH
         String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/tonemap/passthrough.frag");
-        defer { FREE(f_shader_src); };
+        defer { free_string(&f_shader_src); };
 
         setup_program(&passthrough.program, "tonemap_passthrough", f_shader_src);
         passthrough.uniform_loc.texture = glGetUniformLocation(passthrough.program, "u_texture");
@@ -598,7 +598,7 @@ void initialize() {
     {
         // EXPOSURE GAMMA
         String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/tonemap/exposure_gamma.frag");
-        defer { FREE(f_shader_src); };
+        defer { free_string(&f_shader_src); };
 
         setup_program(&exposure_gamma.program, "tonemap_exposure_gamma", f_shader_src);
         exposure_gamma.uniform_loc.texture = glGetUniformLocation(exposure_gamma.program, "u_texture");
@@ -608,7 +608,7 @@ void initialize() {
     {
         // UNCHARTED
         String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/tonemap/uncharted.frag");
-        defer { FREE(f_shader_src); };
+        defer { free_string(&f_shader_src); };
 
         setup_program(&filmic.program, "tonemap_filmic", f_shader_src);
         filmic.uniform_loc.texture = glGetUniformLocation(filmic.program, "u_texture");
@@ -629,7 +629,7 @@ namespace dof {
 void initialize(int32 width, int32 height) {
     {
         String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof_half_res_prepass.frag");
-        defer { FREE(src); };
+        defer { free_string(&src); };
         setup_program(&gl.bokeh_dof.half_res.program, "dof pre-pass", src);
         if (gl.bokeh_dof.half_res.program) {
             gl.bokeh_dof.half_res.uniform_loc.tex_depth = glGetUniformLocation(gl.bokeh_dof.half_res.program, "u_tex_depth");
@@ -664,7 +664,7 @@ void initialize(int32 width, int32 height) {
     // DOF
     {
         String src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/dof/dof.frag");
-        defer { FREE(src); };
+		defer{ free_string(&src); };
         if (setup_program(&gl.bokeh_dof.program, "bokeh dof", src)) {
             gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "u_half_res");
             gl.bokeh_dof.uniform_loc.tex_color = glGetUniformLocation(gl.bokeh_dof.program, "u_tex_color");

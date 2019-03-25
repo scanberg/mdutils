@@ -33,7 +33,7 @@ GLuint gl::compile_shader_from_file(CString filename, GLenum type) {
     char buffer[buffer_size];
 
     String shader_src = allocate_and_read_textfile(filename);
-    defer { FREE(shader_src); };
+    defer { FREE(shader_src.cstr()); };
 
     if (!shader_src) {
         LOG_ERROR("Could not load shader from file %.*s\n", (int32)filename.size(), filename.cstr());

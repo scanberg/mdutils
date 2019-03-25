@@ -18,13 +18,16 @@ struct Structure {
 	int32 num_frames = 0;
 
 	struct {
-		float* x;
-		float* y;
-		float* z;
-		float* mass;
-	} reference;
-
-	Transform* transform = nullptr;
+		Transform* transform = nullptr;
+		struct {
+			struct {
+				float* x = nullptr;
+				float* y = nullptr;
+				float* z = nullptr;
+			} vector[3];
+			float* value[3] = { nullptr, nullptr, nullptr };
+		} eigen;
+	} frame_data;
 };
 
 struct Entry {
@@ -198,63 +201,128 @@ static mat3 compute_linear_transform(const float* RESTRICT x0, const float* REST
 	return Apq / Aqq;
 }
 
+static mat3 compute_pq_matrix(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
+							  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
+							  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1)
+{
+	mat3 Apq{ 0 };
 
+	for (int64 i = 0; i < count; i++) {
+		// @TODO: Vectorize...
+		const float q_x = x0[i] - com0.x;
+		const float q_y = y0[i] - com0.y;
+		const float q_z = z0[i] - com0.z;
+
+		const float p_x = x1[i] - com1.x;
+		const float p_y = y1[i] - com1.y;
+		const float p_z = z1[i] - com1.z;
+
+		Apq[0][0] += mass[i] * p_x * q_x;
+		Apq[0][1] += mass[i] * p_y * q_x;
+		Apq[0][2] += mass[i] * p_z * q_x;
+		Apq[1][0] += mass[i] * p_x * q_y;
+		Apq[1][1] += mass[i] * p_y * q_y;
+		Apq[1][2] += mass[i] * p_z * q_y;
+		Apq[2][0] += mass[i] * p_x * q_z;
+		Apq[2][1] += mass[i] * p_y * q_z;
+		Apq[2][2] += mass[i] * p_z * q_z;
+	}
+
+	return Apq;
+}
+
+static mat3 compute_qq_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass,
+						      int64 count, const vec3& com)
+{
+	mat3 Aqq{ 0 };
+
+	for (int64 i = 0; i < count; i++) {
+		// @TODO: Vectorize...
+		const float q_x = x[i] - com.x;
+		const float q_y = y[i] - com.y;
+		const float q_z = z[i] - com.z;
+
+		Aqq[0][0] += mass[i] * q_x * q_x;
+		Aqq[0][1] += mass[i] * q_y * q_x;
+		Aqq[0][2] += mass[i] * q_z * q_x;
+		Aqq[1][0] += mass[i] * q_x * q_y;
+		Aqq[1][1] += mass[i] * q_y * q_y;
+		Aqq[1][2] += mass[i] * q_z * q_y;
+		Aqq[2][0] += mass[i] * q_x * q_z;
+		Aqq[2][1] += mass[i] * q_y * q_z;
+		Aqq[2][2] += mass[i] * q_z * q_z;
+	}
+
+	return Aqq;
+}
+
+static void compute_eigen(const mat3& M, vec3(&vectors)[3], float(&values)[3]) {
+	Eigen::Matrix3f A = Eigen::Matrix3f({
+					{M[0][0], M[1][0], M[2][0]},
+					{M[0][1], M[1][1], M[2][1]},
+					{M[0][2], M[1][2], M[2][2]} });
+
+	Eigen::EigenSolver<Eigen::Matrix3f> es(A);
+
+	const auto swap = [](int& x, int& y) {
+		int tmp = x;
+		x = y;
+		y = tmp;
+	};
+
+	const auto& e_vec = es.eigenvectors().real();
+	const auto& e_val = es.eigenvalues().real();
+
+	int l0 = 0, l1 = 1, l2 = 2;
+	if (e_val[l0] < e_val[l1]) swap(l0, l1);
+	if (e_val[l1] < e_val[l2]) swap(l1, l2);
+	if (e_val[l0] < e_val[l1]) swap(l0, l1);
+
+	vectors[0] = { e_vec(0, l0), e_vec(1, l0), e_vec(2, l0) };
+	vectors[1] = { e_vec(0, l1), e_vec(1, l1), e_vec(2, l1) };
+	vectors[2] = { e_vec(0, l2), e_vec(1, l2), e_vec(2, l2) };
+	values[0]  = e_val[l0] / e_val[l0];
+	values[1]  = e_val[l1] / e_val[l0];
+	values[2]  = e_val[l2] / e_val[l0];
+}
+
+static mat3 compute_rotation_SVD(const mat3& M) {
+	Eigen::Matrix3f B_eigen = Eigen::Matrix3f({
+					{M[0][0], M[1][0], M[2][0]},
+					{M[0][1], M[1][1], M[2][1]},
+					{M[0][2], M[1][2], M[2][2]} });
+
+	Eigen::JacobiSVD<Eigen::Matrix3f> svd(B_eigen, Eigen::ComputeFullU | Eigen::ComputeFullV);
+
+	const auto U = svd.matrixU();
+	const auto V = svd.matrixV();
+	auto s = svd.singularValues();
+
+	s[0] = 1;
+	s[1] = 1;
+	s[2] = U.determinant() * V.determinant();
+	const Eigen::Matrix3f D = Eigen::DiagonalMatrix<float, 3, 3>(s[0], s[1], s[2]).toDenseMatrix();
+
+	const auto A_eigen = U * D * V.transpose();
+	mat3 A = {A_eigen(0,0), A_eigen(0,1), A_eigen(0,2),
+			  A_eigen(1,0), A_eigen(1,1), A_eigen(1,2),
+			  A_eigen(2,0), A_eigen(2,1), A_eigen(2,2) };
+
+	return A;
+}
+
+static mat3 compute_rotation(const mat3& M) {
+	mat3 R, S;
+	decompose(M, &R, &S);
+	return R;
+}
 
 mat3 compute_rotation(const float* RESTRICT x0, const float* RESTRICT y0, const float* RESTRICT z0,
 					  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
 					  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1)
 {
-	const mat3 M = compute_linear_transform(x0, y0, z0, x1, y1, z1, mass, count, com0, com1);
-	Eigen::Matrix3f A = Eigen::Matrix3f({
-						{M[0][0], M[1][0], M[2][0]},
-						{M[0][1], M[1][1], M[2][1]},
-						{M[0][2], M[1][2], M[2][2]} });
-
-	//A.transposeInPlace();
-	Eigen::EigenSolver<Eigen::Matrix3f> es(A);
-
-	//std::cout << "Eigenvectors: \n" << es.eigenvectors() << "\n";
-	//std::cout << "Eigenvalues: \n" << es.eigenvalues() << "\n";
-
-
-	auto vec = es.eigenvectors().real();
-	auto val = es.eigenvalues().real();
-
-	mat3 Q;
-	Q[0] = { vec.col(0)[0], vec.col(0)[1], vec.col(0)[2] };
-	Q[1] = { vec.col(1)[0], vec.col(1)[1], vec.col(1)[2] };
-	Q[2] = { vec.col(2)[0], vec.col(2)[1], vec.col(2)[2] };
-	
-	int32 min_dim = 0;
-	if (val[1] < val[min_dim]) min_dim = 1;
-	if (val[2] < val[min_dim]) min_dim = 2;
-
-	mat3 D;
-	D[0] = { val[0], 0, 0 };
-	D[1] = { 0, val[1], 0 };
-	D[2] = { 0, 0, val[2] };
-
-	if (min_dim == 0) {
-		D[0][0] = 1.0f;
-		Q[0] = math::cross(Q[1], Q[2]);
-	}
-	else if (min_dim == 1) {
-		D[1][1] = 1.0f;
-		Q[1] = math::cross(Q[2], Q[0]);
-	}
-	else if (min_dim == 2) {
-		D[2][2] = 1.0f;
-		Q[2] = math::cross(Q[0], Q[1]);
-	}
-
-	mat3 M2 = Q * D * math::inverse(Q);
-
-	
-
-	mat3 R, S;
-	decompose(M, &R, &S);
-	
-	return R;
+	const mat3 Apq = compute_pq_matrix(x0, y0, z0, x1, y1, z1, mass, count, com0, com1);
+	return compute_rotation(Apq);
 }
 
 static void compute_residual_error(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
@@ -330,12 +398,8 @@ static void compute_rbf_weights(float* RESTRICT out_x, float* RESTRICT out_y, fl
 
 static void free_structure_data(Structure* s) {
 	ASSERT(s);
-	//if (s->reference.x) FREE(s->reference.x);
-	if (s->transform) FREE(s->transform);
-	/*
-	if (s->data.rbf.weight.x) FREE(s->data.rbf.weight.x);
-	if (s->data.rbf.pos.x) FREE(s->data.rbf.pos.x);
-	*/
+	if (s->frame_data.transform) FREE(s->frame_data.transform);
+	if (s->frame_data.eigen.vector[0].x) FREE(s->frame_data.eigen.vector[0].x);
 }
 
 static void init_structure_data(Structure* s, ID id, int32 ref_frame_idx, int32 num_points, int32 num_frames) {
@@ -346,12 +410,22 @@ static void init_structure_data(Structure* s, ID id, int32 ref_frame_idx, int32 
 	s->num_frames = num_frames;
 	s->num_points = num_points;
 
-	/*s->reference.x = (float*)MALLOC(sizeof(float) * num_points * 4);
-	s->reference.y = s->reference.x + num_points;
-	s->reference.z = s->reference.y + num_points;
-	s->reference.mass = s->reference.z + num_points;
-	*/
-	s->transform = (Transform*)MALLOC(sizeof(Transform) * num_frames);
+	s->frame_data.transform = (Transform*)MALLOC(sizeof(Transform) * num_frames);
+
+	float* eigen_data = (float*)MALLOC(sizeof(float) * num_frames * 12);
+	s->frame_data.eigen.vector[0].x = eigen_data + num_frames * 0;
+	s->frame_data.eigen.vector[0].y = eigen_data + num_frames * 1;
+	s->frame_data.eigen.vector[0].z = eigen_data + num_frames * 2;
+	s->frame_data.eigen.vector[1].x = eigen_data + num_frames * 3;
+	s->frame_data.eigen.vector[1].y = eigen_data + num_frames * 4;
+	s->frame_data.eigen.vector[1].z = eigen_data + num_frames * 5;
+	s->frame_data.eigen.vector[2].x = eigen_data + num_frames * 6;
+	s->frame_data.eigen.vector[2].y = eigen_data + num_frames * 7;
+	s->frame_data.eigen.vector[2].z = eigen_data + num_frames * 8;
+	s->frame_data.eigen.value[0]	= eigen_data + num_frames * 9;
+	s->frame_data.eigen.value[1]	= eigen_data + num_frames * 10;
+	s->frame_data.eigen.value[2]	= eigen_data + num_frames * 11;
+	
 /*
 	s->data.rbf.radial_cutoff = radial_cutoff;
 	s->data.rbf.weight.x = (float*)MALLOC(sizeof(float) * num_points * num_frames * 3);
@@ -480,7 +554,19 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 	const vec3 ref_com = compute_com(ref_x, ref_y, ref_z, mass, num_points);
 
 	// Set target frame explicitly
-	s->transform[target_frame_idx] = { mat3(1), ref_com };
+	s->frame_data.transform[target_frame_idx] = { mat3(1), ref_com };
+	s->frame_data.eigen.vector[0].x[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[0].y[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[0].z[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[1].x[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[1].y[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[1].z[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[2].x[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[2].y[target_frame_idx] = 0;
+	s->frame_data.eigen.vector[2].z[target_frame_idx] = 0;
+	s->frame_data.eigen.value[0][target_frame_idx] = 0;
+	s->frame_data.eigen.value[1][target_frame_idx] = 0;
+	s->frame_data.eigen.value[2][target_frame_idx] = 0;
 
 	for (int32 cur_idx = 0; cur_idx < num_frames; cur_idx++) {
 		if (cur_idx == target_frame_idx) continue;
@@ -495,7 +581,14 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 		//float* rbf_z = s->data.rbf.weight.z + i * num_points;
 
 		// @NOTE: Compute linear transformation matrix between the two sets of points.
-		const mat3 cur_rot = compute_rotation(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
+		const mat3 Apq = compute_pq_matrix(cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, mass, num_points, cur_com, ref_com);
+		const mat3 Aqq = compute_qq_matrix(cur_x, cur_y, cur_z, mass, num_points, cur_com);
+
+		const mat3 cur_rot = compute_rotation(Apq);
+
+		vec3 eigen_vectors[3];
+		float eigen_values[3];
+		compute_eigen(Aqq, eigen_vectors, eigen_values);
 	
 		// @NOTE: Compute residual error between the two sets of points.
 		//compute_residual_error(err_x, err_y, err_z, cur_x, cur_y, cur_z, ref_x, ref_y, ref_z, num_points, *M);
@@ -503,8 +596,25 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 		// @NOTE: Encode residual error as rbf at reference points
 		//compute_rbf_weights(rbf_x, rbf_y, rbf_z, ref_x, ref_y, ref_z, err_x, err_y, err_z, num_points, rbf_radial_cutoff);
 
-		s->transform[cur_idx].rotation = cur_rot;
-		s->transform[cur_idx].com = cur_com;
+		s->frame_data.transform[cur_idx].rotation = cur_rot;
+		s->frame_data.transform[cur_idx].com = cur_com;
+
+		s->frame_data.eigen.vector[0].x[cur_idx] = eigen_vectors[0].x;
+		s->frame_data.eigen.vector[0].y[cur_idx] = eigen_vectors[0].y;
+		s->frame_data.eigen.vector[0].z[cur_idx] = eigen_vectors[0].z;
+
+		s->frame_data.eigen.vector[1].x[cur_idx] = eigen_vectors[1].x;
+		s->frame_data.eigen.vector[1].y[cur_idx] = eigen_vectors[1].y;
+		s->frame_data.eigen.vector[1].z[cur_idx] = eigen_vectors[1].z;
+
+		s->frame_data.eigen.vector[2].x[cur_idx] = eigen_vectors[2].x;
+		s->frame_data.eigen.vector[2].y[cur_idx] = eigen_vectors[2].y;
+		s->frame_data.eigen.vector[2].z[cur_idx] = eigen_vectors[2].z;
+
+		s->frame_data.eigen.value[0][cur_idx] = eigen_values[0];
+		s->frame_data.eigen.value[1][cur_idx] = eigen_values[1];
+		s->frame_data.eigen.value[2][cur_idx] = eigen_values[2];
+
 	}
 
 	return true;
@@ -525,7 +635,68 @@ const Transform& get_transform_to_target_frame(ID id, int32 source_frame) {
 		return invalid_transform;
 	}
 
-	return s->transform[source_frame];
+	return s->frame_data.transform[source_frame];
 }
+
+const Array<const float> get_eigen_vector_x(ID id, int64 idx) {
+	Structure* s = find_structure(id);
+	if (s == nullptr) {
+		LOG_ERROR("Supplied id is not valid.");
+		return {};
+	}
+
+	if (idx < 0 || 2 < idx) {
+		LOG_ERROR("Supplied idx[%lli] is out of range [0,2]", idx);
+		return {};
+	}
+
+	return { s->frame_data.eigen.vector[idx].x, s->num_frames };
+}
+
+const Array<const float> get_eigen_vector_y(ID id, int64 idx) {
+	Structure* s = find_structure(id);
+	if (s == nullptr) {
+		LOG_ERROR("Supplied id is not valid.");
+		return {};
+	}
+
+	if (idx < 0 || 2 < idx) {
+		LOG_ERROR("Supplied idx[%lli] is out of range [0,2]", idx);
+		return {};
+	}
+
+	return { s->frame_data.eigen.vector[idx].y, s->num_frames };
+}
+
+const Array<const float> get_eigen_vector_z(ID id, int64 idx) {
+	Structure* s = find_structure(id);
+	if (s == nullptr) {
+		LOG_ERROR("Supplied id is not valid.");
+		return {};
+	}
+
+	if (idx < 0 || 2 < idx) {
+		LOG_ERROR("Supplied idx[%lli] is out of range [0,2]", idx);
+		return {};
+	}
+
+	return { s->frame_data.eigen.vector[idx].z, s->num_frames };
+}
+
+const Array<const float> get_eigen_value(ID id, int64 idx) {
+	Structure* s = find_structure(id);
+	if (s == nullptr) {
+		LOG_ERROR("Supplied id is not valid.");
+		return {};
+	}
+
+	if (idx < 0 || 2 < idx) {
+		LOG_ERROR("Supplied idx[%lli] is out of range [0,2]", idx);
+		return {};
+	}
+
+	return { s->frame_data.eigen.value[idx], s->num_frames };
+}
+
 
 } // namespace structure_tracking

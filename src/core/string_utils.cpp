@@ -168,7 +168,7 @@ ConversionResult<float32> to_float32(CString str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    float32 val = strtof(buf, &end);
+    float32 val = strtof(buf.cstr(), &end);
     return {val, end != buf.cstr()};
 }
 
@@ -176,7 +176,7 @@ ConversionResult<float64> to_float64(CString str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    float64 val = strtod(buf, &end);
+    float64 val = strtod(buf.cstr(), &end);
     return {val, end != buf.cstr()};
 }
 
@@ -184,7 +184,7 @@ ConversionResult<int32> to_int32(CString str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    int32 val = strtol(buf, &end, 10);
+    int32 val = strtol(buf.cstr(), &end, 10);
     return {val, end != buf.cstr()};
 }
 
@@ -192,7 +192,7 @@ ConversionResult<int64> to_int64(CString str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    int64 val = strtoll(buf, &end, 10);
+    int64 val = strtoll(buf.cstr(), &end, 10);
     return {val, end != buf.cstr()};
 }
 

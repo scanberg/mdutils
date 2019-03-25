@@ -165,6 +165,43 @@ inline vec3 unproject(const vec3& window_coords, const mat4& inv_view_proj_mat, 
     return vec3(obj);
 }
 
+// Barycentric
+inline vec3 cartesian_to_barycentric(const vec2& a, const vec2& b, const vec2& c, const vec2& cartesian) {
+	const vec2 v0 = b - a;
+	const vec2 v1 = c - a;
+	const vec2 v2 = cartesian - a;
+	const float inv_denom = v0.x * v1.y - v1.x * v0.y;
+	const float v = (v2.x * v1.y - v1.x * v2.y) * inv_denom;
+	const float w = (v0.x * v2.y - v2.x * v0.y) * inv_denom;
+	const float u = 1.0f - v - w;
+	return { u, v, w };
+}
+
+inline vec2 barycentric_to_cartesian(const vec2& a, const vec2& b, const vec2& c, const vec3& barycentric) {
+	return a * barycentric[0] + b * barycentric[1] + c * barycentric[2];
+}
+
+inline vec3 cartesian_to_barycentric(const vec3& a, const vec3& b, const vec3& c, const vec3& cartesian) {
+	const vec3 v0 = b - a;
+	const vec3 v1 = c - a;
+	const vec3 v2 = cartesian - a;
+	const float d00 = dot(v0, v0);
+	const float d01 = dot(v0, v1);
+	const float d11 = dot(v1, v1);
+	const float d20 = dot(v2, v0);
+	const float d21 = dot(v2, v1);
+	const float inv_denom = d00 * d11 - d01 * d01;
+	const float v = (d11 * d20 - d01 * d21) * inv_denom;
+	const float w = (d00 * d21 - d01 * d20) * inv_denom;
+	const float u = 1.0f - v - w;
+	return { u, v, w };
+}
+
+inline vec3 barycentric_to_cartesian(const vec3& a, const vec3& b, const vec3& c, const vec3& barycentric) {
+	return a * barycentric[0] + b * barycentric[1] + c * barycentric[2];
+}
+
+
 // Random
 inline float rnd() { return (float)rand() / (float)RAND_MAX; }
 inline void set_rnd_seed(unsigned int seed) { srand(seed); }

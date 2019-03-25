@@ -16,7 +16,7 @@ bool load_and_allocate_trajectory(MoleculeTrajectory* traj, CString path) {
     cache_file += file;
     cache_file += ".cache";
 
-    XDRFILE* file_handle = xdrfile_open(path, "r");
+    XDRFILE* file_handle = xdrfile_open(path.cstr(), "r");
     if (!file_handle) {
         return false;
     }
@@ -24,11 +24,11 @@ bool load_and_allocate_trajectory(MoleculeTrajectory* traj, CString path) {
     int32 num_atoms = 0;
     int32 num_frames = 0;
     int64* offsets = nullptr;
-    if (read_xtc_natoms(path, &num_atoms) != exdrOK) {
+    if (read_xtc_natoms(path.cstr(), &num_atoms) != exdrOK) {
         return false;
     }
 
-    FILE* offset_cache_handle = fopen(cache_file, "rb");
+    FILE* offset_cache_handle = fopen(cache_file.cstr(), "rb");
     if (offset_cache_handle) {
         fseek(offset_cache_handle, 0, SEEK_END);
         int64 byte_size = ftell(offset_cache_handle);
@@ -37,10 +37,10 @@ bool load_and_allocate_trajectory(MoleculeTrajectory* traj, CString path) {
         fread(offsets, sizeof(int64), num_frames, offset_cache_handle);
         fclose(offset_cache_handle);
     } else {
-        if (read_xtc_frame_offsets(path, &num_frames, &offsets) != exdrOK) {
+        if (read_xtc_frame_offsets(path.cstr(), &num_frames, &offsets) != exdrOK) {
             return false;
         }
-        FILE* write_cache_handle = fopen(cache_file, "wb");
+        FILE* write_cache_handle = fopen(cache_file.cstr(), "wb");
         if (write_cache_handle) {
             fwrite(offsets, sizeof(int64), num_frames, write_cache_handle);
             fclose(write_cache_handle);

@@ -8,7 +8,7 @@
 
 bool allocate_and_load_pdb_from_file(MoleculeDynamic* md, CString filename) {
     String txt = allocate_and_read_textfile(filename);
-    defer { FREE(txt); };
+    defer { free_string(&txt); };
     if (!txt) {
         LOG_ERROR("Could not read file: '%s'.", filename);
         return false;

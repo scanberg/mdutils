@@ -7,7 +7,7 @@
 
 bool allocate_and_load_gro_from_file(MoleculeStructure* mol, CString filename) {
     String txt = allocate_and_read_textfile(filename);
-    defer { FREE(txt); };
+    defer { FREE(txt.cstr()); };
     if (!txt) {
         LOG_ERROR("Could not read file: '%.*s'.", filename.length(), filename);
         return false;
@@ -83,7 +83,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
         char res_name[8] = {};
 
         line = extract_line(gro_string);
-        int result = sscanf(line, format, &res_id, res_name, atom_name, &atom_range, &pos[0], &pos[1], &pos[2], &vel[0], &vel[1], &vel[2]);
+        int result = sscanf(line.cstr(), format, &res_id, res_name, atom_name, &atom_range, &pos[0], &pos[1], &pos[2], &vel[0], &vel[1], &vel[2]);
         if (result > 0) {
             if (cur_res != res_id) {
                 cur_res = res_id;
@@ -123,7 +123,7 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
 
     vec3 box{};
     line = extract_line(gro_string);
-    sscanf(line, "%8f %8f %8f", &box.x, &box.y, &box.z);
+    sscanf(line.cstr(), "%8f %8f %8f", &box.x, &box.y, &box.z);
 
     // Convert from nm to ångström
     box *= 10.f;
