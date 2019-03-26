@@ -161,7 +161,7 @@ struct CString : Array<const uint8> {
 	template <int64 N>
 	CString(const StringBuffer<N>& buf) {
 		ptr = buf.buffer;
-		count = buf.size();
+		count = strnlen(buf.cstr(), buf.MaxSize);
 	}
 
     CString(const char* cstr, int64 length = -1) {

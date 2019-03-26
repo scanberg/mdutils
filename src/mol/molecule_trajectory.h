@@ -39,7 +39,7 @@ struct MoleculeTrajectory {
         float* z = nullptr;
     } position_data;
 
-    // These are the offsets for each frame within the compressed blob of XTC data
+    // These are the offsets for each frame inside the file on disk.
     Array<int64> frame_offsets{};
 
     operator bool() const { return num_atoms > 0 && frame_buffer.count > 0; }
