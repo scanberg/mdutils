@@ -13,7 +13,7 @@ struct StoredSelection {
 namespace filter {
 void initialize();
 void shutdown();
-bool compute_filter_mask(Array<bool> mask, CString filter, const MoleculeDynamic& dynamic, Array<const StoredSelection> stored_selectons = {});
+bool compute_filter_mask(Array<bool> mask, CString filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selectons = {});
 
 void filter_colors(Array<uint32> colors, Array<bool> mask);
 void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale);

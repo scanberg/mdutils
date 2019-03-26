@@ -5,14 +5,16 @@
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
 
-bool allocate_and_load_gro_from_file(MoleculeStructure* mol, CString filename) {
+namespace gro {
+
+bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
     String txt = allocate_and_read_textfile(filename);
     defer { FREE(txt.cstr()); };
     if (!txt) {
         LOG_ERROR("Could not read file: '%.*s'.", filename.length(), filename);
         return false;
     }
-    auto res = allocate_and_parse_gro_from_string(mol, txt);
+    auto res = load_molecule_from_string(mol, txt);
     return res;
 }
 
@@ -37,7 +39,7 @@ const char* get_format(CString line) {
     }
 }
 
-bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_string) {
+bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     CString header = extract_line(gro_string);
     CString length = extract_line(gro_string);
     (void)header;
@@ -173,4 +175,6 @@ bool allocate_and_parse_gro_from_string(MoleculeStructure* mol, CString gro_stri
     memcpy(mol->hydrogen_bond.acceptors.ptr, acceptors.ptr, acceptors.size_in_bytes());
 
     return true;
+}
+
 }

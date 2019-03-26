@@ -1,5 +1,7 @@
 #include "molecule_trajectory.h"
 #include <core/log.h>
+#include <core/hash.h>
+#include <mol/trajectory_utils.h>
 
 #define ALIGNMENT 64
 
@@ -10,8 +12,7 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
     traj->num_frames = num_frames;
     traj->total_simulation_time = 0;
     traj->simulation_type = MoleculeTrajectory::NVT;
-    traj->path_to_file = {};
-    traj->file_handle = nullptr;
+	traj->file = {};
 
     const int64 pos_mem_size = (num_frames * num_atoms * sizeof(float) + ALIGNMENT) * 3;
     void* pos_mem = ALIGNED_MALLOC(pos_mem_size, ALIGNMENT);
@@ -58,10 +59,12 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
 void free_trajectory(MoleculeTrajectory* traj) {
     ASSERT(traj);
 
-    free_string(&traj->path_to_file);
+	close_file_handle(traj);
+    free_string(&traj->file.path);
     if (traj->frame_offsets.ptr) FREE(traj->frame_offsets.ptr);
     if (traj->position_data.x) ALIGNED_FREE(traj->position_data.x);
     if (traj->frame_buffer.ptr) FREE(traj->frame_buffer.ptr);
 
     *traj = {};
 }
+

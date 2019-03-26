@@ -3,7 +3,7 @@
 #include <core/types.h>
 #include <core/array_types.h>
 #include <core/vector_types.h>
-#include <core/string_utils.h>
+#include <core/string_types.h>
 #include <core/common.h>
 
 struct TrajectoryFrame {
@@ -25,8 +25,11 @@ struct MoleculeTrajectory {
     float32 total_simulation_time = 0;
     Type simulation_type = NVT;
 
-    String path_to_file{};
-    void* file_handle = nullptr;
+	struct {
+		String path{};
+		void* handle = nullptr;
+		uint32 tag = 0;
+	} file;
 
     // @NOTE: The frame_buffer may not contain all frames in trajectory.
     // If the trajectory is large, frame_buffer will be used as a cache towards the trajectory streamed from disk.
