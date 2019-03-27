@@ -225,15 +225,6 @@ String allocate_and_read_textfile(CString filename) {
 
     if (!file) return {};
 
-// This is to handle big files. 64-bit versions
-#ifdef _WIN32
-#define FSEEK _fseeki64
-#define FTELL _ftelli64
-#else
-#define FSEEK fseeko
-#define FTELL ftello
-#endif
-
     FSEEK(file, 0, SEEK_END);
     int64 file_size = FTELL(file);
     rewind(file);

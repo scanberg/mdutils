@@ -15,42 +15,42 @@ inline int char_to_digit(uint8 c) { return c - '0'; }
 
 inline float fast_and_unsafe_str_to_float(CString str) {
     const uint8* c = str.beg();
-    while (c != str.end() && *c == ' ') ++c;
-    const uint8* end = c;
-    while (end != str.end() && *end != ' ') ++end;
-    if (c == end) return 0;
 
     float val = 0;
     float base = 1;
     float sign = 1;
-    if (*c == '-') {
-        sign = -1;
-        c++;
-    }
-    while (c != end && *c != '.') {
-        val *= 10;
-        val += char_to_digit(*c);
-        c++;
-    }
-    if (c == end) return sign * val;
-    c++;
-    while (c != end) {
-        base *= 0.1f;
-        val += char_to_digit(*c) * base;
-        c++;
-    }
 
+    while (c != str.end()) {
+		if ('0' <= *c && *c <= '9') {
+			val *= 10;
+			val += char_to_digit(*c);
+		}
+		else if (*c == '-') {
+			sign = -1;
+		}
+		else if (*c == '.') {
+			c++;
+			break;
+		}
+        c++;
+    }
+    while (c != str.end() && *c != ' ') {
+		if ('0' <= *c && *c <= '9') {
+			base *= 0.1f;
+			val += char_to_digit(*c) * base;
+		}
+        c++;
+    }
     return sign * val;
 }
 
 inline CString extract_next_model(CString& pdb_string) {
     CString beg_mdl = find_string(pdb_string, "MODEL ");
     if (beg_mdl) {
-        pdb_string.count = pdb_string.end() - beg_mdl.end();
-        pdb_string.ptr = beg_mdl.end();
-
-        CString end_mdl = find_string(pdb_string, "ENDMDL");
+		CString tmp_mdl = { beg_mdl.end(),  pdb_string.end() - beg_mdl.end() };
+        CString end_mdl = find_string(tmp_mdl, "\nENDMDL"); // @NOTE: The more characters as a search pattern, the merrier
         if (end_mdl) {
+			// @NOTE: Only modify pdb_string if we found a complete model block.
             pdb_string.count = pdb_string.end() - end_mdl.end();
             pdb_string.ptr = end_mdl.end();
             return {beg_mdl.beg(), end_mdl.end()};
@@ -61,6 +61,7 @@ inline CString extract_next_model(CString& pdb_string) {
 }
 
 inline void extract_position(float* x, float* y, float* z, CString line) {
+	// SLOW 
 	// sscanf(line.substr(30).ptr, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
 
 	// FASTER 🚴
@@ -270,13 +271,13 @@ bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
         return false;
     }
 
-    // @NOTE: We pray to the gods above and hope that one single frame will fit in 4MB
-    constexpr auto mem_size = MEGABYTES(4);
+    // @NOTE: We pray to the gods above and hope that one single frame will fit in this memory
+    constexpr auto mem_size = MEGABYTES(16);
     void* mem = TMP_MALLOC(mem_size);
     defer{ TMP_FREE(mem); };
 
-	auto bytes_read = fread((char*)mem, 1, mem_size, file);
-	CString pdb_str = { (char*)mem, (int64)bytes_read };
+	auto bytes_read = fread(mem, 1, mem_size, file);
+	CString pdb_str = { (uint8*)mem, (int64)bytes_read };
 	CString mdl_str = extract_next_model(pdb_str);
 
     return load_molecule_from_string(mol, mdl_str);
@@ -471,8 +472,7 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
 	ASSERT(md);
 	free_molecule_structure(&md->molecule);
 	free_trajectory(&md->trajectory);
-
-    printf("filename: %.*s", filename.size_in_bytes(), filename.cstr());
+    LOG_NOTE("Loading pdb dynamic from file: %.*s", (int32)filename.size_in_bytes(), filename.cstr());
 
     StringBuffer<256> zstr = filename;
     FILE* file = fopen(zstr.cstr(), "rb");
@@ -481,7 +481,7 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
         return false;
     }
 
-	constexpr auto page_size = MEGABYTES(4);
+	constexpr auto page_size = MEGABYTES(128);
     void* mem = TMP_MALLOC(2 * page_size);
     defer { TMP_FREE(mem); };
 	uint8* page[2] = {(uint8*)mem, (uint8*)mem + page_size};
@@ -571,7 +571,8 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
 	void* mem = TMP_MALLOC(num_bytes);
 	defer{ TMP_FREE(mem); };
 
-    const auto bytes_read = fread((uint8*)mem, 1, num_bytes, (FILE*)traj->file.handle);
+	FSEEK((FILE*)traj->file.handle, traj->frame_offsets[i], SEEK_SET);
+    const auto bytes_read = fread(mem, 1, num_bytes, (FILE*)traj->file.handle);
     
 	CString mdl_str = { (uint8*)mem, (int64)bytes_read };
 	TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
@@ -585,6 +586,7 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
 	while (mdl_str && (line = extract_line(mdl_str))) {
 		if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
 			extract_position(x + atom_idx, y + atom_idx, z + atom_idx, line);
+			atom_idx++;
 		}
 		else if (compare_n(line, "CRYST1", 6)) {
 			extract_simulation_box(&frame->box, line);

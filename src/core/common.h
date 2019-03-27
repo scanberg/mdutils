@@ -27,6 +27,15 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #endif
 #define STATIC_ASSERT(cond, msg) static_assert(cond, msg)
 
+// This is to handle big files. 64-bit versions
+#ifdef _WIN32
+#define FSEEK _fseeki64
+#define FTELL _ftelli64
+#else
+#define FSEEK fseeko
+#define FTELL ftello
+#endif
+
 #define KILOBYTES(x) (x << 10)
 #define MEGABYTES(x) (KILOBYTES(x) << 10)
 #define GIGABYTES(x) (MEGABYTES(x) << 10)
