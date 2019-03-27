@@ -112,8 +112,8 @@ struct Array {
 
     operator Array<const T>() const { return {ptr, count}; }
 
-    T* ptr;
-    int64 count;
+    T* ptr = nullptr;
+    int64 count = 0;
 };
 
 // Light-weight std::array alternative

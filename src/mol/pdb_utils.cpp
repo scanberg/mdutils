@@ -48,11 +48,10 @@ inline CString extract_next_model(CString& pdb_string) {
     CString beg_mdl = find_string(pdb_string, "MODEL ");
     if (beg_mdl) {
 		CString tmp_mdl = { beg_mdl.end(),  pdb_string.end() - beg_mdl.end() };
-        CString end_mdl = find_string(tmp_mdl, "\nENDMDL"); // @NOTE: The more characters as a search pattern, the merrier
+        CString end_mdl = find_string(tmp_mdl, "ENDMDL"); // @NOTE: The more characters as a search pattern, the merrier
         if (end_mdl) {
 			// @NOTE: Only modify pdb_string if we found a complete model block.
-            pdb_string.count = pdb_string.end() - end_mdl.end();
-            pdb_string.ptr = end_mdl.end();
+			pdb_string = { end_mdl.end(), pdb_string.end() - end_mdl.end() };
             return {beg_mdl.beg(), end_mdl.end()};
         }
     }
@@ -481,7 +480,7 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
         return false;
     }
 
-	constexpr auto page_size = MEGABYTES(128);
+	constexpr auto page_size = MEGABYTES(32);
     void* mem = TMP_MALLOC(2 * page_size);
     defer { TMP_FREE(mem); };
 	uint8* page[2] = {(uint8*)mem, (uint8*)mem + page_size};
@@ -510,8 +509,7 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
     load_molecule_from_string(&md->molecule, mdl_str);
 
 	DynamicArray<int64> offsets;
-    offsets.push_back(global_offset + (mdl_str.ptr - page[0]));
-    while ((mdl_str = extract_next_model(pdb_str))) {
+    do {
         offsets.push_back(global_offset + (mdl_str.ptr - page[0]));
 
 		// @NOTE: Have we crossed the boundry to the second page
@@ -526,7 +524,7 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
 			pdb_str.count += bytes_read;
 			global_offset += page_size;
 		}
-    }
+	} while (mdl_str = extract_next_model(pdb_str));
     
     // Time between frames
     const float dt = 1.0f;
@@ -542,12 +540,6 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
 
     rewind(file);
 	pdb::read_next_trajectory_frame(&md->trajectory);
-
-	/*
-	while (all_trajectory_frames_read(md->trajectory) == false) {
-		pdb::read_next_trajectory_frame(&md->trajectory);
-	}
-	*/
 
 	return true;
 }
