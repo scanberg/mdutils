@@ -13,6 +13,8 @@
 
 template <typename T>
 struct Array {
+    using ElementType = T;
+    
     Array() = default;
     Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
     Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}

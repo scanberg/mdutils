@@ -1,4 +1,4 @@
-﻿#include "pdb_utils.h"
+#include "pdb_utils.h"
 #include <mol/element.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
@@ -10,20 +10,6 @@
 #include <stdio.h>
 
 namespace pdb {
-
-bool load_dynamic_from_file(MoleculeDynamic* md, CString filename) {
-    String txt = allocate_and_read_textfile(filename);
-    defer { free_string(&txt); };
-    if (!txt) {
-        LOG_ERROR("Could not read file: '%s'.", filename);
-        return false;
-    }
-
-    free_molecule_structure(&md->molecule);
-    free_trajectory(&md->trajectory);
-    auto res = load_dynamic_from_string(md, txt);
-    return res;
-}
 
 inline int char_to_digit(uint8 c) { return c - '0'; }
 
@@ -57,6 +43,23 @@ inline float fast_and_unsafe_str_to_float(CString str) {
     return sign * val;
 }
 
+inline CString extract_next_model(CString& pdb_string) {
+    CString beg_mdl = find_string(pdb_string, "MODEL ");
+    if (beg_mdl) {
+        pdb_string.count = pdb_string.end() - beg_mdl.end();
+        pdb_string.ptr = beg_mdl.end();
+
+        CString end_mdl = find_string(pdb_string, "ENDMDL");
+        if (end_mdl) {
+            pdb_string.count = pdb_string.end() - end_mdl.end();
+            pdb_string.ptr = end_mdl.end();
+            return {beg_mdl.beg(), end_mdl.end()};
+        }
+    }
+
+    return {};
+}
+
 inline void extract_position(float* x, float* y, float* z, CString line) {
 	// sscanf(line.substr(30).ptr, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
 
@@ -79,6 +82,20 @@ inline void extract_simulation_box(mat3* box, CString line) {
 	(*box)[0].x = dim.x;
 	(*box)[1].y = dim.y;
 	(*box)[2].z = dim.z;
+}
+
+bool load_dynamic_from_file(MoleculeDynamic* md, CString filename) {
+    String txt = allocate_and_read_textfile(filename);
+    defer { free_string(&txt); };
+    if (!txt) {
+        LOG_ERROR("Could not read file: '%s'.", filename);
+        return false;
+    }
+
+    free_molecule_structure(&md->molecule);
+    free_trajectory(&md->trajectory);
+    auto res = load_dynamic_from_string(md, txt);
+    return res;
 }
 
 bool load_dynamic_from_string(MoleculeDynamic* md, CString pdb_string) {
@@ -246,15 +263,23 @@ bool load_dynamic_from_string(MoleculeDynamic* md, CString pdb_string) {
 }
 
 bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
-	constexpr auto mem_size = MEGABYTES(4);
-	void* mem = TMP_MALLOC(mem_size);
-	defer{ TMP_FREE(mem); };
+    StringBuffer<256> zstr = filename; // Zero terminated
+	FILE* file = fopen(zstr.cstr(), "rb");
+    if (!file) {
+        LOG_ERROR("Could not open file: %s", zstr.cstr());
+        return false;
+    }
 
-	FILE* file = fopen(filename.cstr(), "rb");
-	auto bytes_read = fread((char*)mem, 1, mem_size, );
-	int64 global_offset = 0;
-	CString pdb_str = { page[0], (int64)bytes_read };
+    // @NOTE: We pray to the gods above and hope that one single frame will fit in 4MB
+    constexpr auto mem_size = MEGABYTES(4);
+    void* mem = TMP_MALLOC(mem_size);
+    defer{ TMP_FREE(mem); };
+
+	auto bytes_read = fread((char*)mem, 1, mem_size, file);
+	CString pdb_str = { (char*)mem, (int64)bytes_read };
 	CString mdl_str = extract_next_model(pdb_str);
+
+    return load_molecule_from_string(mol, mdl_str);
 }
 
 bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
@@ -286,15 +311,15 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     int current_res_id = -1;
     char current_chain_id = -1;
     int num_atoms = 0;
-    int num_frames = 0;
-    mat3 box(0);
+    mat3 box(1);
     CString line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
 			extract_position(&pos.z, &pos.y, &pos.z, line);
-
-            if (num_frames > 0) continue;
+            pos_x.push_back(pos.x);
+            pos_y.push_back(pos.y);
+            pos_z.push_back(pos.z);
 
             labels.push_back(trim(line.substr(12, 4)));
             if (line.count > 60) {
@@ -344,11 +369,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
             if (chains.size() > 0) chains.back().atom_range.end++;
 
             residue_indices.push_back((ResIdx)(residues.size() - 1));
-
-            // Add Atom
             num_atoms++;
-        } else if (compare_n(line, "CRYST1", 6)) {
-			extract_simulation_box(&box, line);
         } else if (compare_n(line, "ENDMDL", 6)) {
             break;
         }
@@ -395,22 +416,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     return true;
 }
 
-inline CString extract_next_model(CString& pdb_string) {
-    CString beg_mdl = find_string(pdb_string, "MODEL ");
-    if (beg_mdl) {
-        pdb_string.count = pdb_string.end() - beg_mdl.end();
-        pdb_string.ptr = beg_mdl.end();
 
-        CString end_mdl = find_string(pdb_string, "ENDMDL");
-        if (end_mdl) {
-            pdb_string.count = pdb_string.end() - end_mdl.end();
-            pdb_string.ptr = end_mdl.end();
-            return {beg_mdl.beg(), end_mdl.end()};
-        }
-    }
-
-    return {};
-}
 
 bool extract_info(Info* info, CString pdb_string) {
     ASSERT(info);
@@ -466,9 +472,12 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
 	free_molecule_structure(&md->molecule);
 	free_trajectory(&md->trajectory);
 
-    FILE* file = fopen(filename.cstr(), "rb");
+    printf("filename: %.*s", filename.size_in_bytes(), filename.cstr());
+
+    StringBuffer<256> zstr = filename;
+    FILE* file = fopen(zstr.cstr(), "rb");
     if (!file) {
-        LOG_ERROR("Could not open file: %.*s", filename.size(), filename.cstr());
+        LOG_ERROR("Could not open file: %s", zstr.cstr());
         return false;
     }
 
@@ -486,6 +495,19 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
         LOG_ERROR("Could not locate MODEL entry in Pdb file!");
         return false;
 	}
+    
+    // @NOTE: Search space for CRYST1 containing global simulation box parameters
+    mat3 sim_box(0);
+    CString box_str = {page[0], mdl_str.beg() - page[0]};
+    CString line;
+    while ((line = extract_line(box_str))) {
+        if (compare_n(line, "CRYST1", 6)) {
+            extract_simulation_box(&sim_box, line);
+            break;
+        }
+    }
+    
+    load_molecule_from_string(&md->molecule, mdl_str);
 
 	DynamicArray<int64> offsets;
     offsets.push_back(global_offset + (mdl_str.ptr - page[0]));
@@ -505,19 +527,20 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
 			global_offset += page_size;
 		}
     }
-
-	rewind(file);
-
-	load_molecule_from_file(&md->molecule, mdl_str);
-	init_trajectory(&md->trajectory, (int32)md->molecule.atom.count, (int32)offsets.size());
+    
+    // Time between frames
+    const float dt = 1.0f;
+	init_trajectory(&md->trajectory, (int32)md->molecule.atom.count, (int32)offsets.size(), dt, sim_box);
 
 	md->trajectory.file.handle = file;
 	md->trajectory.file.path = allocate_string(filename);
 	md->trajectory.file.tag = PDB_FILE_TAG;
 	
+    md->trajectory.num_frames = 0;
 	md->trajectory.frame_offsets = allocate_array<int64>(offsets.size());
 	memcpy(md->trajectory.frame_offsets.data(), offsets.data(), offsets.size_in_bytes());
 
+    rewind(file);
 	pdb::read_next_trajectory_frame(&md->trajectory);
 
 	/*
@@ -538,15 +561,19 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
 	}
 	auto num_frames = traj->frame_offsets.count;
 	if (traj->num_frames == num_frames) return false;
+    
+    const int i = traj->num_frames;
+    const bool last_frame = (i == num_frames - 1);
 
-	// Next index to be loaded
-	int i = traj->num_frames;
-
-	const auto num_bytes = traj->frame_offsets[i+1] - traj->frame_offsets[i];
+    const auto num_bytes = last_frame ?
+        (traj->frame_offsets[i] - traj->frame_offsets[i-1]) :
+        (traj->frame_offsets[i+1] - traj->frame_offsets[i]);
 	void* mem = TMP_MALLOC(num_bytes);
 	defer{ TMP_FREE(mem); };
 
-	CString mdl_str = { (uint8*)mem, num_bytes };
+    const auto bytes_read = fread((uint8*)mem, 1, num_bytes, (FILE*)traj->file.handle);
+    
+	CString mdl_str = { (uint8*)mem, (int64)bytes_read };
 	TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
 
 	// Read positions

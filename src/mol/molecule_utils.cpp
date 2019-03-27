@@ -1050,7 +1050,11 @@ DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment>
 
 void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z) {
     ASSERT(dst.count >= backbone_segments.count);
-    float phi, psi;
+    float phi = 0, psi = 0;
+    
+    if (backbone_segments.size() < 2) {
+        return;
+    }
 
     ASSERT(valid_segment(backbone_segments[0]));
     vec3 n = {pos_x[backbone_segments[0].n_idx], pos_y[backbone_segments[0].n_idx], pos_z[backbone_segments[0].n_idx]};

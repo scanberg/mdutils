@@ -84,12 +84,7 @@ struct StringBuffer {
 		return *this;
 	}
 
-	StringBuffer& operator=(const CString& cstr) {
-		auto len = cstr.count < (MaxSize - 1) ? cstr.count : (MaxSize - 1);
-		memcpy(buffer, cstr.beg(), len);
-		buffer[len] = '\0';
-		return *this;
-	}
+	StringBuffer& operator=(const CString& cstr);
 
 	StringBuffer& operator=(char c) {
 		buffer[0] = c;
@@ -114,15 +109,7 @@ struct StringBuffer {
 		return *this;
 	}
 
-	StringBuffer& operator+=(CString txt) {
-		int64 offset = (int64)strnlen((const char*)buffer, MaxSize);
-		int64 length = MaxSize - offset;
-		if (length > 0) {
-			strncpy((char*)buffer + offset, txt.cstr(), txt.count < length ? txt.count : length);
-		}
-		buffer[MaxSize - 1] = '\0';
-		return *this;
-	}
+	StringBuffer& operator+=(CString txt);
 
 	char operator[](int64 i) const {
 		ASSERT(i < MaxSize);
@@ -253,7 +240,26 @@ struct String : Array<uint8> {
 template <int64 N>
 StringBuffer<N>::StringBuffer(const CString& str) {
 	// @NOTE: MAX_LENGTH - 1 here because we copy from cstring which excludes \0
-	auto len = str.length() < MaxSize - 1 ? str.length() : MaxSize - 1;
+	auto len = str.length() < (MaxSize - 1) ? str.length() : (MaxSize - 1);
 	memcpy(buffer, str.cstr(), len);
 	buffer[len] = '\0';
+}
+
+template <int64 N>
+StringBuffer<N>& StringBuffer<N>::operator=(const CString& str) {
+    auto len = str.length() < (MaxSize - 1) ? str.length() : (MaxSize - 1);
+    memcpy(buffer, str.cstr(), len);
+    buffer[len] = '\0';
+    return *this;
+}
+
+template <int64 N>
+StringBuffer<N>& StringBuffer<N>::operator+=(CString txt) {
+    int64 offset = (int64)strnlen((const char*)buffer, MaxSize);
+    int64 length = MaxSize - offset;
+    if (length > 0) {
+        strncpy((char*)buffer + offset, txt.cstr(), txt.count < length ? txt.count : length);
+    }
+    buffer[MaxSize - 1] = '\0';
+    return *this;
 }
