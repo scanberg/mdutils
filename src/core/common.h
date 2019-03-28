@@ -90,13 +90,23 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #undef DELETE
 #endif
 
+#ifdef TMP_NEW
+#undef TMP_NEW
+#endif
+
+#ifdef TMP_DELETE
+#undef TMP_DELETE
+#endif
+
 // Blatantly stolen from ImGui (thanks Omar!)
 struct NewDummy {};
 inline void* operator new(size_t, NewDummy, void* ptr) { return ptr; }
 inline void  operator delete(void*, NewDummy, void*)   {} // This is only required so we can use the symetrical new()
-#define PLACEMENT_NEW(_PTR)              new(NewDummy(), _PTR)
-#define NEW(_TYPE)                       new(NewDummy(), MALLOC(sizeof(_TYPE))) _TYPE
-template<typename T> void DELETE(T* p)   { if (p) { p->~T(); FREE(p); } }
+#define PLACEMENT_NEW(_PTR)					new(NewDummy(), _PTR)
+#define NEW(_TYPE)							new(NewDummy(), MALLOC(sizeof(_TYPE))) _TYPE
+#define TMP_NEW(_TYPE)						new(NewDummy(), TMP_MALLOC(sizeof(_TYPE))) _TYPE
+template<typename T> void DELETE(T* p)		{ if (p) { p->~T(); FREE(p); } }
+template<typename T> void TMP_DELETE(T* p)	{ if (p) { p->~T(); TMP_FREE(p); } }
 
 #define RESTRICT __restrict
 

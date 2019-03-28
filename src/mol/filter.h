@@ -8,7 +8,7 @@
 
 struct StoredSelection {
 	CString name;
-	Array<const bool> mask;
+	Bitfield mask;
 };
 
 namespace filter {

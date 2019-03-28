@@ -111,14 +111,9 @@ DynamicArray<CString> ctokenize(CString str, CString delimiter);
 // *-18 -> {-1,18}
 // *-*  -> {-1,-1}
 
-struct IntRange {
-    int32 x;
-    int32 y;
-};
-
 bool is_range(CString arg);
-bool extract_range(IntRange* range, CString arg);
-bool extract_ranges(DynamicArray<IntRange>* ranges, Array<const CString> args);
+bool extract_range(Range<int32>* range, CString arg);
+bool extract_ranges(DynamicArray<Range<int32>>* ranges, Array<const CString> args);
 
 // Temporary string object with managed memory
 struct TmpString : CString {

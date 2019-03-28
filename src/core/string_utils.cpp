@@ -535,7 +535,7 @@ bool is_range(CString arg) {
     return false;
 }
 
-bool extract_range(IntRange* range, CString arg) {
+bool extract_range(Range<int32>* range, CString arg) {
     if (arg.count == 0) {
         *range = {-1, -1};
         return false;
@@ -573,12 +573,12 @@ bool extract_range(IntRange* range, CString arg) {
     return true;
 }
 
-bool extract_ranges(DynamicArray<IntRange>* ranges, Array<const CString> args) {
+bool extract_ranges(DynamicArray<Range<int32>>* ranges, Array<const CString> args) {
     ASSERT(ranges);
 
     for (auto arg : args) {
         if (is_range(arg)) {
-            IntRange r;
+            Range<int32> r;
             if (!extract_range(&r, arg)) return false;
             ranges->push_back(r);
         } else {
