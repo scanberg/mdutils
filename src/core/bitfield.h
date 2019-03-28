@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/common.h>
+#include <core/types.h>
 #include <core/array_types.h>
 
 typedef Array<uint64> Bitfield;
@@ -35,19 +36,23 @@ inline void init(Bitfield* field, int64 num_bits, bool value = false) {
 	memset(field->ptr, (int)value, field->size_in_bytes());
 }
 
-inline void set_all(Bitfield field, bool value) {
-    memset(field.ptr, (int)value, field.size_in_bytes());
+inline void set_all(Bitfield field) {
+    memset(field.ptr, 1, field.size_in_bytes());
 }
 
-inline void clear(Bitfield field) {
+inline void clear_all(Bitfield field) {
     memset(field.ptr, 0, field.size_in_bytes());
 }
 
-inline void invert(Bitfield field) {
+inline void invert_all(Bitfield field) {
     // @TODO: Vectorize 
     for (int64 i = 0; i < field.size(); i++) {
         field[i] = ~field[i];
     }
+}
+
+inline void set_range(Bitfield field, Range<int32> range) {
+
 }
 
 inline bool get_bit(Bitfield field, int64 idx) {
@@ -62,7 +67,7 @@ inline void clear_bit(Bitfield field, int64 idx) {
 	field[block(idx)] &= ~bit(idx);
 }
 
-inline bool toggle_bit(Bitfield field, int64 idx) {
+inline bool invert_bit(Bitfield field, int64 idx) {
     return field[block(idx)] ^= bit(idx);
 }
 

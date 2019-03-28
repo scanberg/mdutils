@@ -3,6 +3,7 @@
 #include <core/types.h>
 #include <core/array_types.h>
 #include <core/string_types.h>
+#include <core/bitfield.h>
 #include <mol/molecule_dynamic.h>
 
 struct StoredSelection {
@@ -13,10 +14,7 @@ struct StoredSelection {
 namespace filter {
 void initialize();
 void shutdown();
-bool compute_filter_mask(Array<bool> mask, CString filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selectons = {});
-
-void filter_colors(Array<uint32> colors, Array<bool> mask);
-void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale);
+bool compute_filter_mask(Bitfield mask, CString filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selectons = {});
 
 template <typename T>
 void extract_filtered_data(DynamicArray<T>* dst_data, Array<const T> src_data, Array<const bool> mask) {

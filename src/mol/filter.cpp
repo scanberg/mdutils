@@ -2,27 +2,24 @@
 #include <core/common.h>
 #include <core/hash.h>
 #include <core/log.h>
-//#include <mol/trajectory_utils.h>
 #include <mol/molecule_utils.h>
-
-
 
 namespace filter {
 
 struct FilterContext {
-	const MoleculeStructure& mol;
-	const Array<const StoredSelection> sel;
+    const MoleculeStructure& mol;
+    const Array<const StoredSelection> sel;
 };
 
-typedef bool(*FilterCommandFunc)(Array<bool> mask, const FilterContext& ctx, Array<const CString> args);
+typedef bool(*FilterCommandFunc)(Bitfield mask, const FilterContext& ctx, Array<const CString> args);
 
 struct FilterCommand {
-	StringBuffer<16> keyword{};
-	FilterCommandFunc func = nullptr;
+    StringBuffer<16> keyword{};
+	  FilterCommandFunc func = nullptr;
 };
 
 struct Context {
-	DynamicArray<FilterCommand> filter_commands{};
+    DynamicArray<FilterCommand> filter_commands{};
 };
 
 Context* context = nullptr;
@@ -114,7 +111,7 @@ FilterCommand* find_filter_command(CString command) {
     return nullptr;
 }
 
-void combine_mask_and(Array<bool> dst, Array<bool> src_a, Array<bool> src_b, bool state_not) {
+void combine_mask_and(Bitfield dst, Bitfield src_a, Bitfield src_b, bool state_not) {
     if (state_not) {
         for (int i = 0; i < dst.count; i++) dst[i] = src_a[i] & !src_b[i];
     } else {
@@ -122,7 +119,7 @@ void combine_mask_and(Array<bool> dst, Array<bool> src_a, Array<bool> src_b, boo
     }
 }
 
-void combine_mask_or(Array<bool> dst, Array<bool> src_a, Array<bool> src_b, bool state_not) {
+void combine_mask_or(Bitfield dst, Bitfield src_a, Bitfield src_b, bool state_not) {
     if (state_not) {
         for (int i = 0; i < dst.count; i++) dst[i] = src_a[i] | !src_b[i];
     } else {
@@ -130,9 +127,11 @@ void combine_mask_or(Array<bool> dst, Array<bool> src_a, Array<bool> src_b, bool
     }
 }
 
-bool internal_filter_mask(Array<bool> mask, CString filter, const FilterContext& ctx) {
+bool internal_filter_mask(Bitfield mask, CString filter, const FilterContext& ctx) {
     DynamicArray<CString> chunks = extract_chunks(filter);
-    DynamicArray<bool> chunk_mask(mask.count);
+    Bitfield chunk_mask;
+    bitfield::init(chunk_mask, mask.count, false);
+    defer { bitfield::free(chunk_mask); };
 
     bool state_and = true;
     bool state_or = false;
@@ -195,7 +194,7 @@ bool internal_filter_mask(Array<bool> mask, CString filter, const FilterContext&
     return true;
 }
 
-bool compute_filter_mask(Array<bool> mask, const CString filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selections) {
+bool compute_filter_mask(Bitfield mask, const CString filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selections) {
 	ASSERT(molecule);
     ASSERT(molecule.atom.count == mask.count);
 
@@ -206,31 +205,8 @@ bool compute_filter_mask(Array<bool> mask, const CString filter, const MoleculeS
 
 	const FilterContext ctx{ molecule, stored_selections };
 
-    memset(mask.data(), 1, mask.count);
+    bitfield::set_all(mask, true);
     return internal_filter_mask(mask, filter, ctx);
-}
-
-void filter_colors(Array<uint32> colors, Array<bool> mask) {
-    ASSERT(colors.count == mask.count);
-    for (int i = 0; i < colors.count; i++) {
-        if (mask[i])
-            colors[i] |= 0xff000000;
-        else
-            colors[i] &= ~0xff000000;
-    }
-}
-
-void desaturate_colors(Array<uint32> colors, Array<bool> mask, float scale) {
-    ASSERT(colors.count == mask.count);
-    for (int i = 0; i < colors.count; i++) {
-        if (!mask[i]) continue;
-
-        vec4 rgba = math::convert_color(colors[i]);
-        vec3 hsv = math::rgb_to_hsv((vec3)rgba);
-        hsv.y *= scale;
-        rgba = vec4(math::hsv_to_rgb(hsv), rgba.a);
-        colors[i] = math::convert_color(rgba);
-    }
 }
 
 void initialize() {
@@ -257,24 +233,24 @@ void initialize() {
             chainid
     */
 
-    auto filter_amino_acid = [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
-        memset(mask.data(), 0, mask.count);
+    auto filter_amino_acid = [](Bitfield mask, const FilterContext& ctx, Array<const CString>) {
+        bitfield::clear(mask);
         for (const auto& res : ctx.mol.residues) {
             if (is_amino_acid(res)) {
-                memset(mask.data() + res.atom_range.beg, 1, res.atom_range.end - res.atom_range.beg);
+                bitfield::set_range(mask, res.atom_range, true);
             }
         }
         return true;
     };
 
-    auto filter_atom_name = [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-        if (args.count == 0) return false;
+    auto filter_atom_name = [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+        if (args.size() == 0) return false;
 
+        bitfield::clear(mask);
         for (int64 i = 0; i < ctx.mol.atom.count; i++) {
-            mask[i] = false;
             for (const auto& arg : args) {
                 if (compare(ctx.mol.atom.label[i], arg)) {
-                    mask[i] = true;
+                    bitfield::set_bit(mask, i);
                     break;
                 }
             }
@@ -282,12 +258,12 @@ void initialize() {
         return true;
     };
 
-    context->filter_commands.push_back({"all", [](Array<bool> mask, const FilterContext&, Array<const CString>) {
-                                   memset(mask.data(), 1, mask.size_in_bytes());
+    context->filter_commands.push_back({"all", [](Bitfield mask, const FilterContext&, Array<const CString>) {
+                                   bitfield::set_all(mask, true);
                                    return true;
                                }});
-    context->filter_commands.push_back({"water", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
-                                   memset(mask.data(), 0, mask.size_in_bytes());
+    context->filter_commands.push_back({"water", [](Bitfield mask, const FilterContext& ctx, Array<const CString>) {
+                                   bitfield::clear(mask);
                                    for (const auto& res : ctx.mol.residues) {
                                        const auto res_size = res.atom_range.end - res.atom_range.beg;
                                        if (res_size == 3) {
@@ -298,28 +274,28 @@ void initialize() {
                                                if (e == Element::O) o_count++;
                                            }
                                            if (h_count == 2 && o_count == 1) {
-                                               memset(mask.data() + res.atom_range.beg, 1, res_size);
+                                               bitfield::set_range(mask, res.atom_range);
                                            }
                                        }
                                    }
                                    return true;
                                }});
     context->filter_commands.push_back({"aminoacid", filter_amino_acid});
-	context->filter_commands.push_back({ "backbone", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
-									memset(mask.data(), 0, mask.size_in_bytes());
+	context->filter_commands.push_back({ "backbone", [](Bitfield mask, const FilterContext& ctx, Array<const CString>) {
+									bitfield::clear(mask);
 									for (int64 i = 0; i < ctx.mol.atom.count; i++) {
 										if (compare_n(ctx.mol.atom.label[i], "CA", 2)) {
-											mask[i] = true;
+                      bitfield::set_bit(mask, i);
 										}
 									}
 									return true;
 								}});
     context->filter_commands.push_back({"protein", filter_amino_acid});
-    context->filter_commands.push_back({"dna", [](Array<bool> mask, const FilterContext& ctx, Array<const CString>) {
-                                   memset(mask.data(), 0, mask.size_in_bytes());
+    context->filter_commands.push_back({"dna", [](Bitfield mask, const FilterContext& ctx, Array<const CString>) {
+                                   bitfield::clear(mask);
                                    for (const auto& res : ctx.mol.residues) {
                                        if (is_dna(res)) {
-                                           memset(mask.data() + res.atom_range.beg, 1, res.atom_range.end - res.atom_range.beg);
+                                          bitfield::set_range(mask, res.atom_range);
                                        }
                                    }
                                    return true;
@@ -329,7 +305,7 @@ void initialize() {
     context->filter_commands.push_back({"label", filter_atom_name});
     context->filter_commands.push_back({"type", filter_atom_name});
 
-    context->filter_commands.push_back({"element", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+    context->filter_commands.push_back({"element", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
                                    Array<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
                                    defer { TMP_FREE(elements.data()); };
                                    for (int64 i = 0; i < elements.count; i++) {
@@ -337,11 +313,11 @@ void initialize() {
                                        if (elements[i] == Element::Unknown) return false;
                                    }
 
+                                   bitfield::clear(mask);
                                    for (int64 i = 0; i < ctx.mol.atom.count; i++) {
-                                       mask[i] = false;
                                        for (const auto& ele : elements) {
                                            if (ctx.mol.atom.element[i] == ele) {
-                                               mask[i] = true;
+                                               bitfield::set_bit(mask, i);
                                                break;
                                            }
                                        }
@@ -349,17 +325,17 @@ void initialize() {
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"atomicnumber", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
+    context->filter_commands.push_back({"atomicnumber", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
+                                   bitfield::clear(mask);
                                    for (int64 i = 0; i < ctx.mol.atom.count; i++) {
-                                       int atomnr = (int)ctx.mol.atom.element[i];
-                                       mask[i] = false;
+                                       const int atomnr = (int)ctx.mol.atom.element[i];
                                        for (auto range : ranges) {
                                            if (range.x == -1) range.x = 0;
                                            if (range.y == -1) range.y = element::num_elements;
                                            if (range.x <= atomnr && atomnr <= range.y) {
-                                               mask[i] = true;
+                                               bitfield::set_bit(mask, i);
                                                break;
                                            }
                                        }
@@ -367,59 +343,53 @@ void initialize() {
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"atom", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-                                   memset(mask.data(), 0, mask.size_in_bytes());
+    context->filter_commands.push_back({"atom", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
                                    if (ctx.mol.atom.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
+                                   bitfield::clear(mask);
                                    for (auto range : ranges) {
                                        if (range.x == -1) range.x = 0;
                                        if (range.y == -1) range.y = (int32)ctx.mol.atom.count - 1;
                                        range.x = math::clamp(range.x - 1, 0, (int32)ctx.mol.atom.count - 1);
                                        range.y = math::clamp(range.y - 1, 0, (int32)ctx.mol.atom.count - 1);
-                                       if (range.x == range.y)
-                                           mask[range.x] = true;
-                                       else
-                                           memset(mask.data() + range.x, 1, range.y - range.x);
+                                       bitfield::set_range(mask, range);
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"residue", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-                                   memset(mask.data(), 0, mask.size_in_bytes());
+    context->filter_commands.push_back({"residue", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
                                    if (ctx.mol.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
+                                   bitfield::clear(mask);
                                    for (auto range : ranges) {
                                        if (range.x == -1) range.x = 0;
                                        if (range.y == -1) range.y = (int32)ctx.mol.atom.count - 1;
                                        range.x = math::clamp(range.x, 0, (int32)ctx.mol.residues.count - 1);
                                        range.y = math::clamp(range.y, 0, (int32)ctx.mol.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           const auto beg = ctx.mol.residues[i].atom_range.beg;
-                                           const auto end = ctx.mol.residues[i].atom_range.end;
-                                           memset(mask.data() + beg, 1, end - beg);
+                                          const auto& res = ctx.mol.residues[i];                                        
+                                          bitfield::set_range(mask, res.atom_range);
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"resname", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-                                   memset(mask.data(), 0, mask.count);
+    context->filter_commands.push_back({"resname", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+                                   bitfield::clear(mask);
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& res : ctx.mol.residues) {
                                            if (compare(args[i], res.name)) {
-                                               const auto beg = res.atom_range.beg;
-                                               const auto end = res.atom_range.end;
-                                               memset(mask.data() + beg, 1, end - beg);
+                                               bitfield::set_range(mask, res.atom_range);
                                            }
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"resid", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-                                   memset(mask.data(), 0, mask.size_in_bytes());
+    context->filter_commands.push_back({"resid", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+                                   bitfield::clear(mask);
                                    if (ctx.mol.residues.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
@@ -429,16 +399,15 @@ void initialize() {
                                        range.x = math::clamp(range.x - 1, 0, (int32)ctx.mol.residues.count - 1);
                                        range.y = math::clamp(range.y - 1, 0, (int32)ctx.mol.residues.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           const auto beg = ctx.mol.residues[i].atom_range.beg;
-                                           const auto end = ctx.mol.residues[i].atom_range.end;
-                                           memset(mask.data() + beg, 1, end - beg);
+                                           const auto& res = ctx.mol.residues[i];
+                                           bitfield::set_range(mask, res.atom_range);
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"chain", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-                                   memset(mask.data(), 0, mask.size_in_bytes());
+    context->filter_commands.push_back({"chain", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+                                   bitfield::clear(mask);
                                    if (ctx.mol.chains.count == 0) return true;
                                    DynamicArray<IntRange> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
@@ -448,28 +417,28 @@ void initialize() {
                                        range.x = math::clamp(range.x - 1, 0, (int32)ctx.mol.chains.count - 1);
                                        range.y = math::clamp(range.y - 1, 0, (int32)ctx.mol.chains.count - 1);
                                        for (int i = range.x; i <= range.y; i++) {
-                                           Chain chain = get_chain(ctx.mol, (ChainIdx)i);
-                                           memset(mask.data() + chain.atom_range.beg, 1, chain.atom_range.end - chain.atom_range.beg);
+                                           const Chain& chain = get_chain(ctx.mol, (ChainIdx)i);
+                                           bitfield::set_range(mask, chain.atom_range);
                                        }
                                    }
                                    return true;
                                }});
 
-    context->filter_commands.push_back({"chainid", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-                                   memset(mask.data(), 0, mask.count);
+    context->filter_commands.push_back({"chainid", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+                                   bitfield::clear(mask);
                                    for (int i = 0; i < args.count; i++) {
                                        for (const auto& chain : ctx.mol.chains) {
                                            if (compare(args[i], chain.id)) {
-                                               memset(mask.data() + chain.atom_range.beg, 1, chain.atom_range.end - chain.atom_range.beg);
-											   break;
+                                               bitfield::set_range(mask, chain.atom_range);
+											                         break;
                                            }
                                        }
                                    }
                                    return true;
                                }});
 
-	context->filter_commands.push_back({ "selection", [](Array<bool> mask, const FilterContext& ctx, Array<const CString> args) {
-							   memset(mask.data(), 0, mask.count);
+	context->filter_commands.push_back({ "selection", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+							   bitfield::clear(mask);
 							   for (int i = 0; i < args.count; i++) {
 								   for (const auto& s : ctx.sel) {
 									   if (compare(args[i], s.name)) {
