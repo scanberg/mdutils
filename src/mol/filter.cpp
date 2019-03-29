@@ -417,7 +417,7 @@ void initialize() {
 							   for (int i = 0; i < args.count; i++) {
 								   for (const auto& s : ctx.sel) {
 									   if (compare(args[i], s.name)) {
-										   memcpy(mask.data(), s.mask.data(), mask.size_in_bytes());
+                       bitfield::or_field(mask, mask, s.mask);
 										   break;
 									   }
 								   }

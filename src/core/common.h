@@ -54,6 +54,9 @@ inline void _assert(const char* file, const char* func, int line, bool cond) { _
 #define ALIGNED_MALLOC(size, alignment) _aligned_malloc(size, alignment)
 #define ALIGNED_FREE(addr) _aligned_free(addr)
 #else
+#ifdef __GNUC__
+#include <mm_malloc.h>
+#endif
 #define ALIGNED_MALLOC(size, alignment) _mm_malloc(size, alignment)
 #define ALIGNED_FREE(addr) _mm_free(addr)
 #endif

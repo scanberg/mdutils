@@ -1,4 +1,4 @@
-#include "pdb_utils.h"
+﻿#include "pdb_utils.h"
 #include <mol/element.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
@@ -524,7 +524,7 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
 			pdb_str.count += bytes_read;
 			global_offset += page_size;
 		}
-	} while (mdl_str = extract_next_model(pdb_str));
+	} while ((mdl_str = extract_next_model(pdb_str)));
     
     // Time between frames
     const float dt = 1.0f;

@@ -91,21 +91,21 @@ inline void invert_all(Bitfield field) {
 
 template <typename Int>
 inline void set_range(Bitfield field, Range<Int> range) {
-	const auto beg_blk = block(range.beg);
-	const auto end_blk = block(range.end);
+	const auto beg_blk = detail::block(range.beg);
+	const auto end_blk = detail::block(range.end);
 
 	if (beg_blk == end_blk) {
 		// All bits reside within the same Block
-		const auto bits = (bit_pattern(range.beg) - 1) ^ (bit_pattern(range.end) - 1);
+		const auto bits = (detail::bit_pattern(range.beg) - 1) ^ (detail::bit_pattern(range.end) - 1);
 		field.ptr[beg_blk] |= bits;
 		return;
 	}
 
 	// Set bits inside beg_blk
-	field.ptr[beg_blk] |= ~(bit_pattern(range.beg) - 1);
+	field.ptr[beg_blk] |= ~(detail::bit_pattern(range.beg) - 1);
 
 	// Set bits inside end_blk
-	field.ptr[beg_blk] |= (bit_pattern(range.end) - 1);
+	field.ptr[beg_blk] |= (detail::bit_pattern(range.end) - 1);
 
 	// Set any bits within the inner range of blocks: beg_blk, [inner range], end_blk
 	const int64 size = end_blk - beg_blk - 2;
@@ -122,22 +122,22 @@ inline bool any_bit_set(Bitfield field) {
 
 template <typename Int>
 inline bool any_bit_set_in_range(Bitfield field, Range<Int> range) {
-	const auto beg_blk = block(range.beg);
-	const auto end_blk = block(range.end);
+	const auto beg_blk = detail::block(range.beg);
+	const auto end_blk = detail::block(range.end);
 
 	if (beg_blk == end_blk) {
 		// All bits reside within the same Block
-		const auto bits = (bit_pattern(range.beg) - 1) ^ (bit_pattern(range.end) - 1);
+		const auto bits = (detail::bit_pattern(range.beg) - 1) ^ (bit_pattern(range.end) - 1);
 		return field.ptr[beg_blk] & bits != 0;
 	}
-	if (field.ptr[beg_blk] & (~(bit_pattern(range.beg) - 1)) != 0) return true;
-	if (field.ptr[beg_blk] & (bit_pattern(range.beg) - 1) != 0) return true;
+	if (field.ptr[beg_blk] & (~(detail::bit_pattern(range.beg) - 1)) != 0) return true;
+	if (field.ptr[end_blk] & (detail::bit_pattern(range.end) - 1) != 0) return true;
 
 	const int64 size = end_blk - beg_blk - 2;
 	if (size > 0) {
-		const uint8* buf = (uint8*)field.ptr[beg_blk + 1];
-		const auto size = size * sizeof(Bitfield::ElementType);
-		return !(buf[0] == 0 && !memcmp(buf, buf + 1, size - 1));
+		const uint8* p = (uint8*)field.ptr[beg_blk + 1];
+		const auto s = size * sizeof(Bitfield::ElementType);
+		return !(p[0] == 0 && !memcmp(p, p + 1, s - 1));
 	}
 
 	return false;
