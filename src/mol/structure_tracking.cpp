@@ -501,7 +501,7 @@ void extract_data_from_indices(T* RESTRICT dst_data, const T* RESTRICT src_data,
 	}
 }
 
-bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx) {
+bool compute_trajectory_transform_data(ID id, Bitfield atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx) {
 	ASSERT(context);
 
 	const int32 num_frames = (int32)dynamic.trajectory.num_frames;
@@ -520,7 +520,7 @@ bool compute_trajectory_transform_data(ID id, Array<const bool> atom_mask, const
 	defer { TMP_FREE(indices); };
 	int num_points = 0;
 	for (int i = 0; i < (int32)atom_mask.size(); i++) {
-		if (atom_mask[i]) {
+		if (bitfield::get_bit(atom_mask, i)) {
 			indices[num_points] = i;
 			num_points++;
 		}

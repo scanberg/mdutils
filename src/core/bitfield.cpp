@@ -4,7 +4,7 @@ namespace bitfield {
 
 #define B2C(b, i) (b & (1U << i) ? '1' : '0')
 
-void print(Bitfield field) {
+void print(const Bitfield field) {
 	for (int64 i = 0; i < field.size_in_bytes(); i++) {
 		const uint8 b = ((uint8*)field.ptr)[i];
 		if (i % 4 == 0) printf("\n");

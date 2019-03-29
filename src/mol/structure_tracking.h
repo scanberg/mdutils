@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/types.h>
+#include <core/bitfield.h>
 #include <core/array_types.h>
 #include <core/vector_types.h>
 #include <core/hash.h>
@@ -27,7 +28,7 @@ mat3 compute_rotation(const float* RESTRICT x0, const float* RESTRICT y0, const 
 					  const float* RESTRICT x1, const float* RESTRICT y1, const float* RESTRICT z1,
 					  const float* RESTRICT mass, int64 count, const vec3& com0, const vec3& com1);
 
-bool compute_trajectory_transform_data(ID structure_id, Array<const bool> atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx = 0);
+bool compute_trajectory_transform_data(ID structure_id, Bitfield atom_mask, const MoleculeDynamic& dynamic, int32 target_frame_idx = 0);
 
 const Transform& get_transform_to_target_frame(ID structure_id, int32 source_frame);
 
