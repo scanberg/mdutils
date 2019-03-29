@@ -199,6 +199,12 @@ bool compute_filter_mask(Bitfield mask, const CString filter, const MoleculeStru
     return internal_filter_mask(mask, filter, ctx);
 }
 
+static inline Range<int32> fix_range(Range<int32> user_range, int32 min, int32 max) {
+	if (user_range.x == -1) user_range.x = min;
+	if (user_range.y == -1) user_range.y = max;
+	return {math::clamp(user_range.x, min, max), math::clamp(user_range.y, min, max)};
+}
+
 void initialize() {
 
 	if (context) return;
@@ -314,8 +320,7 @@ void initialize() {
                                    for (int64 i = 0; i < ctx.mol.atom.count; i++) {
                                        const int atomnr = (int)ctx.mol.atom.element[i];
                                        for (auto range : ranges) {
-                                           if (range.x == -1) range.x = 0;
-                                           if (range.y == -1) range.y = element::num_elements;
+										   range = fix_range(range, 1, element::num_elements - 1);
                                            if (range.x <= atomnr && atomnr <= range.y) {
                                                bitfield::set_bit(mask, i);
                                                break;
@@ -330,11 +335,8 @@ void initialize() {
                                    DynamicArray<Range<int32>> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (auto range : ranges) {
-                                       if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)ctx.mol.atom.count - 1;
-                                       range.x = math::clamp(range.x - 1, 0, (int32)ctx.mol.atom.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)ctx.mol.atom.count - 1);
-                                       bitfield::set_range(mask, range);
+									   range = fix_range(range, 1, (int32)ctx.mol.atom.count);
+									   bitfield::set_range(mask, Range<int32>(range.x - 1, range.y)); // @NOTE: [1, N] range to [0, N[
                                    }
                                    return true;
                                }});
@@ -344,11 +346,8 @@ void initialize() {
                                    DynamicArray<Range<int32>> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
                                    for (auto range : ranges) {
-                                       if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)ctx.mol.atom.count - 1;
-                                       range.x = math::clamp(range.x, 0, (int32)ctx.mol.residues.count - 1);
-                                       range.y = math::clamp(range.y, 0, (int32)ctx.mol.residues.count - 1);
-                                       for (int i = range.x; i <= range.y; i++) {
+									   range = fix_range(range, 1, (int32)ctx.mol.residues.count);
+                                       for (int32 i = range.x - 1; i < range.y; i++) {
                                           const auto& res = ctx.mol.residues[i];                                        
                                           bitfield::set_range(mask, res.atom_range);
                                        }
@@ -371,16 +370,13 @@ void initialize() {
                                    if (ctx.mol.residues.count == 0) return true;
                                    DynamicArray<Range<int32>> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   for (auto range : ranges) {
-                                       if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)ctx.mol.residues.count - 1;
-                                       range.x = math::clamp(range.x - 1, 0, (int32)ctx.mol.residues.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)ctx.mol.residues.count - 1);
-                                       for (int i = range.x; i <= range.y; i++) {
-                                           const auto& res = ctx.mol.residues[i];
-                                           bitfield::set_range(mask, res.atom_range);
-                                       }
-                                   }
+								   for (auto range : ranges) {
+								       for (const auto& res : ctx.mol.residues) {
+										   if (range.x <= res.id && res.id <= range.y) {
+										       bitfield::set_range(mask, res.atom_range);
+										   }
+									   }
+								   }
                                    return true;
                                }});
 
@@ -388,12 +384,9 @@ void initialize() {
                                    if (ctx.mol.chains.count == 0) return true;
                                    DynamicArray<Range<int32>> ranges;
                                    if (!extract_ranges(&ranges, args)) return false;
-                                   for (auto range : ranges) {
-                                       if (range.x == -1) range.x = 0;
-                                       if (range.y == -1) range.y = (int32)ctx.mol.atom.count - 1;
-                                       range.x = math::clamp(range.x - 1, 0, (int32)ctx.mol.chains.count - 1);
-                                       range.y = math::clamp(range.y - 1, 0, (int32)ctx.mol.chains.count - 1);
-                                       for (int i = range.x; i <= range.y; i++) {
+                                   for (auto user_range : ranges) {
+									   auto range = fix_range(user_range, 1, (int32)ctx.mol.chains.count);
+                                       for (int i = range.x - 1; i < range.y; i++) {
                                            const Chain& chain = get_chain(ctx.mol, (ChainIdx)i);
                                            bitfield::set_range(mask, chain.atom_range);
                                        }
@@ -406,7 +399,7 @@ void initialize() {
                                        for (const auto& chain : ctx.mol.chains) {
                                            if (compare(args[i], chain.id)) {
                                                bitfield::set_range(mask, chain.atom_range);
-											                         break;
+											   break;
                                            }
                                        }
                                    }
@@ -414,16 +407,16 @@ void initialize() {
                                }});
 
 	context->filter_commands.push_back({ "selection", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
-							   for (int i = 0; i < args.count; i++) {
-								   for (const auto& s : ctx.sel) {
-									   if (compare(args[i], s.name)) {
-                       bitfield::or_field(mask, mask, s.mask);
-										   break;
+								   for (int i = 0; i < args.count; i++) {
+									   for (const auto& s : ctx.sel) {
+										   if (compare(args[i], s.name)) {
+											   bitfield::or_field(mask, mask, s.mask);
+											   break;
+										   }
 									   }
 								   }
-							   }
-							   return true;
-						   } });
+								   return true;
+							   } });
 }
 
 void shutdown() {

@@ -50,6 +50,16 @@ struct Range {
     Range(T lo, T hi) : beg(lo), end(hi){};
 
     operator bool() const { return beg != end && beg < end; }
+	Range& operator +=(T val) {
+		beg += val;
+		end += val;
+		return *this;
+	}
+	Range& operator -=(T val) {
+		beg -= val;
+		end -= val;
+		return *this;
+	}
     int64 size() const { return end - beg; }
 };
 
@@ -61,4 +71,14 @@ bool operator==(const Range<T>& r_a, const Range<T>& r_b) {
 template <typename T>
 bool operator!=(const Range<T>& r_a, const Range<T>& r_b) {
     return !(r_a == r_b);
+}
+
+template <typename T>
+Range<T> operator+(const Range<T>& range, T val) {
+	return { range.x + val, range.y + val };
+}
+
+template <typename T>
+Range<T> operator-(const Range<T>& range, T val) {
+	return { range.x - val, range.y - val };
 }
