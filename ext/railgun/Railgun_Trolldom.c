@@ -363,6 +363,7 @@ if ( count <= 0 ) {
 */
 
 #include <stdint.h>
+#include <stddef.h>
 
 // Railgun_Swampshine_BailOut, copyleft 2014-Jan-31, Kaze.
 // Caution: For better speed the case 'if (cbPattern==1)' was removed, so Pattern must be longer than 1 char.
