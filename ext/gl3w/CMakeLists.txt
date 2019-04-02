@@ -11,5 +11,7 @@ target_include_directories(gl3w
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
 )
 
-target_compile_options(gl3w
-	PRIVATE /W3 /wd4152)
+if(MSVC)
+	target_compile_options(gl3w
+		PRIVATE /W3 /wd4152)
+endif()
