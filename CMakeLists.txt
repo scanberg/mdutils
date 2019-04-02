@@ -16,6 +16,7 @@ source_group("mol" FILES ${MOL_FILES})
 add_subdirectory(ext/gl3w)
 add_subdirectory(ext/libxdrfile)
 add_subdirectory(ext/stb)
+add_subdirectory(ext/railgun)
 
 message("${ISPC_BUILD_DIR}")
 
@@ -53,5 +54,6 @@ target_link_libraries(mdutils
     PRIVATE
 		libxdrfile
 		stb
+		railgun
 		#ispc_kernels
 )
