@@ -20,3 +20,8 @@ target_include_directories(stb
 	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+if(MSVC)
+	target_compile_options(stb
+		PRIVATE /W3 /wd4100)
+endif()
