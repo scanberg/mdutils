@@ -35,6 +35,8 @@ out Fragment {
 } out_frag;
 
 void main() {
+    if (in_vert[0].color.a == 0.0f || in_vert[1].color.a == 0.0f) return;
+
     vec4 p[2];
     vec4 x[2];
     vec4 y[2];
