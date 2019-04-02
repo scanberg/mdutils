@@ -316,7 +316,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
-			extract_position(&pos.z, &pos.y, &pos.z, line);
+			extract_position(&pos.x, &pos.y, &pos.z, line);
             pos_x.push_back(pos.x);
             pos_y.push_back(pos.y);
             pos_z.push_back(pos.z);
@@ -491,8 +491,15 @@ bool init_dynamic_from_file(MoleculeDynamic* md, CString filename) {
     CString mdl_str = extract_next_model(pdb_str);
 
 	if (!mdl_str) {
-        LOG_ERROR("Could not locate MODEL entry in Pdb file!");
-        return false;
+		fclose(file);
+
+		// @NOTE: No model entry found, will try to load as single frame
+		if (bytes_read < 2 * page_size) {
+			return load_molecule_from_string(&md->molecule, pdb_str);
+		}
+		else {
+			return load_molecule_from_file(&md->molecule, zstr.cstr());
+		}
 	}
     
     // @NOTE: Search space for CRYST1 containing global simulation box parameters
