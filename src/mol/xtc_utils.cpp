@@ -6,42 +6,51 @@
 #include <xdrfile_xtc.h>
 
 namespace xtc {
-bool init_trajectory(MoleculeTrajectory* traj, CString path) {
+bool init_trajectory_from_file(MoleculeTrajectory* traj, int32 mol_atom_count, CString filename) {
     ASSERT(traj);
     free_trajectory(traj);
 
-    CString directory = get_directory(path);
-    CString file = get_file_without_extension(path);
+    CString directory = get_directory(filename);
+    CString file = get_file_without_extension(filename);
     StringBuffer<512> cache_file = directory;
     cache_file += "/";
     cache_file += file;
     cache_file += ".cache";
 
-    XDRFILE* file_handle = xdrfile_open(path.cstr(), "r");
+    XDRFILE* file_handle = xdrfile_open(filename.cstr(), "r");
     if (!file_handle) {
-        LOG_ERROR("Could not open file: %s", path);
+        LOG_ERROR("Could not open file: %s", filename);
         return false;
     }
 
     int32 num_atoms = 0;
     int32 num_frames = 0;
     int64* offsets = nullptr;
-    if (read_xtc_natoms(path.cstr(), &num_atoms) != exdrOK) {
-        LOG_ERROR("Could not extract number of atoms in trajetory");
+    if (read_xtc_natoms(filename.cstr(), &num_atoms) != exdrOK) {
+        LOG_ERROR("Could not extract number of atoms in trajectory");
+		xdrfile_close(file_handle);
         return false;
     }
+
+	if (num_atoms != mol_atom_count) {
+		LOG_ERROR("Trajectory atom count did not match molecule atom count");
+		xdrfile_close(file_handle);
+		return false;
+	}
 
     FILE* offset_cache_handle = fopen(cache_file.cstr(), "rb");
     if (offset_cache_handle) {
         fseek(offset_cache_handle, 0, SEEK_END);
         int64 byte_size = ftell(offset_cache_handle);
         offsets = (int64*)malloc(byte_size);
+		ASSERT(offsets != 0);
         num_frames = (int32)(byte_size / sizeof(int64));
         fread(offsets, sizeof(int64), num_frames, offset_cache_handle);
         fclose(offset_cache_handle);
     } else {
-        if (read_xtc_frame_offsets(path.cstr(), &num_frames, &offsets) != exdrOK) {
+        if (read_xtc_frame_offsets(filename.cstr(), &num_frames, &offsets) != exdrOK) {
             LOG_ERROR("Could not read frame offsets in trajectory");
+			xdrfile_close(file_handle);
             return false;
         }
         FILE* write_cache_handle = fopen(cache_file.cstr(), "wb");
@@ -61,7 +70,7 @@ bool init_trajectory(MoleculeTrajectory* traj, CString path) {
     traj->num_frames = 0;
     traj->total_simulation_time = 0;
     traj->simulation_type = MoleculeTrajectory::NVT;
-    traj->file.path = allocate_string(path);
+    traj->file.path = allocate_string(filename);
     traj->file.handle = file_handle;
 	traj->file.tag = XTC_FILE_TAG;
     traj->frame_offsets = {offsets, num_frames};

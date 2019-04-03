@@ -52,6 +52,45 @@ ConversionResult<int32> to_int32(CString str);
 ConversionResult<int64> to_int64(CString str);
 inline ConversionResult<int> to_int(CString str) { return to_int32(str); }
 
+inline int char_to_digit(uint8 c) { return c - '0'; }
+
+template <typename Float = float32>
+inline float fast_str_to_float(CString str) {
+	const uint8* c = str.beg();
+
+	Float val = 0;
+	Float base = 1;
+	Float sign = 1;
+
+	while (c != str.end()) {
+		if ('0' <= *c && *c <= '9') {
+			val *= 10;
+			val += char_to_digit(*c);
+		}
+		else if (*c == '-') {
+			sign = -1;
+		}
+		else if (*c == '.') {
+			c++;
+			break;
+		}
+		c++;
+	}
+	while (c != str.end() && *c != ' ') {
+		if ('0' <= *c && *c <= '9') {
+			base *= (Float)0.1;
+			val += char_to_digit(*c) * base;
+		}
+		c++;
+	}
+	if (c != str.end() && (*c == 'e' || *c == 'E')) {
+		c++;
+		// @TODO: Read exponent
+	}
+
+	return sign * val;
+}
+
 // Removes whitespace from begining and end of String
 CString trim(CString str);
 String trim(String str);
@@ -123,7 +162,7 @@ struct TmpString : CString {
         this->count = tmp.count;
     }
     TmpString(const TmpString& other) = delete;
-    TmpString(TmpString&& other) {
+    TmpString(TmpString&& other) noexcept {
         this->ptr = other.ptr;
         this->count = other.count;
     }
