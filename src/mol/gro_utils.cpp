@@ -7,6 +7,12 @@
 
 namespace gro {
 
+enum class LineFormat {
+	Unknown = 0,
+	Narrow, // %5d%5c%5c%5d%8f%8f%8f%8f%8f%8f
+	Wide // "%5d%5c%5c%5d%11f%11f%11f%11f%11f%11f"
+};
+
 bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
     String txt = allocate_and_read_textfile(filename);
     defer { FREE(txt.cstr()); };
@@ -14,17 +20,13 @@ bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
         LOG_ERROR("Could not read file: '%.*s'.", filename.length(), filename);
         return false;
     }
-    auto res = load_molecule_from_string(mol, txt);
-    return res;
+    return load_molecule_from_string(mol, txt);
 }
 
-const char* get_format(CString line) {
-    const char* format_n = "%5d%5c%5c%5d%8f%8f%8f%8f%8f%8f";        // narrow 8 characters per float
-    const char* format_w = "%5d%5c%5c%5d%11f%11f%11f%11f%11f%11f";  // wide 11 characters per float, perhaps meant to be 10 with a space character.. who knows!
-
+inline LineFormat get_format(CString line) {
     // First float starts at offset 20, count
     if (line.length() < 20) {
-        return nullptr;
+        return LineFormat::Unknown;
     }
 
     const uint8* c = &line[20];
@@ -33,10 +35,34 @@ const char* get_format(CString line) {
 
     auto len = c - (&line[20]);
     if (len < 10) {
-        return format_n;
+        return LineFormat::Narrow;
     } else {
-        return format_w;
+		return LineFormat::Wide;
     }
+}
+
+inline void extract_residue_data(char* name, int* id, CString line) {
+	const auto trim_name = trim(line.substr(5, 5));
+	memcpy(name, trim_name.beg(), trim_name.size_in_bytes());
+	*id = to_int(line.substr(0, 5));
+}
+
+inline void extract_atom_data(char* name, int* id, CString line) {
+	const auto trim_name = trim(line.substr(10, 5));
+	memcpy(name, trim_name.beg(), trim_name.size_in_bytes());
+	*id = to_int(line.substr(15, 5));
+}
+
+inline void extract_position_data_narrow(float* x, float* y, float* z, CString line) {
+	*x = fast_str_to_float(line.substr(20, 8));
+	*y = fast_str_to_float(line.substr(28, 8));
+	*z = fast_str_to_float(line.substr(36, 8));
+}
+
+inline void extract_position_data_wide(float* x, float* y, float* z, CString line) {
+	*x = fast_str_to_float(line.substr(20, 11));
+	*y = fast_str_to_float(line.substr(31, 11));
+	*z = fast_str_to_float(line.substr(42, 11));
 }
 
 bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
@@ -68,59 +94,70 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
 
     DynamicArray<Residue> residues;
 
-    const char* format = get_format(peek_line(gro_string));
-    if (!format) {
-        LOG_ERROR("Could not identify internal format of gro file!");
+    LineFormat format = get_format(peek_line(gro_string));
+    if (format == LineFormat::Unknown) {
+        LOG_ERROR("Could not identify internal line format of gro file!");
         return false;
     }
     int res_count = 0;
     int cur_res = -1;
-    StringBuffer<256> line;
+	CString line;
 
     for (int i = 0; i < num_atoms; ++i) {
         float pos[3] = {0, 0, 0};
         float vel[3] = {0, 0, 0};
-        int atom_range, res_id;
+        int atom_idx, res_id;
         char atom_name[8] = {};
         char res_name[8] = {};
 
         line = extract_line(gro_string);
-        int result = sscanf(line.cstr(), format, &res_id, res_name, atom_name, &atom_range, &pos[0], &pos[1], &pos[2], &vel[0], &vel[1], &vel[2]);
-        if (result > 0) {
-            if (cur_res != res_id) {
-                cur_res = res_id;
-                res_count = (int)residues.count;
-                CString res_name_trim = trim(CString(res_name));
-                Residue res{};
-                res.name = res_name_trim;
-                res.id = res_id;
-                res.chain_idx = 0;
-                res.atom_range = {i, i};
-                residues.push_back(res);
-            }
-            residues.back().atom_range.end++;
+		// @NOTE: Avoid using sscanf since it on GCC uses strlen in the back and is slow.
 
-            CString atom_name_trim = trim(CString(atom_name));
-            CString element_str = atom_name_trim;
+		extract_residue_data(res_name, &res_id, line);
+		extract_atom_data(atom_name, &atom_idx, line);
+		
+		if (format == LineFormat::Narrow) {
+			extract_position_data_narrow(&pos[0], &pos[1], &pos[2], line);
+			// @NOTE: Perhaps read velocity here
+		}
+		else {
+			extract_position_data_wide(&pos[0], &pos[1], &pos[2], line);
+			// @NOTE: Perhaps read velocity here
+		}
 
-            if (is_amino_acid(residues.back())) {
-                // If we have an amino acid, we can assume its an organic element with just one letter. C/N/H/O?
-                element_str = element_str.substr(0, 1);
-            }
-            Element elem = element::get_from_string(element_str);
+		if (cur_res != res_id) {
+			cur_res = res_id;
+			res_count = (int)residues.count;
+			CString res_name_trim = trim(CString(res_name));
+			Residue res{};
+			res.name = res_name_trim;
+			res.id = res_id;
+			res.chain_idx = 0;
+			res.atom_range = { i, i };
+			residues.push_back(res);
+		}
+		residues.back().atom_range.end++;
 
-            // Convert from nm to ångström
-            atom_pos_x[i] = pos[0] * 10.f;
-            atom_pos_y[i] = pos[1] * 10.f;
-            atom_pos_z[i] = pos[2] * 10.f;
-            atom_vel_x[i] = vel[0] * 10.f;
-            atom_vel_y[i] = vel[1] * 10.f;
-            atom_vel_z[i] = vel[2] * 10.f;
+		CString atom_name_trim = trim(CString(atom_name));
+		CString element_str = atom_name_trim;
 
-            atom_label[i] = atom_name_trim;
-            atom_element[i] = elem;
-            atom_res_idx[i] = res_count;
-        }
+		if (is_amino_acid(residues.back())) {
+			// If we have an amino acid, we can assume its an organic element with just one letter. C/N/H/O?
+			element_str = element_str.substr(0, 1);
+		}
+		Element elem = element::get_from_string(element_str);
+
+		// Convert from nm to ångström
+		atom_pos_x[i] = pos[0] * 10.f;
+		atom_pos_y[i] = pos[1] * 10.f;
+		atom_pos_z[i] = pos[2] * 10.f;
+		atom_vel_x[i] = vel[0] * 10.f;
+		atom_vel_y[i] = vel[1] * 10.f;
+		atom_vel_z[i] = vel[2] * 10.f;
+
+		atom_label[i] = atom_name_trim;
+		atom_element[i] = elem;
+		atom_res_idx[i] = res_count;
     }
 
     vec3 box{};
