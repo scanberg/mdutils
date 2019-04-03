@@ -36,7 +36,7 @@ inline int32 get_backbone_angles_trajectory_current_frame_count(const BackboneAn
 }
 
 inline Array<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index, Chain chain) {
-    return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_range.beg, chain.res_range.end - chain.res_range.end);
+    return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_range);
 }
 
 DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues);

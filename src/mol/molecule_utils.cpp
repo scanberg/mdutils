@@ -30,7 +30,10 @@ inline float de_periodize(float a, float b, float full_ext, float half_ext) {
 
 inline __m128 de_periodize(const __m128 a, const __m128 b, const __m128 full_ext, const __m128 half_ext) {
     const __m128 delta = simd::sub(b, a);
-    const __m128 signed_mask = simd::mul(simd::sign(delta), simd::step(half_ext, simd::abs(delta)));
+	const __m128 abs_delta = simd::abs(delta);
+	const __m128 sign_delta = simd::sign(delta);
+	const __m128 step_delta = simd::step(half_ext, abs_delta);
+    const __m128 signed_mask = simd::mul(sign_delta, step_delta);
     const __m128 res = simd::sub(b, simd::mul(full_ext, signed_mask));
     return res;
 }
@@ -44,7 +47,7 @@ inline __m256 de_periodize(const __m256 a, const __m256 b, const __m256 full_ext
 }
 #endif
 
-#if 0
+#ifdef __AVX512__
 inline __m512 de_periodize(const __m512 a, const __m512 b, const __m512 full_ext, const __m512 half_ext) {
 	const __m512 delta = simd::sub(b, a);
 	const __m512 signed_mask = simd::mul(simd::sign(delta), simd::step(half_ext, simd::abs(delta)));
@@ -471,37 +474,37 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
     const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
 
     for (int i = 0; i < count; i += 4) {
-        __m128 x0 = simd::load128(in_x0 + i);
-        __m128 y0 = simd::load128(in_y0 + i);
-        __m128 z0 = simd::load128(in_z0 + i);
+		const __m128 x0 = simd::load128(in_x0 + i);
+        const __m128 y0 = simd::load128(in_y0 + i);
+        const __m128 z0 = simd::load128(in_z0 + i);
 
-        __m128 x1 = simd::load128(in_x1 + i);
-        __m128 y1 = simd::load128(in_y1 + i);
-        __m128 z1 = simd::load128(in_z1 + i);
+        const __m128 x1 = simd::load128(in_x1 + i);
+        const __m128 y1 = simd::load128(in_y1 + i);
+        const __m128 z1 = simd::load128(in_z1 + i);
 
-        __m128 x2 = simd::load128(in_x2 + i);
-        __m128 y2 = simd::load128(in_y2 + i);
-        __m128 z2 = simd::load128(in_z2 + i);
+        const __m128 x2 = simd::load128(in_x2 + i);
+        const __m128 y2 = simd::load128(in_y2 + i);
+        const __m128 z2 = simd::load128(in_z2 + i);
 
-        __m128 x3 = simd::load128(in_x3 + i);
-        __m128 y3 = simd::load128(in_y3 + i);
-        __m128 z3 = simd::load128(in_z3 + i);
+        const __m128 x3 = simd::load128(in_x3 + i);
+        const __m128 y3 = simd::load128(in_y3 + i);
+        const __m128 z3 = simd::load128(in_z3 + i);
 
-        x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
-        x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
-        x3 = de_periodize(x1, x3, full_box_ext_x, half_box_ext_x);
+        const __m128 dp_x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
+        const __m128 dp_x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
+        const __m128 dp_x3 = de_periodize(x1, x3, full_box_ext_x, half_box_ext_x);
 
-        y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
-        y2 = de_periodize(y1, y2, full_box_ext_y, half_box_ext_y);
-        y3 = de_periodize(y1, y3, full_box_ext_y, half_box_ext_y);
+        const __m128 dp_y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
+        const __m128 dp_y2 = de_periodize(y1, y2, full_box_ext_y, half_box_ext_y);
+        const __m128 dp_y3 = de_periodize(y1, y3, full_box_ext_y, half_box_ext_y);
 
-        z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
-        z2 = de_periodize(z1, z2, full_box_ext_z, half_box_ext_z);
-        z3 = de_periodize(z1, z3, full_box_ext_z, half_box_ext_z);
+        const __m128 dp_z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
+        const __m128 dp_z2 = de_periodize(z1, z2, full_box_ext_z, half_box_ext_z);
+        const __m128 dp_z3 = de_periodize(z1, z3, full_box_ext_z, half_box_ext_z);
 
-        const __m128 x = simd::cubic_spline(x0, x1, x2, x3, t);
-        const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
-        const __m128 z = simd::cubic_spline(z0, z1, z2, z3, t);
+        const __m128 x = simd::cubic_spline(dp_x0, x1, dp_x2, dp_x3, t);
+        const __m128 y = simd::cubic_spline(dp_y0, y1, dp_y2, dp_y3, t);
+        const __m128 z = simd::cubic_spline(dp_z0, z1, dp_z2, dp_z3, t);
 
         simd::store(out_x + i, x);
         simd::store(out_y + i, y);

@@ -55,6 +55,7 @@ INLINE float4 mul(const float4 a, const float4 b) { return _mm_mul_ps(a, b); }
 INLINE float4 div(const float4 a, const float4 b) { return _mm_div_ps(a, b); }
 
 INLINE float4 bit_and(const float4 a, const float4 b) { return _mm_and_ps(a, b); }
+INLINE float4 bit_and_not(const float4 a, const float4 b) { return _mm_andnot_ps(a, b); }
 INLINE float4 bit_or(const float4 a, const float4 b) { return _mm_or_ps(a, b); }
 INLINE float4 bit_xor(const float4 a, const float4 b) { return _mm_xor_ps(a, b); }
 
@@ -63,16 +64,15 @@ INLINE float4 cmp_ge(const float4 a, const float4 b) { return _mm_cmpge_ps(a, b)
 INLINE float4 cmp_lt(const float4 a, const float4 b) { return _mm_cmplt_ps(a, b); }
 INLINE float4 cmp_le(const float4 a, const float4 b) { return _mm_cmple_ps(a, b); }
 INLINE float4 cmp_eq(const float4 a, const float4 b) { return _mm_cmpeq_ps(a, b); }
+INLINE float4 cmp_neq(const float4 a, const float4 b) { return _mm_cmpneq_ps(a, b); }
 
 INLINE float4 abs(float4 a) { return _mm_and_ps(a, _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF))); }
+
+// @NOTE: If 0.0f is given as input, it will be mapped to 1.0f
 INLINE float4 sign(float4 x) {
-    const float4 zero = zero_128();
-    const float4 lz = cmp_lt(x, zero);
-    const float4 gz = cmp_gt(x, zero);
-    const float4 neg = bit_and(lz, set_128(-1.0f));
-    const float4 pos = bit_and(gz, set_128(1.0f));
-    const float4 res = bit_or(neg, pos);
-    return res;
+	const float4 sgn = bit_and(x, set_128(-0.0f));
+	const float4 res = bit_xor(sgn, set_128(1.0f));
+	return res;
 }
 
 INLINE float4 min(const float4 a, const float4 b) {
@@ -151,6 +151,7 @@ INLINE float8 mul(const float8 a, const float8 b) { return _mm256_mul_ps(a, b); 
 INLINE float8 div(const float8 a, const float8 b) { return _mm256_div_ps(a, b); }
 
 INLINE float8 bit_and(const float8 a, const float8 b) { return _mm256_and_ps(a, b); }
+INLINE float8 bit_and_not(const float8 a, const float8 b) { return _mm256_andnot_ps(a, b); }
 INLINE float8 bit_or(const float8 a, const float8 b) { return _mm256_or_ps(a, b); }
 INLINE float8 bit_xor(const float8 a, const float8 b) { return _mm256_xor_ps(a, b); }
 
@@ -159,15 +160,14 @@ INLINE float8 cmp_ge(const float8 a, const float8 b) { return _mm256_cmp_ps(a, b
 INLINE float8 cmp_lt(const float8 a, const float8 b) { return _mm256_cmp_ps(a, b, _CMP_LT_OQ); }
 INLINE float8 cmp_le(const float8 a, const float8 b) { return _mm256_cmp_ps(a, b, _CMP_LE_OQ); }
 INLINE float8 cmp_eq(const float8 a, const float8 b) { return _mm256_cmp_ps(a, b, _CMP_EQ_OQ); }
+INLINE float8 cmp_neq(const float8 a, const float8 b) { return _mm256_cmp_ps(a, b, _CMP_NEQ_OQ); }
 
 INLINE float8 abs(float8 a) { return bit_and(a, _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF))); }
+
+// @NOTE: If 0.0f is given as input, it will be mapped to 1.0f
 INLINE float8 sign(float8 x) {
-	const float8 zero = zero_256();
-	const float8 lz = cmp_lt(x, zero);
-	const float8 gz = cmp_gt(x, zero);
-	const float8 neg = bit_and(lz, set_256(-1.0f));
-	const float8 pos = bit_and(gz, set_256(1.0f));
-	const float8 res = bit_or(neg, pos);
+	const float8 sgn = bit_and(x, set_256(-0.0f));
+	const float8 res = bit_xor(sgn, set_256(1.0f));
 	return res;
 }
 
