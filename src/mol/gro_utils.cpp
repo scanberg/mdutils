@@ -169,7 +169,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
 
     compute_atom_radii(atom_radius, atom_element, num_atoms);
     compute_atom_masses(atom_mass, atom_element, num_atoms);
-    auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_res_idx, atom_element, num_atoms);
+    auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_element, num_atoms);
     auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
     auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, atom_pos_x, atom_pos_y, atom_pos_z);

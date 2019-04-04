@@ -11,6 +11,19 @@
 
 #include <core/simd.h>
 
+#ifdef __AVX__
+#define SIMD_WIDTH 8
+#define SIMD_TYPE __m256
+#define SIMD_LOAD simd::load_256
+#define SIMD_SET simd::set_256
+#else
+#define SIMD_WIDTH 4
+#define SIMD_TYPE __m128
+#define SIMD_LOAD simd::load128
+#define SIMD_SET simd::set_128
+#endif
+#define SIMD_STORE simd::store
+
 //#include "compute_velocity_ispc.h"
 //#include "interpolate_position_linear_ispc.h"
 
@@ -56,27 +69,93 @@ inline __m512 de_periodize(const __m512 a, const __m512 b, const __m512 full_ext
 }
 #endif
 
-void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation) {
-    __m128 t_x = simd::set_128(translation.x);
-    __m128 t_y = simd::set_128(translation.y);
-    __m128 t_z = simd::set_128(translation.z);
+void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+    SIMD_TYPE t_x = SIMD_SET(translation.x);
+    SIMD_TYPE t_y = SIMD_SET(translation.y);
+    SIMD_TYPE t_z = SIMD_SET(translation.z);
 
-    for (int64 i = 0; i < count; i += 4) {
-        __m128 p_x = simd::load128(pos_x + i);
-        __m128 p_y = simd::load128(pos_y + i);
-        __m128 p_z = simd::load128(pos_z + i);
+	int64 i = 0;
+	const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    for (; i < simd_count; i += SIMD_WIDTH) {
+        SIMD_TYPE p_x = SIMD_LOAD(in_out_x + i);
+        SIMD_TYPE p_y = SIMD_LOAD(in_out_y + i);
+        SIMD_TYPE p_z = SIMD_LOAD(in_out_z + i);
 
         p_x = simd::add(p_x, t_x);
         p_y = simd::add(p_y, t_y);
         p_z = simd::add(p_z, t_z);
 
-        simd::store(pos_x + i, p_x);
-        simd::store(pos_y + i, p_y);
-        simd::store(pos_z + i, p_z);
+        SIMD_STORE(in_out_x + i, p_x);
+		SIMD_STORE(in_out_y + i, p_y);
+		SIMD_STORE(in_out_z + i, p_z);
     }
+
+	for (; i < count; i++) {
+		in_out_x[i] += translation.x;
+		in_out_y[i] += translation.y;
+		in_out_z[i] += translation.z;
+	}
 }
 
-void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
+void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
+	const SIMD_TYPE m11 = SIMD_SET(transformation[0][0]);
+	const SIMD_TYPE m12 = SIMD_SET(transformation[0][1]);
+	const SIMD_TYPE m13 = SIMD_SET(transformation[0][2]);
+					
+	const SIMD_TYPE m21 = SIMD_SET(transformation[1][0]);
+	const SIMD_TYPE m22 = SIMD_SET(transformation[1][1]);
+	const SIMD_TYPE m23 = SIMD_SET(transformation[1][2]);
+					
+	const SIMD_TYPE m31 = SIMD_SET(transformation[2][0]);
+	const SIMD_TYPE m32 = SIMD_SET(transformation[2][1]);
+	const SIMD_TYPE m33 = SIMD_SET(transformation[2][2]);
+					
+	const SIMD_TYPE m41 = SIMD_SET(transformation[3][0]);
+	const SIMD_TYPE m42 = SIMD_SET(transformation[3][1]);
+	const SIMD_TYPE m43 = SIMD_SET(transformation[3][2]);
+	
+	const SIMD_TYPE w = SIMD_SET(w_comp);
+
+	int64 i = 0;
+	const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+	for (; i < simd_count; i += SIMD_WIDTH) {
+		const SIMD_TYPE x = SIMD_LOAD(in_out_x + i);
+		const SIMD_TYPE y = SIMD_LOAD(in_out_y + i);
+		const SIMD_TYPE z = SIMD_LOAD(in_out_z + i);
+
+		const SIMD_TYPE m11x = simd::mul(m11, x);
+		const SIMD_TYPE m21y = simd::mul(m21, y);
+		const SIMD_TYPE m31z = simd::mul(m31, z);
+		const SIMD_TYPE m41w = simd::mul(m41, w);
+
+		const SIMD_TYPE m12x = simd::mul(m12, x);
+		const SIMD_TYPE m22y = simd::mul(m22, y);
+		const SIMD_TYPE m32z = simd::mul(m32, z);
+		const SIMD_TYPE m42w = simd::mul(m42, w);
+
+		const SIMD_TYPE m13x = simd::mul(m13, x);
+		const SIMD_TYPE m23y = simd::mul(m23, y);
+		const SIMD_TYPE m33z = simd::mul(m33, z);
+		const SIMD_TYPE m43w = simd::mul(m43, w);
+
+		const SIMD_TYPE res_x = simd::add(simd::add(m11x, m21y), simd::add(m31z, m41w));
+		const SIMD_TYPE res_y = simd::add(simd::add(m12x, m22y), simd::add(m32z, m42w));
+		const SIMD_TYPE res_z = simd::add(simd::add(m13x, m23y), simd::add(m33z, m43w));
+
+		SIMD_STORE(in_out_x + i, res_x);
+		SIMD_STORE(in_out_y + i, res_y);
+		SIMD_STORE(in_out_z + i, res_z);
+	}
+
+	for (; i < count; i++) {
+		const vec4 p = transformation * vec4(in_out_x[i], in_out_y[i], in_out_z[i], w_comp);
+		in_out_x[i] = p.x;
+		in_out_y[i] = p.y;
+		in_out_z[i] = p.z;
+	}
+}
+
+void projective_transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
         const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
         pos_x[i] = p.x / p.w;
@@ -85,39 +164,108 @@ void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RE
     }
 }
 
-void compute_bounding_box(vec3* min_box, vec3* max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count) {
-    ASSERT(min_box);
-    ASSERT(max_box);
-
+void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
     if (count == 0) {
-        *min_box = *max_box = vec3(0);
+		out_min = out_max = vec3(0);
         return;
     }
 
-    *min_box = *max_box = vec3(pos_x[0], pos_y[0], pos_z[0]);
-    for (int64 i = 1; i < count; i++) {
-        const vec3 p = vec3(pos_x[i], pos_y[i], pos_z[i]);
-        *min_box = math::min(*min_box, p);
-        *max_box = math::max(*max_box, p);
-    }
+	vec3 res_min, res_max;
+	res_min = res_max = { in_x[0], in_y[0], in_z[0] };
+
+	int64 i = 0;
+	if (count > SIMD_WIDTH) { // @NOTE: There is probably some number where this makes most sense
+		SIMD_TYPE min_x = SIMD_LOAD(in_x);
+		SIMD_TYPE min_y = SIMD_LOAD(in_y);
+		SIMD_TYPE min_z = SIMD_LOAD(in_z);
+
+		SIMD_TYPE max_x = min_x;
+		SIMD_TYPE max_y = min_y;
+		SIMD_TYPE max_z = min_z;
+
+		i += SIMD_WIDTH;
+		const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+		for (; i < simd_count; i += SIMD_WIDTH) {
+			const SIMD_TYPE x = SIMD_LOAD(in_x + i);
+			const SIMD_TYPE y = SIMD_LOAD(in_y + i);
+			const SIMD_TYPE z = SIMD_LOAD(in_z + i);
+
+			min_x = simd::min(min_x, x);
+			min_y = simd::min(min_y, y);
+			min_z = simd::min(min_z, z);
+
+			max_x = simd::max(max_x, x);
+			max_y = simd::max(max_y, y);
+			max_z = simd::max(max_z, z);
+		}
+
+		res_min = { simd::horizontal_min(min_x), simd::horizontal_min(min_y), simd::horizontal_min(min_z) };
+		res_max = { simd::horizontal_max(max_x), simd::horizontal_max(max_y), simd::horizontal_max(max_z) };
+	}
+
+	for (; i < count; i++) {
+		const vec3 p = { in_x[i], in_y[i], in_z[i] };
+		res_min = math::min(res_min, p);
+		res_max = math::max(res_max, p);
+	}
+
+	out_min = res_min;
+	out_max = res_max;
 }
 
-void compute_bounding_box(vec3* min_box, vec3* max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* radii, int64 count) {
-    ASSERT(min_box);
-    ASSERT(max_box);
+void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count) {
+	if (count == 0) {
+		out_min = out_max = vec3(0);
+		return;
+	}
 
-    if (count == 0) {
-        *min_box = *max_box = vec3(0);
-        return;
-    }
+	vec3 res_min, res_max;
+	res_min = res_max = { in_x[0], in_y[0], in_z[0] };
 
-    *min_box = *max_box = vec3(pos_x[0], pos_y[0], pos_z[0]);
-    for (int64 i = 1; i < count; i++) {
-        const vec3 p = vec3(pos_x[i], pos_y[i], pos_z[i]);
-        const float r = radii[i];
-        *min_box = math::min(*min_box, p - r);
-        *max_box = math::max(*max_box, p + r);
-    }
+	int64 i = 0;
+	if (count > SIMD_WIDTH) { // @NOTE: There is probably some number where this makes most sense
+		SIMD_TYPE x = SIMD_LOAD(in_x);
+		SIMD_TYPE y = SIMD_LOAD(in_y);
+		SIMD_TYPE z = SIMD_LOAD(in_z);
+		SIMD_TYPE r = SIMD_LOAD(in_r);
+
+		SIMD_TYPE min_x = simd::sub(x, r);
+		SIMD_TYPE min_y = simd::sub(y, r);
+		SIMD_TYPE min_z = simd::sub(z, r);
+
+		SIMD_TYPE max_x = simd::add(x, r);
+		SIMD_TYPE max_y = simd::add(y, r);
+		SIMD_TYPE max_z = simd::add(z, r);
+
+		i += SIMD_WIDTH;
+		const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+		for (; i < simd_count; i += SIMD_WIDTH) {
+			x = SIMD_LOAD(in_x + i);
+			y = SIMD_LOAD(in_y + i);
+			z = SIMD_LOAD(in_z + i);
+			r = SIMD_LOAD(in_r + i);
+
+			min_x = simd::min(min_x, simd::sub(x, r));
+			min_y = simd::min(min_y, simd::sub(y, r));
+			min_z = simd::min(min_z, simd::sub(z, r));
+
+			max_x = simd::max(max_x, simd::add(x, r));
+			max_y = simd::max(max_y, simd::add(y, r));
+			max_z = simd::max(max_z, simd::add(z, r));
+		}
+
+		res_min = { simd::horizontal_min(min_x), simd::horizontal_min(min_y), simd::horizontal_min(min_z) };
+		res_max = { simd::horizontal_max(max_x), simd::horizontal_max(max_y), simd::horizontal_max(max_z) };
+	}
+
+	for (; i < count; i++) {
+		const vec3 p = { in_x[i], in_y[i], in_z[i] };
+		res_min = math::min(res_min, p);
+		res_max = math::max(res_max, p);
+	}
+
+	out_min = res_min;
+	out_max = res_max;
 }
 
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count) {
@@ -222,13 +370,13 @@ void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* R
 						  int64 count, float t)
 {
 	for (int64 i = 0; i < count; i += 4) {
-		const __m128 x0 = simd::load128(in_x0 + i);
-		const __m128 y0 = simd::load128(in_y0 + i);
-		const __m128 z0 = simd::load128(in_z0 + i);
+		const __m128 x0 = simd::load_128(in_x0 + i);
+		const __m128 y0 = simd::load_128(in_y0 + i);
+		const __m128 z0 = simd::load_128(in_z0 + i);
 
-		const __m128 x1 = simd::load128(in_x1 + i);
-		const __m128 y1 = simd::load128(in_y1 + i);
-		const __m128 z1 = simd::load128(in_z1 + i);
+		const __m128 x1 = simd::load_128(in_x1 + i);
+		const __m128 y1 = simd::load_128(in_y1 + i);
+		const __m128 z1 = simd::load_128(in_z1 + i);
 
 		const __m128 x = simd::lerp(x0, x1, t);
 		const __m128 y = simd::lerp(y0, y1, t);
@@ -247,13 +395,13 @@ void linear_interpolation_256(float* RESTRICT out_x, float* RESTRICT out_y, floa
 							 int64 count, float t)
 {
 	for (int64 i = 0; i < count; i += 8) {
-		const __m256 x0 = simd::load256(in_x0 + i);
-		const __m256 y0 = simd::load256(in_y0 + i);
-		const __m256 z0 = simd::load256(in_z0 + i);
+		const __m256 x0 = simd::load_256(in_x0 + i);
+		const __m256 y0 = simd::load_256(in_y0 + i);
+		const __m256 z0 = simd::load_256(in_z0 + i);
 
-		const __m256 x1 = simd::load256(in_x1 + i);
-		const __m256 y1 = simd::load256(in_y1 + i);
-		const __m256 z1 = simd::load256(in_z1 + i);
+		const __m256 x1 = simd::load_256(in_x1 + i);
+		const __m256 y1 = simd::load_256(in_y1 + i);
+		const __m256 z1 = simd::load_256(in_z1 + i);
 
 		const __m256 x = simd::lerp(x0, x1, t);
 		const __m256 y = simd::lerp(y0, y1, t);
@@ -316,13 +464,13 @@ void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, floa
 	const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
 
 	for (int64 i = 0; i < count; i += 4) {
-		__m128 x0 = simd::load128(in_x0 + i);
-		__m128 y0 = simd::load128(in_y0 + i);
-		__m128 z0 = simd::load128(in_z0 + i);
+		__m128 x0 = simd::load_128(in_x0 + i);
+		__m128 y0 = simd::load_128(in_y0 + i);
+		__m128 z0 = simd::load_128(in_z0 + i);
 
-		__m128 x1 = simd::load128(in_x1 + i);
-		__m128 y1 = simd::load128(in_y1 + i);
-		__m128 z1 = simd::load128(in_z1 + i);
+		__m128 x1 = simd::load_128(in_x1 + i);
+		__m128 y1 = simd::load_128(in_y1 + i);
+		__m128 z1 = simd::load_128(in_z1 + i);
 
 		x1 = de_periodize(x0, x1, full_box_ext_x, half_box_ext_x);
 		y1 = de_periodize(y0, y1, full_box_ext_y, half_box_ext_y);
@@ -353,13 +501,13 @@ void linear_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, 
 	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_256(0.5f));
 
 	for (int64 i = 0; i < count; i += 8) {
-		__m256 x0 = simd::load256(in_x0 + i);
-		__m256 y0 = simd::load256(in_y0 + i);
-		__m256 z0 = simd::load256(in_z0 + i);
+		__m256 x0 = simd::load_256(in_x0 + i);
+		__m256 y0 = simd::load_256(in_y0 + i);
+		__m256 z0 = simd::load_256(in_z0 + i);
 
-		__m256 x1 = simd::load256(in_x1 + i);
-		__m256 y1 = simd::load256(in_y1 + i);
-		__m256 z1 = simd::load256(in_z1 + i);
+		__m256 x1 = simd::load_256(in_x1 + i);
+		__m256 y1 = simd::load_256(in_y1 + i);
+		__m256 z1 = simd::load_256(in_z1 + i);
 
 		x1 = de_periodize(x0, x1, full_box_ext_x, half_box_ext_x);
 		y1 = de_periodize(y0, y1, full_box_ext_y, half_box_ext_y);
@@ -384,21 +532,21 @@ void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RE
 						 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 						 int64 count, float t) {
     for (int i = 0; i < count; i += 4) {
-        const __m128 x0 = simd::load128(in_x0 + i);
-        const __m128 y0 = simd::load128(in_y0 + i);
-        const __m128 z0 = simd::load128(in_z0 + i);
+        const __m128 x0 = simd::load_128(in_x0 + i);
+        const __m128 y0 = simd::load_128(in_y0 + i);
+        const __m128 z0 = simd::load_128(in_z0 + i);
 
-        const __m128 x1 = simd::load128(in_x1 + i);
-        const __m128 y1 = simd::load128(in_y1 + i);
-        const __m128 z1 = simd::load128(in_z1 + i);
+        const __m128 x1 = simd::load_128(in_x1 + i);
+        const __m128 y1 = simd::load_128(in_y1 + i);
+        const __m128 z1 = simd::load_128(in_z1 + i);
 
-        const __m128 x2 = simd::load128(in_x2 + i);
-        const __m128 y2 = simd::load128(in_y2 + i);
-        const __m128 z2 = simd::load128(in_z2 + i);
+        const __m128 x2 = simd::load_128(in_x2 + i);
+        const __m128 y2 = simd::load_128(in_y2 + i);
+        const __m128 z2 = simd::load_128(in_z2 + i);
 
-        const __m128 x3 = simd::load128(in_x3 + i);
-        const __m128 y3 = simd::load128(in_y3 + i);
-        const __m128 z3 = simd::load128(in_z3 + i);
+        const __m128 x3 = simd::load_128(in_x3 + i);
+        const __m128 y3 = simd::load_128(in_y3 + i);
+        const __m128 z3 = simd::load_128(in_z3 + i);
 
         const __m128 x = simd::cubic_spline(x0, x1, x2, x3, t);
         const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
@@ -474,21 +622,21 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
     const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
 
     for (int i = 0; i < count; i += 4) {
-		const __m128 x0 = simd::load128(in_x0 + i);
-        const __m128 y0 = simd::load128(in_y0 + i);
-        const __m128 z0 = simd::load128(in_z0 + i);
+		const __m128 x0 = simd::load_128(in_x0 + i);
+        const __m128 y0 = simd::load_128(in_y0 + i);
+        const __m128 z0 = simd::load_128(in_z0 + i);
 
-        const __m128 x1 = simd::load128(in_x1 + i);
-        const __m128 y1 = simd::load128(in_y1 + i);
-        const __m128 z1 = simd::load128(in_z1 + i);
+        const __m128 x1 = simd::load_128(in_x1 + i);
+        const __m128 y1 = simd::load_128(in_y1 + i);
+        const __m128 z1 = simd::load_128(in_z1 + i);
 
-        const __m128 x2 = simd::load128(in_x2 + i);
-        const __m128 y2 = simd::load128(in_y2 + i);
-        const __m128 z2 = simd::load128(in_z2 + i);
+        const __m128 x2 = simd::load_128(in_x2 + i);
+        const __m128 y2 = simd::load_128(in_y2 + i);
+        const __m128 z2 = simd::load_128(in_z2 + i);
 
-        const __m128 x3 = simd::load128(in_x3 + i);
-        const __m128 y3 = simd::load128(in_y3 + i);
-        const __m128 z3 = simd::load128(in_z3 + i);
+        const __m128 x3 = simd::load_128(in_x3 + i);
+        const __m128 y3 = simd::load_128(in_y3 + i);
+        const __m128 z3 = simd::load_128(in_z3 + i);
 
         const __m128 dp_x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
         const __m128 dp_x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
@@ -529,21 +677,21 @@ void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, f
 	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_256(0.5f));
 
 	for (int i = 0; i < count; i += 8) {
-		__m256 x0 = simd::load256(in_x0 + i);
-		__m256 y0 = simd::load256(in_y0 + i);
-		__m256 z0 = simd::load256(in_z0 + i);
+		__m256 x0 = simd::load_256(in_x0 + i);
+		__m256 y0 = simd::load_256(in_y0 + i);
+		__m256 z0 = simd::load_256(in_z0 + i);
 
-		__m256 x1 = simd::load256(in_x1 + i);
-		__m256 y1 = simd::load256(in_y1 + i);
-		__m256 z1 = simd::load256(in_z1 + i);
+		__m256 x1 = simd::load_256(in_x1 + i);
+		__m256 y1 = simd::load_256(in_y1 + i);
+		__m256 z1 = simd::load_256(in_z1 + i);
 
-		__m256 x2 = simd::load256(in_x2 + i);
-		__m256 y2 = simd::load256(in_y2 + i);
-		__m256 z2 = simd::load256(in_z2 + i);
+		__m256 x2 = simd::load_256(in_x2 + i);
+		__m256 y2 = simd::load_256(in_y2 + i);
+		__m256 z2 = simd::load_256(in_z2 + i);
 
-		__m256 x3 = simd::load256(in_x3 + i);
-		__m256 y3 = simd::load256(in_y3 + i);
-		__m256 z3 = simd::load256(in_z3 + i);
+		__m256 x3 = simd::load_256(in_x3 + i);
+		__m256 y3 = simd::load_256(in_y3 + i);
+		__m256 z3 = simd::load_256(in_z3 + i);
 
 		x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
 		x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
@@ -577,13 +725,13 @@ void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RES
 	const __m128 dt128 = simd::set_128(dt);
 
 	for (int i = 0; i < count; i += 4) {
-		const __m128 x0 = simd::load128(in_x0 + i);
-		const __m128 y0 = simd::load128(in_y0 + i);
-		const __m128 z0 = simd::load128(in_z0 + i);
+		const __m128 x0 = simd::load_128(in_x0 + i);
+		const __m128 y0 = simd::load_128(in_y0 + i);
+		const __m128 z0 = simd::load_128(in_z0 + i);
 
-		const __m128 x1 = simd::load128(in_x1 + i);
-		const __m128 y1 = simd::load128(in_y1 + i);
-		const __m128 z1 = simd::load128(in_z1 + i);
+		const __m128 x1 = simd::load_128(in_x1 + i);
+		const __m128 y1 = simd::load_128(in_y1 + i);
+		const __m128 z1 = simd::load_128(in_z1 + i);
 
 		const __m128 dx = simd::mul(simd::sub(x1, x0), dt128);
 		const __m128 dy = simd::mul(simd::sub(y1, y0), dt128);
@@ -611,13 +759,13 @@ void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float*
 	const __m128 dt128 = simd::set_128(dt);
 
     for (int i = 0; i < count; i += 4) {
-        __m128 x0 = simd::load128(in_x0 + i);
-        __m128 y0 = simd::load128(in_y0 + i);
-        __m128 z0 = simd::load128(in_z0 + i);
+        __m128 x0 = simd::load_128(in_x0 + i);
+        __m128 y0 = simd::load_128(in_y0 + i);
+        __m128 z0 = simd::load_128(in_z0 + i);
 
-        __m128 x1 = simd::load128(in_x1 + i);
-        __m128 y1 = simd::load128(in_y1 + i);
-        __m128 z1 = simd::load128(in_z1 + i);
+        __m128 x1 = simd::load_128(in_x1 + i);
+        __m128 y1 = simd::load_128(in_y1 + i);
+        __m128 z1 = simd::load_128(in_z1 + i);
 
         x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
         y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
@@ -650,13 +798,13 @@ void compute_velocities_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, fl
 	const __m256 dt256 = simd::set_256(dt);
 
 	for (int i = 0; i < count; i += 8) {
-		__m256 x0 = simd::load256(in_x0 + i);
-		__m256 y0 = simd::load256(in_y0 + i);
-		__m256 z0 = simd::load256(in_z0 + i);
+		__m256 x0 = simd::load_256(in_x0 + i);
+		__m256 y0 = simd::load_256(in_y0 + i);
+		__m256 z0 = simd::load_256(in_z0 + i);
 
-		__m256 x1 = simd::load256(in_x1 + i);
-		__m256 y1 = simd::load256(in_y1 + i);
-		__m256 z1 = simd::load256(in_z1 + i);
+		__m256 x1 = simd::load_256(in_x1 + i);
+		__m256 y1 = simd::load_256(in_y1 + i);
+		__m256 z1 = simd::load_256(in_z1 + i);
 
 		x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
 		y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
@@ -742,20 +890,26 @@ bool valid_segment(const BackboneSegment& segment) { return segment.ca_idx != -1
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
 // The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_range, const Element* element, int64 count) {
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
+	UNUSED(count);
+
     if (residues.count == 0) {
         LOG_WARNING("Cannot compute covalent bonds, no residues were given.");
         return {};
     }
 
-    constexpr float max_covelent_bond_length = 4.0f;
-    spatialhash::Frame frame = spatialhash::compute_frame(pos_x, pos_y, pos_z, count, vec3(max_covelent_bond_length));
+	constexpr float max_covelent_bond_length = 4.0f;
     DynamicArray<Bond> bonds;
+	spatialhash::Frame frame;
 
     // @NOTE: The assumtion is that a bond is either within a single residue or between concecutive residues.
-
     for (ResIdx ri = 0; ri < (ResIdx)residues.size(); ri++) {
         auto& res = residues[ri];
+		const float* res_pos_x = pos_x + res.atom_range.beg;
+		const float* res_pos_y = pos_y + res.atom_range.beg;
+		const float* res_pos_z = pos_z + res.atom_range.beg;
+
+		spatialhash::compute_frame(&frame, res_pos_x, res_pos_y, res_pos_z, res.atom_range.size(), vec3(max_covelent_bond_length));
 
         if (ri > 0) {
             // Include potential shared bonds from previous residue
@@ -769,10 +923,11 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* 
         // Internal bonds
         for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
             const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, pos_x, pos_y, pos_z, res_range, element, i](int j, const vec3& atom_j_pos) {
+            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, offset = res.atom_range.beg, pos_x, pos_y, pos_z, element, i](int j, const vec3& atom_j_pos) {
                 (void)atom_j_pos;
+				j += offset; // @NOTE: Map residue idx j (given by spatial hash) back to full atomic idx
                 const bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
-                if (i < j && res_range[i] == res_range[j] && has_bond) {
+                if (i < j && has_bond) {
                     bonds.push_back({{i, j}});
                     res.bond_idx.end++;
                 }
@@ -780,19 +935,29 @@ DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* 
         }
         res.bond_idx.end_internal = res.bond_idx.end;
 
-        // Now locate external bonds to next residue
-        for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
-            const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, pos_x, pos_y, pos_z, res_range, element, i](int j, const vec3& atom_j_pos) {
-                (void)atom_j_pos;
-                const bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
-                const bool consecutive_res = math::abs(res_range[i] - res_range[j]) == 1;
-                if (i < j && consecutive_res && has_bond) {
-                    bonds.push_back({{i, j}});
-                    res.bond_idx.end++;
-                }
-            });
-        }
+		// Locate potential external bonds to next residue
+		if (ri < (ResIdx)residues.size() - 1) {
+			auto& next_res = residues[ri + 1];
+			const float* next_res_pos_x = pos_x + next_res.atom_range.beg;
+			const float* next_res_pos_y = pos_y + next_res.atom_range.beg;
+			const float* next_res_pos_z = pos_z + next_res.atom_range.beg;
+
+			spatialhash::compute_frame(&frame, next_res_pos_x, next_res_pos_y, next_res_pos_z, next_res.atom_range.size(), vec3(max_covelent_bond_length));
+			
+			
+			for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
+				const vec3& pos_xyz = { pos_x[i], pos_y[i], pos_z[i] };
+				spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [&bonds, &res, offset = next_res.atom_range.beg, pos_x, pos_y, pos_z, element, i](int j, const vec3& atom_j_pos) {
+					(void)atom_j_pos;
+					j += offset; // @NOTE: Map residue idx j (given by spatial hash) back to full atomic idx
+					const bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
+					if (has_bond) {
+						bonds.push_back({ {i, j} });
+						res.bond_idx.end++;
+					}
+				});
+			}
+		}
     }
 
     return bonds;
@@ -926,7 +1091,10 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
             // Pick first atom containing O after C atom
             for (int32 i = seg.c_idx; i < res.atom_range.end; i++) {
                 const auto& lbl = atom_labels[i];
-                if (lbl[0] == 'o' || lbl[0] == 'O') seg.o_idx = i;
+				if (lbl[0] == 'o' || lbl[0] == 'O') {
+					seg.o_idx = i;
+					break;
+				}
             }
         }
 

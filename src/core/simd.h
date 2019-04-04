@@ -37,8 +37,8 @@ INLINE bool all_zero(const float4 v) {
     return mask == 0x0000000F;
 }
 
-INLINE float4 load128(const float* addr) { return _mm_loadu_ps(addr); }
-INLINE float4 load_aligned128(const float* addr) {
+INLINE float4 load_128(const float* addr) { return _mm_loadu_ps(addr); }
+INLINE float4 load_aligned_128(const float* addr) {
     ASSERT(IS_ALIGNED(addr, 16));
     return _mm_load_ps(addr);
 }
@@ -83,6 +83,24 @@ INLINE float4 min(const float4 a, const float4 b) {
 INLINE float4 max(const float4 a, const float4 b) {
 	const float4 res = _mm_max_ps(a, b);
 	return res;
+}
+
+INLINE float horizontal_min(const float4 x) {
+	const float4 min1 = _mm_shuffle_ps(x, x, _MM_SHUFFLE(0, 0, 3, 2));
+	const float4 min2 = _mm_min_ps(x, min1);
+	const float4 min3 = _mm_shuffle_ps(min2, min2, _MM_SHUFFLE(0, 0, 0, 1));
+	const float4 min4 = _mm_min_ps(min2, min3);
+	float result = _mm_cvtss_f32(min4);
+	return result;
+}
+
+INLINE float horizontal_max(const float4 x) {
+	const float4 max1 = _mm_shuffle_ps(x, x, _MM_SHUFFLE(0, 0, 3, 2));
+	const float4 max2 = _mm_max_ps(x, max1);
+	const float4 max3 = _mm_shuffle_ps(max2, max2, _MM_SHUFFLE(0, 0, 0, 1));
+	const float4 max4 = _mm_max_ps(max2, max3);
+	float result = _mm_cvtss_f32(max4);
+	return result;
 }
 
 INLINE float4 step(const float4 edge, const float4 x) {
@@ -133,8 +151,8 @@ INLINE bool all_zero(const float8 v) {
 }
 */
 
-INLINE float8 load256(const float* addr) { return _mm256_loadu_ps(addr); }
-INLINE float8 load_aligned256(const float* addr) {
+INLINE float8 load_256(const float* addr) { return _mm256_loadu_ps(addr); }
+INLINE float8 load_aligned_256(const float* addr) {
 	ASSERT(IS_ALIGNED(addr, 16));
 	return _mm256_load_ps(addr);
 }
@@ -179,6 +197,22 @@ INLINE float8 min(const float8 a, const float8 b) {
 INLINE float8 max(const float8 a, const float8 b) {
 	const float8 res = _mm256_max_ps(a, b);
 	return res;
+}
+
+INLINE float horizontal_min(const float8 x) {
+	const float4 lo = _mm256_castps256_ps128(x);
+	const float4 hi = _mm256_extractf128_ps(x, 0x1);
+	const float4 min_val = min(lo, hi);
+	const float result = horizontal_min(min_val);
+	return result;
+}
+
+INLINE float horizontal_max(const float8 x) {
+	const float4 lo = _mm256_castps256_ps128(x);
+	const float4 hi = _mm256_extractf128_ps(x, 0x1);
+	const float4 max_val = max(lo, hi);
+	const float result = horizontal_max(max_val);
+	return result;
 }
 
 INLINE float8 step(const float8 edge, const float8 x) {

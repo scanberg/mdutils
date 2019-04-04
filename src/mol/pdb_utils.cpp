@@ -107,9 +107,8 @@ bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
 
 	auto bytes_read = fread(mem, 1, mem_size, file);
 	CString pdb_str = { (uint8*)mem, (int64)bytes_read };
-	CString mdl_str = extract_next_model(pdb_str);
 
-    return load_molecule_from_string(mol, mdl_str);
+    return load_molecule_from_string(mol, pdb_str);
 }
 
 bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
@@ -206,7 +205,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
 
     auto masses = compute_atom_masses(elements);
     auto radii = compute_atom_radii(elements);
-    auto covalent_bonds = compute_covalent_bonds(residues, pos_x.data(), pos_y.data(), pos_z.data(), residue_indices.data(), elements.data(), num_atoms);
+    auto covalent_bonds = compute_covalent_bonds(residues, pos_x.data(), pos_y.data(), pos_z.data(), elements.data(), num_atoms);
     auto backbone_segments = compute_backbone_segments(residues, labels);
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
     auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, pos_x.data(), pos_y.data(), pos_z.data());

@@ -69,11 +69,20 @@ int64 extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bi
     return out_count;
 }
 
-void translate_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const vec3& translation);
-void transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation);
 
-void compute_bounding_box(vec3* out_min_box, vec3* out_max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count);
-void compute_bounding_box(vec3* out_min_box, vec3* out_max_box, const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* radii, int64 count);
+void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation);
+
+// Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)
+// W-component is supplied by user
+void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
+
+// Transforms points as homogeneous vectors[x,y,z,1] with supplied transformation matrix and applies 'perspective' division
+void projective_transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation);
+
+// Computes the minimun spanning Axis aligned bounding box which contains all supplied points [x,y,z,(r)adius)]
+// Writes the results to out variables as float[3] = {x,y,z}
+void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
+void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count);
 
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count);
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* RESTRICT mass, int64 count);
@@ -144,7 +153,7 @@ void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx);
 
 // This computes heuristical covalent bonds in a hierarchical way (first internal, then external per residue) and stores the indices to the bonds
 // within the residues. Only adjacent residues can form external covalent bonds in this function.
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const ResIdx* res_range, const Element* element, int64 count);
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);
 
 // This is computes heuristical covalent bonds between any atoms without hierarchical constraints.
 DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);
