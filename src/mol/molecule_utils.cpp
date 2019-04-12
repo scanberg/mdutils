@@ -1,5 +1,6 @@
 #include "molecule_utils.h"
 #include <core/common.h>
+#include <core/simd.h>
 #include <core/hash.h>
 #include <core/log.h>
 #include <mol/trajectory_utils.h>
@@ -9,26 +10,11 @@
 
 #include <ctype.h>
 
-#include <core/simd.h>
-
-#ifdef __AVX__
-#define SIMD_WIDTH 8
-#define SIMD_TYPE __m256
-#define SIMD_LOAD simd::load_256
-#define SIMD_SET simd::set_256
-#else
-#define SIMD_WIDTH 4
-#define SIMD_TYPE __m128
-#define SIMD_LOAD simd::load128
-#define SIMD_SET simd::set_128
-#endif
-#define SIMD_STORE simd::store
-
 //#include "compute_velocity_ispc.h"
 //#include "interpolate_position_linear_ispc.h"
 
 inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
-    const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_128()), box_ext);
+    const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_f128()), box_ext);
     const __m128 sub = simd::bit_and(simd::cmp_gt(x, box_ext), box_ext);
     const __m128 res = simd::bit_and(x, simd::sub(add, sub));
     return res;
@@ -70,16 +56,16 @@ inline __m512 de_periodize(const __m512 a, const __m512 b, const __m512 full_ext
 #endif
 
 void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
-    SIMD_TYPE t_x = SIMD_SET(translation.x);
-    SIMD_TYPE t_y = SIMD_SET(translation.y);
-    SIMD_TYPE t_z = SIMD_SET(translation.z);
+    SIMD_TYPE_F t_x = SIMD_SET_F(translation.x);
+    SIMD_TYPE_F t_y = SIMD_SET_F(translation.y);
+    SIMD_TYPE_F t_z = SIMD_SET_F(translation.z);
 
 	int64 i = 0;
 	const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     for (; i < simd_count; i += SIMD_WIDTH) {
-        SIMD_TYPE p_x = SIMD_LOAD(in_out_x + i);
-        SIMD_TYPE p_y = SIMD_LOAD(in_out_y + i);
-        SIMD_TYPE p_z = SIMD_LOAD(in_out_z + i);
+        SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out_x + i);
+        SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out_y + i);
+        SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out_z + i);
 
         p_x = simd::add(p_x, t_x);
         p_y = simd::add(p_y, t_y);
@@ -98,49 +84,49 @@ void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
 }
 
 void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
-	const SIMD_TYPE m11 = SIMD_SET(transformation[0][0]);
-	const SIMD_TYPE m12 = SIMD_SET(transformation[0][1]);
-	const SIMD_TYPE m13 = SIMD_SET(transformation[0][2]);
+	const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
+	const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
+	const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
 					
-	const SIMD_TYPE m21 = SIMD_SET(transformation[1][0]);
-	const SIMD_TYPE m22 = SIMD_SET(transformation[1][1]);
-	const SIMD_TYPE m23 = SIMD_SET(transformation[1][2]);
+	const SIMD_TYPE_F m21 = SIMD_SET_F(transformation[1][0]);
+	const SIMD_TYPE_F m22 = SIMD_SET_F(transformation[1][1]);
+	const SIMD_TYPE_F m23 = SIMD_SET_F(transformation[1][2]);
 					
-	const SIMD_TYPE m31 = SIMD_SET(transformation[2][0]);
-	const SIMD_TYPE m32 = SIMD_SET(transformation[2][1]);
-	const SIMD_TYPE m33 = SIMD_SET(transformation[2][2]);
+	const SIMD_TYPE_F m31 = SIMD_SET_F(transformation[2][0]);
+	const SIMD_TYPE_F m32 = SIMD_SET_F(transformation[2][1]);
+	const SIMD_TYPE_F m33 = SIMD_SET_F(transformation[2][2]);
 					
-	const SIMD_TYPE m41 = SIMD_SET(transformation[3][0]);
-	const SIMD_TYPE m42 = SIMD_SET(transformation[3][1]);
-	const SIMD_TYPE m43 = SIMD_SET(transformation[3][2]);
+	const SIMD_TYPE_F m41 = SIMD_SET_F(transformation[3][0]);
+	const SIMD_TYPE_F m42 = SIMD_SET_F(transformation[3][1]);
+	const SIMD_TYPE_F m43 = SIMD_SET_F(transformation[3][2]);
 	
-	const SIMD_TYPE w = SIMD_SET(w_comp);
+	const SIMD_TYPE_F w = SIMD_SET_F(w_comp);
 
 	int64 i = 0;
 	const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
 	for (; i < simd_count; i += SIMD_WIDTH) {
-		const SIMD_TYPE x = SIMD_LOAD(in_out_x + i);
-		const SIMD_TYPE y = SIMD_LOAD(in_out_y + i);
-		const SIMD_TYPE z = SIMD_LOAD(in_out_z + i);
+		const SIMD_TYPE_F x = SIMD_LOAD_F(in_out_x + i);
+		const SIMD_TYPE_F y = SIMD_LOAD_F(in_out_y + i);
+		const SIMD_TYPE_F z = SIMD_LOAD_F(in_out_z + i);
 
-		const SIMD_TYPE m11x = simd::mul(m11, x);
-		const SIMD_TYPE m21y = simd::mul(m21, y);
-		const SIMD_TYPE m31z = simd::mul(m31, z);
-		const SIMD_TYPE m41w = simd::mul(m41, w);
+		const SIMD_TYPE_F m11x = simd::mul(m11, x);
+		const SIMD_TYPE_F m21y = simd::mul(m21, y);
+		const SIMD_TYPE_F m31z = simd::mul(m31, z);
+		const SIMD_TYPE_F m41w = simd::mul(m41, w);
 
-		const SIMD_TYPE m12x = simd::mul(m12, x);
-		const SIMD_TYPE m22y = simd::mul(m22, y);
-		const SIMD_TYPE m32z = simd::mul(m32, z);
-		const SIMD_TYPE m42w = simd::mul(m42, w);
+		const SIMD_TYPE_F m12x = simd::mul(m12, x);
+		const SIMD_TYPE_F m22y = simd::mul(m22, y);
+		const SIMD_TYPE_F m32z = simd::mul(m32, z);
+		const SIMD_TYPE_F m42w = simd::mul(m42, w);
 
-		const SIMD_TYPE m13x = simd::mul(m13, x);
-		const SIMD_TYPE m23y = simd::mul(m23, y);
-		const SIMD_TYPE m33z = simd::mul(m33, z);
-		const SIMD_TYPE m43w = simd::mul(m43, w);
+		const SIMD_TYPE_F m13x = simd::mul(m13, x);
+		const SIMD_TYPE_F m23y = simd::mul(m23, y);
+		const SIMD_TYPE_F m33z = simd::mul(m33, z);
+		const SIMD_TYPE_F m43w = simd::mul(m43, w);
 
-		const SIMD_TYPE res_x = simd::add(simd::add(m11x, m21y), simd::add(m31z, m41w));
-		const SIMD_TYPE res_y = simd::add(simd::add(m12x, m22y), simd::add(m32z, m42w));
-		const SIMD_TYPE res_z = simd::add(simd::add(m13x, m23y), simd::add(m33z, m43w));
+		const SIMD_TYPE_F res_x = simd::add(simd::add(m11x, m21y), simd::add(m31z, m41w));
+		const SIMD_TYPE_F res_y = simd::add(simd::add(m12x, m22y), simd::add(m32z, m42w));
+		const SIMD_TYPE_F res_z = simd::add(simd::add(m13x, m23y), simd::add(m33z, m43w));
 
 		SIMD_STORE(in_out_x + i, res_x);
 		SIMD_STORE(in_out_y + i, res_y);
@@ -148,10 +134,13 @@ void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
 	}
 
 	for (; i < count; i++) {
-		const vec4 p = transformation * vec4(in_out_x[i], in_out_y[i], in_out_z[i], w_comp);
-		in_out_x[i] = p.x;
-		in_out_y[i] = p.y;
-		in_out_z[i] = p.z;
+		const float x = in_out_x[i];
+		const float y = in_out_x[i];
+		const float z = in_out_x[i];
+
+		in_out_x[i] = x * transformation[0][0] + y * transformation[1][0] + z * transformation[2][0] + w_comp * transformation[3][0];
+		in_out_y[i] = x * transformation[0][1] + y * transformation[1][1] + z * transformation[2][1] + w_comp * transformation[3][1];
+		in_out_z[i] = x * transformation[0][2] + y * transformation[1][2] + z * transformation[2][2] + w_comp * transformation[3][2];
 	}
 }
 
@@ -175,20 +164,20 @@ void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in
 
 	int64 i = 0;
 	if (count > SIMD_WIDTH) { // @NOTE: There is probably some number where this makes most sense
-		SIMD_TYPE min_x = SIMD_LOAD(in_x);
-		SIMD_TYPE min_y = SIMD_LOAD(in_y);
-		SIMD_TYPE min_z = SIMD_LOAD(in_z);
+		SIMD_TYPE_F min_x = SIMD_LOAD_F(in_x);
+		SIMD_TYPE_F min_y = SIMD_LOAD_F(in_y);
+		SIMD_TYPE_F min_z = SIMD_LOAD_F(in_z);
 
-		SIMD_TYPE max_x = min_x;
-		SIMD_TYPE max_y = min_y;
-		SIMD_TYPE max_z = min_z;
+		SIMD_TYPE_F max_x = min_x;
+		SIMD_TYPE_F max_y = min_y;
+		SIMD_TYPE_F max_z = min_z;
 
 		i += SIMD_WIDTH;
 		const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
 		for (; i < simd_count; i += SIMD_WIDTH) {
-			const SIMD_TYPE x = SIMD_LOAD(in_x + i);
-			const SIMD_TYPE y = SIMD_LOAD(in_y + i);
-			const SIMD_TYPE z = SIMD_LOAD(in_z + i);
+			const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
+			const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
+			const SIMD_TYPE_F z = SIMD_LOAD_F(in_z + i);
 
 			min_x = simd::min(min_x, x);
 			min_y = simd::min(min_y, y);
@@ -224,26 +213,26 @@ void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in
 
 	int64 i = 0;
 	if (count > SIMD_WIDTH) { // @NOTE: There is probably some number where this makes most sense
-		SIMD_TYPE x = SIMD_LOAD(in_x);
-		SIMD_TYPE y = SIMD_LOAD(in_y);
-		SIMD_TYPE z = SIMD_LOAD(in_z);
-		SIMD_TYPE r = SIMD_LOAD(in_r);
+		SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
+		SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
+		SIMD_TYPE_F z = SIMD_LOAD_F(in_z);
+		SIMD_TYPE_F r = SIMD_LOAD_F(in_r);
 
-		SIMD_TYPE min_x = simd::sub(x, r);
-		SIMD_TYPE min_y = simd::sub(y, r);
-		SIMD_TYPE min_z = simd::sub(z, r);
+		SIMD_TYPE_F min_x = simd::sub(x, r);
+		SIMD_TYPE_F min_y = simd::sub(y, r);
+		SIMD_TYPE_F min_z = simd::sub(z, r);
 
-		SIMD_TYPE max_x = simd::add(x, r);
-		SIMD_TYPE max_y = simd::add(y, r);
-		SIMD_TYPE max_z = simd::add(z, r);
+		SIMD_TYPE_F max_x = simd::add(x, r);
+		SIMD_TYPE_F max_y = simd::add(y, r);
+		SIMD_TYPE_F max_z = simd::add(z, r);
 
 		i += SIMD_WIDTH;
 		const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
 		for (; i < simd_count; i += SIMD_WIDTH) {
-			x = SIMD_LOAD(in_x + i);
-			y = SIMD_LOAD(in_y + i);
-			z = SIMD_LOAD(in_z + i);
-			r = SIMD_LOAD(in_r + i);
+			x = SIMD_LOAD_F(in_x + i);
+			y = SIMD_LOAD_F(in_y + i);
+			z = SIMD_LOAD_F(in_z + i);
+			r = SIMD_LOAD_F(in_r + i);
 
 			min_x = simd::min(min_x, simd::sub(x, r));
 			min_y = simd::min(min_y, simd::sub(y, r));
@@ -268,48 +257,90 @@ void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in
 	out_max = res_max;
 }
 
-vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count) {
+vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
+    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
     vec3 sum{0};
-    for (int64 i = 0; i < count; i++) {
-        const vec3 pos = {pos_x[i], pos_y[i], pos_z[i]};
-        sum += pos;
+	int64 i = 0;
+
+	const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+	if (simd_count > SIMD_WIDTH) {
+		SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
+		SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
+		SIMD_TYPE_F z = SIMD_LOAD_F(in_z);
+		i += SIMD_WIDTH;
+		for (; i < simd_count; i += SIMD_WIDTH) {
+			x = simd::add(x, SIMD_LOAD_F(in_x + i));
+			y = simd::add(y, SIMD_LOAD_F(in_y + i));
+			z = simd::add(z, SIMD_LOAD_F(in_z + i));
+		}
+		sum.x = simd::horizontal_add(x);
+		sum.y = simd::horizontal_add(y);
+		sum.z = simd::horizontal_add(z);
+	}
+
+    for (; i < count; i++) {
+		sum.x += in_x[i];
+		sum.y += in_y[i];
+		sum.z += in_z[i];
     }
     return sum / (float)count;
 }
 
-vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* RESTRICT mass, int64 count) {
-    if (count == 0) return {0, 0, 0};
-    if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
+vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m, int64 count) {
+	if (count == 0) return vec3(0);
+	if (count == 1) return { in_x[0], in_y[0], in_z[0] };
 
-    vec3 p_sum{0};
-	float m_sum = 0.0f;
-    for (int32 i = 0; i < count; i++) {
-        const vec3 p = {pos_x[i], pos_y[i], pos_z[i]};
-		const float m = mass[i];
-        p_sum += p * m;
-		m_sum += m;
-    }
+	vec3 vec_sum { 0, 0, 0 };
+	float mass_sum = 0.0f;
+	int64 i = 0;
 
-    return p_sum / m_sum;
+	const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+	if (simd_count > SIMD_WIDTH) {
+		SIMD_TYPE_F m = SIMD_LOAD_F(in_m);
+		SIMD_TYPE_F x = simd::mul(SIMD_LOAD_F(in_x), m);
+		SIMD_TYPE_F y = simd::mul(SIMD_LOAD_F(in_y), m);
+		SIMD_TYPE_F z = simd::mul(SIMD_LOAD_F(in_z), m);
+		i += SIMD_WIDTH;
+		for (; i < simd_count; i += SIMD_WIDTH) {
+			const SIMD_TYPE_F mass = SIMD_LOAD_F(in_m + i);
+			x = simd::add(x, simd::mul(SIMD_LOAD_F(in_x + i), mass));
+			y = simd::add(y, simd::mul(SIMD_LOAD_F(in_y + i), mass));
+			z = simd::add(z, simd::mul(SIMD_LOAD_F(in_z + i), mass));
+			m = simd::add(m, mass);
+		}
+		vec_sum.x = simd::horizontal_add(x);
+		vec_sum.y = simd::horizontal_add(y);
+		vec_sum.z = simd::horizontal_add(z);
+		mass_sum = simd::horizontal_add(m);
+	}
+
+	for (; i < count; i++) {
+		const float mass = in_m[i];
+		vec_sum.x += in_x[i] * mass;
+		vec_sum.y += in_y[i] * mass;
+		vec_sum.z += in_z[i] * mass;
+		mass_sum += mass;
+	}
+	return vec_sum / mass_sum;
 }
 
-vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const Element* RESTRICT element, int64 count) {
+vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT in_element, int64 count) {
     if (count == 0) return {0, 0, 0};
-    if (count == 1) return {pos_x[0], pos_y[0], pos_z[0]};
+    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
-    vec3 p_sum{0};
+
+    vec3 v_sum{0};
 	float m_sum = 0.0f;
     for (int32 i = 0; i < count; i++) {
-        const vec3 p = {pos_x[i], pos_y[i], pos_z[i]};
-        const float m = element::atomic_mass(element[i]);
-        p_sum += p * m;
+        const vec3 v = {in_x[i], in_y[i], in_z[i]};
+        const float m = element::atomic_mass(in_element[i]);
+        v_sum += v * m;
 		m_sum += m;
     }
 
-    return p_sum / m_sum;
+    return v_sum / m_sum;
 }
 
 /*
@@ -369,14 +400,14 @@ void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* R
 						  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 						  int64 count, float t)
 {
-	for (int64 i = 0; i < count; i += 4) {
-		const __m128 x0 = simd::load_128(in_x0 + i);
-		const __m128 y0 = simd::load_128(in_y0 + i);
-		const __m128 z0 = simd::load_128(in_z0 + i);
+	for (int64 i = 0; i < count; i += SIMD_WIDTH) {
+		const __m128 x0 = simd::load_f128(in_x0 + i);
+		const __m128 y0 = simd::load_f128(in_y0 + i);
+		const __m128 z0 = simd::load_f128(in_z0 + i);
 
-		const __m128 x1 = simd::load_128(in_x1 + i);
-		const __m128 y1 = simd::load_128(in_y1 + i);
-		const __m128 z1 = simd::load_128(in_z1 + i);
+		const __m128 x1 = simd::load_f128(in_x1 + i);
+		const __m128 y1 = simd::load_f128(in_y1 + i);
+		const __m128 z1 = simd::load_f128(in_z1 + i);
 
 		const __m128 x = simd::lerp(x0, x1, t);
 		const __m128 y = simd::lerp(y0, y1, t);
@@ -455,22 +486,22 @@ void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, floa
 							  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 							  int64 count, float t, const mat3& sim_box)
 {
-	const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
-	const __m128 full_box_ext_y = simd::set_128(sim_box[1][1]);
-	const __m128 full_box_ext_z = simd::set_128(sim_box[2][2]);
+	const __m128 full_box_ext_x = simd::set_f128(sim_box[0][0]);
+	const __m128 full_box_ext_y = simd::set_f128(sim_box[1][1]);
+	const __m128 full_box_ext_z = simd::set_f128(sim_box[2][2]);
 
-	const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
-	const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
-	const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
+	const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_f128(0.5f));
+	const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_f128(0.5f));
+	const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_f128(0.5f));
 
-	for (int64 i = 0; i < count; i += 4) {
-		__m128 x0 = simd::load_128(in_x0 + i);
-		__m128 y0 = simd::load_128(in_y0 + i);
-		__m128 z0 = simd::load_128(in_z0 + i);
+	for (int64 i = 0; i < count; i += SIMD_WIDTH) {
+		__m128 x0 = simd::load_f128(in_x0 + i);
+		__m128 y0 = simd::load_f128(in_y0 + i);
+		__m128 z0 = simd::load_f128(in_z0 + i);
 
-		__m128 x1 = simd::load_128(in_x1 + i);
-		__m128 y1 = simd::load_128(in_y1 + i);
-		__m128 z1 = simd::load_128(in_z1 + i);
+		__m128 x1 = simd::load_f128(in_x1 + i);
+		__m128 y1 = simd::load_f128(in_y1 + i);
+		__m128 z1 = simd::load_f128(in_z1 + i);
 
 		x1 = de_periodize(x0, x1, full_box_ext_x, half_box_ext_x);
 		y1 = de_periodize(y0, y1, full_box_ext_y, half_box_ext_y);
@@ -531,22 +562,22 @@ void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RE
                          const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
 						 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 						 int64 count, float t) {
-    for (int i = 0; i < count; i += 4) {
-        const __m128 x0 = simd::load_128(in_x0 + i);
-        const __m128 y0 = simd::load_128(in_y0 + i);
-        const __m128 z0 = simd::load_128(in_z0 + i);
+    for (int i = 0; i < count; i += SIMD_WIDTH) {
+        const __m128 x0 = simd::load_f128(in_x0 + i);
+        const __m128 y0 = simd::load_f128(in_y0 + i);
+        const __m128 z0 = simd::load_f128(in_z0 + i);
 
-        const __m128 x1 = simd::load_128(in_x1 + i);
-        const __m128 y1 = simd::load_128(in_y1 + i);
-        const __m128 z1 = simd::load_128(in_z1 + i);
+        const __m128 x1 = simd::load_f128(in_x1 + i);
+        const __m128 y1 = simd::load_f128(in_y1 + i);
+        const __m128 z1 = simd::load_f128(in_z1 + i);
 
-        const __m128 x2 = simd::load_128(in_x2 + i);
-        const __m128 y2 = simd::load_128(in_y2 + i);
-        const __m128 z2 = simd::load_128(in_z2 + i);
+        const __m128 x2 = simd::load_f128(in_x2 + i);
+        const __m128 y2 = simd::load_f128(in_y2 + i);
+        const __m128 z2 = simd::load_f128(in_z2 + i);
 
-        const __m128 x3 = simd::load_128(in_x3 + i);
-        const __m128 y3 = simd::load_128(in_y3 + i);
-        const __m128 z3 = simd::load_128(in_z3 + i);
+        const __m128 x3 = simd::load_f128(in_x3 + i);
+        const __m128 y3 = simd::load_f128(in_y3 + i);
+        const __m128 z3 = simd::load_f128(in_z3 + i);
 
         const __m128 x = simd::cubic_spline(x0, x1, x2, x3, t);
         const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
@@ -613,30 +644,30 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
 							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 							 int64 count, float t, const mat3& sim_box) {
 
-    const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
-    const __m128 full_box_ext_y = simd::set_128(sim_box[1][1]);
-    const __m128 full_box_ext_z = simd::set_128(sim_box[2][2]);
+    const __m128 full_box_ext_x = simd::set_f128(sim_box[0][0]);
+    const __m128 full_box_ext_y = simd::set_f128(sim_box[1][1]);
+    const __m128 full_box_ext_z = simd::set_f128(sim_box[2][2]);
 
-    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
-    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
-    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
+    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_f128(0.5f));
+    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_f128(0.5f));
+    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_f128(0.5f));
 
     for (int i = 0; i < count; i += 4) {
-		const __m128 x0 = simd::load_128(in_x0 + i);
-        const __m128 y0 = simd::load_128(in_y0 + i);
-        const __m128 z0 = simd::load_128(in_z0 + i);
-
-        const __m128 x1 = simd::load_128(in_x1 + i);
-        const __m128 y1 = simd::load_128(in_y1 + i);
-        const __m128 z1 = simd::load_128(in_z1 + i);
-
-        const __m128 x2 = simd::load_128(in_x2 + i);
-        const __m128 y2 = simd::load_128(in_y2 + i);
-        const __m128 z2 = simd::load_128(in_z2 + i);
-
-        const __m128 x3 = simd::load_128(in_x3 + i);
-        const __m128 y3 = simd::load_128(in_y3 + i);
-        const __m128 z3 = simd::load_128(in_z3 + i);
+		const __m128 x0 = simd::load_f128(in_x0 + i);
+        const __m128 y0 = simd::load_f128(in_y0 + i);
+        const __m128 z0 = simd::load_f128(in_z0 + i);
+						
+        const __m128 x1 = simd::load_f128(in_x1 + i);
+        const __m128 y1 = simd::load_f128(in_y1 + i);
+        const __m128 z1 = simd::load_f128(in_z1 + i);
+						
+        const __m128 x2 = simd::load_f128(in_x2 + i);
+        const __m128 y2 = simd::load_f128(in_y2 + i);
+        const __m128 z2 = simd::load_f128(in_z2 + i);
+						
+        const __m128 x3 = simd::load_f128(in_x3 + i);
+        const __m128 y3 = simd::load_f128(in_y3 + i);
+        const __m128 z3 = simd::load_f128(in_z3 + i);
 
         const __m128 dp_x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
         const __m128 dp_x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
@@ -722,16 +753,16 @@ void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RES
 						const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 						int64 count, float dt)
 {
-	const __m128 dt128 = simd::set_128(dt);
+	const __m128 dt128 = simd::set_f128(dt);
 
 	for (int i = 0; i < count; i += 4) {
-		const __m128 x0 = simd::load_128(in_x0 + i);
-		const __m128 y0 = simd::load_128(in_y0 + i);
-		const __m128 z0 = simd::load_128(in_z0 + i);
+		const __m128 x0 = simd::load_f128(in_x0 + i);
+		const __m128 y0 = simd::load_f128(in_y0 + i);
+		const __m128 z0 = simd::load_f128(in_z0 + i);
 
-		const __m128 x1 = simd::load_128(in_x1 + i);
-		const __m128 y1 = simd::load_128(in_y1 + i);
-		const __m128 z1 = simd::load_128(in_z1 + i);
+		const __m128 x1 = simd::load_f128(in_x1 + i);
+		const __m128 y1 = simd::load_f128(in_y1 + i);
+		const __m128 z1 = simd::load_f128(in_z1 + i);
 
 		const __m128 dx = simd::mul(simd::sub(x1, x0), dt128);
 		const __m128 dy = simd::mul(simd::sub(y1, y0), dt128);
@@ -748,24 +779,24 @@ void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float*
 							const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
                             int64 count, float dt, const mat3& sim_box)
 {
-    const __m128 full_box_ext_x = simd::set_128(sim_box[0][0]);
-    const __m128 full_box_ext_y = simd::set_128(sim_box[1][1]);
-    const __m128 full_box_ext_z = simd::set_128(sim_box[2][2]);
+    const __m128 full_box_ext_x = simd::set_f128(sim_box[0][0]);
+    const __m128 full_box_ext_y = simd::set_f128(sim_box[1][1]);
+    const __m128 full_box_ext_z = simd::set_f128(sim_box[2][2]);
 
-    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_128(0.5f));
-    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_128(0.5f));
-    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_128(0.5f));
+    const __m128 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_f128(0.5f));
+    const __m128 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_f128(0.5f));
+    const __m128 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_f128(0.5f));
 
-	const __m128 dt128 = simd::set_128(dt);
+	const __m128 dt128 = simd::set_f128(dt);
 
     for (int i = 0; i < count; i += 4) {
-        __m128 x0 = simd::load_128(in_x0 + i);
-        __m128 y0 = simd::load_128(in_y0 + i);
-        __m128 z0 = simd::load_128(in_z0 + i);
+        __m128 x0 = simd::load_f128(in_x0 + i);
+        __m128 y0 = simd::load_f128(in_y0 + i);
+        __m128 z0 = simd::load_f128(in_z0 + i);
 
-        __m128 x1 = simd::load_128(in_x1 + i);
-        __m128 y1 = simd::load_128(in_y1 + i);
-        __m128 z1 = simd::load_128(in_z1 + i);
+        __m128 x1 = simd::load_f128(in_x1 + i);
+        __m128 y1 = simd::load_f128(in_y1 + i);
+        __m128 z1 = simd::load_f128(in_z1 + i);
 
         x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
         y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
