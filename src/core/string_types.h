@@ -77,9 +77,9 @@ struct StringBuffer {
 	template <int64 N>
 	StringBuffer& operator=(const StringBuffer<N>& other) {
 		if (this != &other) {
-			auto len = other.count < MaxSize ? other.count : MaxSize;
+			constexpr auto len = N < (MaxSize - 1) ? N : (MaxSize - 1);
 			memcpy(buffer, other.buffer, len);
-			buffer[len - 1] = '\0';
+			buffer[len] = '\0';
 		}
 		return *this;
 	}
@@ -95,9 +95,9 @@ struct StringBuffer {
 	template <int64 N>
 	StringBuffer& operator=(const char(&cstr)[N]) {
 		if (buffer != cstr) {
-			constexpr auto len = N < MaxSize ? N : MaxSize;
+			constexpr auto len = N < (MaxSize - 1) ? N : (MaxSize - 1);
 			memcpy(buffer, cstr, len);
-			buffer[len - 1] = '\0';
+			buffer[len] = '\0';
 		}
 		return *this;
 	}
@@ -105,7 +105,7 @@ struct StringBuffer {
 	StringBuffer& operator=(const char* cstr) {
 		int64 len = (int64)strnlen(cstr, MaxSize);
 		memcpy(buffer, cstr, len);
-		buffer[len - 1] = '\0';
+		buffer[len] = '\0';
 		return *this;
 	}
 
