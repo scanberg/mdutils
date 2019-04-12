@@ -2,10 +2,11 @@
 
 #include <core/common.h>
 #include <core/types.h>
+//#include <core/simd.h>
 #include <core/array_types.h>
 
 struct Bitfield {
-	typedef uint64 ElementType;
+	typedef uint32 ElementType;
 
 	ElementType* ptr = nullptr;
 	int64 count = 0;
@@ -33,7 +34,7 @@ namespace detail {
 constexpr auto block_bits = sizeof(Bitfield::ElementType) * 8;
 
 inline Bitfield::ElementType block(int64 idx) {
-	return idx / block_bits;
+	return (Bitfield::ElementType)(idx / block_bits);
 }
 
 inline Bitfield::ElementType bit_pattern(int64 idx) {
@@ -60,19 +61,19 @@ inline void free(Bitfield* field) {
     }
 }
 
-inline void init(Bitfield* field, int64 num_bits, bool value = false) {
+inline void init(Bitfield* field, int64 num_bits) {
     ASSERT(field);
     free(field);
 	field->count = num_bits;
-    field->ptr = (uint64*)ALIGNED_MALLOC(field->size_in_bytes(), 16);   // @NOTE: Align to 16 byte to allow for aligned simd load/store
-	memset(field->ptr, value ? 0xFF : 0, field->size_in_bytes());
+    field->ptr = (Bitfield::ElementType*)ALIGNED_MALLOC(field->size_in_bytes(), 16);   // @NOTE: Align to 16 byte to allow for aligned simd load/store
+	memset(field->ptr, 0, field->size_in_bytes());
 }
 
 inline void init(Bitfield* field, Bitfield src) {
 	ASSERT(field);
 	free(field);
 	if (!src) return;
-	field->ptr = (uint64*)ALIGNED_MALLOC(src.size_in_bytes(), 16);
+	field->ptr = (Bitfield::ElementType*)ALIGNED_MALLOC(src.size_in_bytes(), 16);
 	field->count = src.count;
 	memcpy(field->ptr, src.ptr, src.size_in_bytes());
 }
