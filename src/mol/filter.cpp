@@ -114,7 +114,7 @@ FilterCommand* find_filter_command(CString command) {
 bool internal_filter_mask(Bitfield mask, CString filter, const FilterContext& ctx) {
     DynamicArray<CString> chunks = extract_chunks(filter);
     Bitfield chunk_mask;
-    bitfield::init(&chunk_mask, mask.count, false);
+    bitfield::init(&chunk_mask, mask.count);
     defer { bitfield::free(&chunk_mask); };
 
     bool state_and = true;
