@@ -95,11 +95,18 @@ inline void invert_all(Bitfield field) {
 
 inline int64 number_of_bits_set(const Bitfield field) {
 	const uint32* ptr = (uint32*)field.data();
-	const int64 num_blocks_32 = field.size_in_bytes() / 4;
+	const int64 stride = sizeof(uint32) * 8;
+	const int64 size = field.size() / stride;
+	const int64 rest = field.size() % stride;
 	int64 count = 0;
-	for (int64 i = 0; i < num_blocks_32; i++) {
+	for (int64 i = 0; i < size; i++) {
 		count += detail::number_of_set_bits(ptr[i]);
 	}
+	if (rest != 0) {
+		const auto bits = ptr[size] & (detail::bit_pattern(rest) - 1);
+		count += detail::number_of_set_bits(bits);
+	}
+
 	return count;
 }
 
