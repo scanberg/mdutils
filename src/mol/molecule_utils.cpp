@@ -1117,7 +1117,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
         }
 
         BackboneSegment seg{};
-        // if (is_amino_acid(res)) {
+
         // find atoms
         for (int32 i = res.atom_range.beg; i < res.atom_range.end; i++) {
             const auto& lbl = atom_labels[i];

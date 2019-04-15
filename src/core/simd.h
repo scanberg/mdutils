@@ -96,7 +96,7 @@ INLINE float128 div(const float128 a, const float128 b) { return _mm_div_ps(a, b
 INLINE int128 add(const int128 a, const int128 b) { return _mm_add_epi32(a, b); }
 INLINE int128 sub(const int128 a, const int128 b) { return _mm_sub_epi32(a, b); }
 INLINE int128 mul(const int128 a, const int128 b) { return _mm_mul_epi32(a, b); }
-INLINE int128 div(const int128 a, const int128 b) { return _mm_div_epi32(a, b); }
+//INLINE int128 div(const int128 a, const int128 b) { return _mm_div_epi32(a, b); }
 
 INLINE float128 bit_and(const float128 a, const float128 b) { return _mm_and_ps(a, b); }
 INLINE float128 bit_and_not(const float128 a, const float128 b) { return _mm_andnot_ps(a, b); }

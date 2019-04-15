@@ -78,6 +78,11 @@ inline void init(Bitfield* field, Bitfield src) {
 	memcpy(field->ptr, src.ptr, src.size_in_bytes());
 }
 
+inline void copy(Bitfield dst, const Bitfield src) {
+	ASSERT(dst.size() == src.size(), "Bitfield size did not match");
+	memcpy(dst.ptr, src.ptr, dst.size_in_bytes());
+}
+
 inline void set_all(Bitfield field) {
     memset(field.ptr, 0xFF, field.size_in_bytes());
 }
@@ -229,6 +234,25 @@ inline void xor_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) 
 	for (int64 i = 0; i < detail::num_blocks(dst); i++) {
 		dst.ptr[i] = src_a.ptr[i] ^ src_b.ptr[i];
 	}
+}
+
+template <typename T>
+int64 extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bitfield mask) {
+	constexpr uint32 bits_per_block = 32;
+	STATIC_ASSERT(bits_per_block == (sizeof(Bitfield::ElementType) * 8), "Bits per block does not match ElementType");
+	int64 out_count = 0;
+	for (int64 i = 0; i < mask.size(); i += bits_per_block) {
+		const auto block = mask.ptr[i / bits_per_block];
+		if (block != 0U) {
+			for (; i < mask.size(); i++) {
+				if (bitfield::get_bit(mask, i)) {
+					out_data[out_count] = in_data[i];
+					out_count++;
+				}
+			}
+		}
+	}
+	return out_count;
 }
 
 void print(const Bitfield field);

@@ -57,19 +57,6 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
 
-template <typename T>
-int64 extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bitfield mask) {
-    int64 out_count = 0;
-    for (int64 i = 0; i < mask.size(); i++) {
-        if (bitfield::get_bit(mask, i)) {
-            out_data[out_count] = in_data[i];
-			out_count++;
-        }
-    }
-    return out_count;
-}
-
-
 void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation);
 
 // Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)

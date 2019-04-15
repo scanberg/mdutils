@@ -410,13 +410,25 @@ void initialize() {
 								   for (int i = 0; i < args.count; i++) {
 									   for (const auto& s : ctx.sel) {
 										   if (compare(args[i], s.name)) {
-											   bitfield::or_field(mask, mask, s.mask);
+											   bitfield::copy(mask, s.mask);
+											   //bitfield::or_field(mask, mask, s.mask);
 											   break;
 										   }
 									   }
 								   }
 								   return true;
 							   } });
+
+	context->filter_commands.push_back({ "current", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+								for (const auto& s : ctx.sel) {
+									if (compare("current", s.name)) {
+										bitfield::copy(mask, s.mask);
+										//bitfield::or_field(mask, mask, s.mask);
+										break;
+									}
+								}				
+								return true;
+						   } });
 }
 
 void shutdown() {
