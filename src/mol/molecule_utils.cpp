@@ -83,6 +83,16 @@ void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
 	}
 }
 
+void transform_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
+	for (int64 i = 0; i < count; i++) {
+		vec4 v = { in_out_x[i], in_out_y[i], in_out_z[i], w_comp };
+		v = transformation * v;
+		in_out_x[i] = v.x;
+		in_out_y[i] = v.y;
+		in_out_z[i] = v.z;
+	}
+}
+
 void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
 	const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
 	const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
@@ -426,13 +436,13 @@ void linear_interpolation_256(float* RESTRICT out_x, float* RESTRICT out_y, floa
 							 int64 count, float t)
 {
 	for (int64 i = 0; i < count; i += 8) {
-		const __m256 x0 = simd::load_256(in_x0 + i);
-		const __m256 y0 = simd::load_256(in_y0 + i);
-		const __m256 z0 = simd::load_256(in_z0 + i);
+		const __m256 x0 = simd::load_f256(in_x0 + i);
+		const __m256 y0 = simd::load_f256(in_y0 + i);
+		const __m256 z0 = simd::load_f256(in_z0 + i);
 
-		const __m256 x1 = simd::load_256(in_x1 + i);
-		const __m256 y1 = simd::load_256(in_y1 + i);
-		const __m256 z1 = simd::load_256(in_z1 + i);
+		const __m256 x1 = simd::load_f256(in_x1 + i);
+		const __m256 y1 = simd::load_f256(in_y1 + i);
+		const __m256 z1 = simd::load_f256(in_z1 + i);
 
 		const __m256 x = simd::lerp(x0, x1, t);
 		const __m256 y = simd::lerp(y0, y1, t);
@@ -523,22 +533,22 @@ void linear_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, 
 								  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 								  int64 count, float t, const mat3& sim_box)
 {
-	const __m256 full_box_ext_x = simd::set_256(sim_box[0][0]);
-	const __m256 full_box_ext_y = simd::set_256(sim_box[1][1]);
-	const __m256 full_box_ext_z = simd::set_256(sim_box[2][2]);
+	const __m256 full_box_ext_x = simd::set_f256(sim_box[0][0]);
+	const __m256 full_box_ext_y = simd::set_f256(sim_box[1][1]);
+	const __m256 full_box_ext_z = simd::set_f256(sim_box[2][2]);
 
-	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_256(0.5f));
-	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_256(0.5f));
-	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_256(0.5f));
+	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_f256(0.5f));
+	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_f256(0.5f));
+	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_f256(0.5f));
 
 	for (int64 i = 0; i < count; i += 8) {
-		__m256 x0 = simd::load_256(in_x0 + i);
-		__m256 y0 = simd::load_256(in_y0 + i);
-		__m256 z0 = simd::load_256(in_z0 + i);
+		__m256 x0 = simd::load_f256(in_x0 + i);
+		__m256 y0 = simd::load_f256(in_y0 + i);
+		__m256 z0 = simd::load_f256(in_z0 + i);
 
-		__m256 x1 = simd::load_256(in_x1 + i);
-		__m256 y1 = simd::load_256(in_y1 + i);
-		__m256 z1 = simd::load_256(in_z1 + i);
+		__m256 x1 = simd::load_f256(in_x1 + i);
+		__m256 y1 = simd::load_f256(in_y1 + i);
+		__m256 z1 = simd::load_f256(in_z1 + i);
 
 		x1 = de_periodize(x0, x1, full_box_ext_x, half_box_ext_x);
 		y1 = de_periodize(y0, y1, full_box_ext_y, half_box_ext_y);
@@ -699,30 +709,30 @@ void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, f
 								 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 								 int64 count, float t, const mat3& sim_box)
 {
-	const __m256 full_box_ext_x = simd::set_256(sim_box[0][0]);
-	const __m256 full_box_ext_y = simd::set_256(sim_box[1][1]);
-	const __m256 full_box_ext_z = simd::set_256(sim_box[2][2]);
+	const __m256 full_box_ext_x = simd::set_f256(sim_box[0][0]);
+	const __m256 full_box_ext_y = simd::set_f256(sim_box[1][1]);
+	const __m256 full_box_ext_z = simd::set_f256(sim_box[2][2]);
 
-	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_256(0.5f));
-	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_256(0.5f));
-	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_256(0.5f));
+	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_f256(0.5f));
+	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_f256(0.5f));
+	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_f256(0.5f));
 
 	for (int i = 0; i < count; i += 8) {
-		__m256 x0 = simd::load_256(in_x0 + i);
-		__m256 y0 = simd::load_256(in_y0 + i);
-		__m256 z0 = simd::load_256(in_z0 + i);
+		__m256 x0 = simd::load_f256(in_x0 + i);
+		__m256 y0 = simd::load_f256(in_y0 + i);
+		__m256 z0 = simd::load_f256(in_z0 + i);
 
-		__m256 x1 = simd::load_256(in_x1 + i);
-		__m256 y1 = simd::load_256(in_y1 + i);
-		__m256 z1 = simd::load_256(in_z1 + i);
+		__m256 x1 = simd::load_f256(in_x1 + i);
+		__m256 y1 = simd::load_f256(in_y1 + i);
+		__m256 z1 = simd::load_f256(in_z1 + i);
 
-		__m256 x2 = simd::load_256(in_x2 + i);
-		__m256 y2 = simd::load_256(in_y2 + i);
-		__m256 z2 = simd::load_256(in_z2 + i);
+		__m256 x2 = simd::load_f256(in_x2 + i);
+		__m256 y2 = simd::load_f256(in_y2 + i);
+		__m256 z2 = simd::load_f256(in_z2 + i);
 
-		__m256 x3 = simd::load_256(in_x3 + i);
-		__m256 y3 = simd::load_256(in_y3 + i);
-		__m256 z3 = simd::load_256(in_z3 + i);
+		__m256 x3 = simd::load_f256(in_x3 + i);
+		__m256 y3 = simd::load_f256(in_y3 + i);
+		__m256 z3 = simd::load_f256(in_z3 + i);
 
 		x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
 		x2 = de_periodize(x1, x2, full_box_ext_x, half_box_ext_x);
@@ -818,24 +828,24 @@ void compute_velocities_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, fl
 								const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 								int64 count, float dt, const mat3& sim_box)
 {
-	const __m256 full_box_ext_x = simd::set_256(sim_box[0][0]);
-	const __m256 full_box_ext_y = simd::set_256(sim_box[1][1]);
-	const __m256 full_box_ext_z = simd::set_256(sim_box[2][2]);
+	const __m256 full_box_ext_x = simd::set_f256(sim_box[0][0]);
+	const __m256 full_box_ext_y = simd::set_f256(sim_box[1][1]);
+	const __m256 full_box_ext_z = simd::set_f256(sim_box[2][2]);
 
-	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_256(0.5f));
-	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_256(0.5f));
-	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_256(0.5f));
+	const __m256 half_box_ext_x = simd::mul(full_box_ext_x, simd::set_f256(0.5f));
+	const __m256 half_box_ext_y = simd::mul(full_box_ext_y, simd::set_f256(0.5f));
+	const __m256 half_box_ext_z = simd::mul(full_box_ext_z, simd::set_f256(0.5f));
 
-	const __m256 dt256 = simd::set_256(dt);
+	const __m256 dt256 = simd::set_f256(dt);
 
 	for (int i = 0; i < count; i += 8) {
-		__m256 x0 = simd::load_256(in_x0 + i);
-		__m256 y0 = simd::load_256(in_y0 + i);
-		__m256 z0 = simd::load_256(in_z0 + i);
+		__m256 x0 = simd::load_f256(in_x0 + i);
+		__m256 y0 = simd::load_f256(in_y0 + i);
+		__m256 z0 = simd::load_f256(in_z0 + i);
 
-		__m256 x1 = simd::load_256(in_x1 + i);
-		__m256 y1 = simd::load_256(in_y1 + i);
-		__m256 z1 = simd::load_256(in_z1 + i);
+		__m256 x1 = simd::load_f256(in_x1 + i);
+		__m256 y1 = simd::load_f256(in_y1 + i);
+		__m256 z1 = simd::load_f256(in_z1 + i);
 
 		x0 = de_periodize(x1, x0, full_box_ext_x, half_box_ext_x);
 		y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
