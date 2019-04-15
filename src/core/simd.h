@@ -197,10 +197,10 @@ INLINE float128 cubic_spline(const __m128 p0, const __m128 p1, const __m128 p2, 
 // 256-bit wide
 #ifdef __AVX__
 
-INLINE float256 set_256(float v) { return _mm256_set1_ps(v); }
-INLINE float256 set_256(float x0, float y0, float z0, float w0, float x1, float y1, float z1, float w1) { return _mm256_set_ps(w1, z1, y1, x1, w0, z0, y0, x0); }
+INLINE float256 set_f256(float v) { return _mm256_set1_ps(v); }
+INLINE float256 set_f256(float x0, float y0, float z0, float w0, float x1, float y1, float z1, float w1) { return _mm256_set_ps(w1, z1, y1, x1, w0, z0, y0, x0); }
 
-INLINE float256 zero_256() { return _mm256_setzero_ps(); }
+INLINE float256 zero_f256() { return _mm256_setzero_ps(); }
 
 /*
 INLINE bool all_zero(const float8 v) {
@@ -210,8 +210,8 @@ INLINE bool all_zero(const float8 v) {
 }
 */
 
-INLINE float256 load_256(const float* addr) { return _mm256_loadu_ps(addr); }
-INLINE float256 load_aligned_256(const float* addr) {
+INLINE float256 load_f256(const float* addr) { return _mm256_loadu_ps(addr); }
+INLINE float256 load_aligned_f256(const float* addr) {
 	ASSERT(IS_ALIGNED(addr, 16));
 	return _mm256_load_ps(addr);
 }
@@ -243,8 +243,8 @@ INLINE float256 abs(float256 a) { return bit_and(a, _mm256_castsi256_ps(_mm256_s
 
 // @NOTE: If 0.0f is given as input, it will be mapped to 1.0f
 INLINE float256 sign(float256 x) {
-	const float256 sgn = bit_and(x, set_256(-0.0f));
-	const float256 res = bit_xor(sgn, set_256(1.0f));
+	const float256 sgn = bit_and(x, set_f256(-0.0f));
+	const float256 res = bit_xor(sgn, set_f256(1.0f));
 	return res;
 }
 
@@ -289,13 +289,13 @@ INLINE float horizontal_add(const float256 v) {
 
 INLINE float256 step(const float256 edge, const float256 x) {
 	const float256 cmp = cmp_ge(x, edge);
-	const float256 res = bit_and(cmp, set_256(1.f));
+	const float256 res = bit_and(cmp, set_f256(1.f));
 	return res;
 }
 
 INLINE float256 lerp(const float256 a, const float256 b, float t) {
-	const float256 one_minus_alpha = set_256(1.0f - t);
-	const float256 alpha = set_256(t);
+	const float256 one_minus_alpha = set_f256(1.0f - t);
+	const float256 alpha = set_f256(t);
 	const float256 res = add(mul(a, one_minus_alpha), mul(b, alpha));
 	return res;
 }
@@ -305,14 +305,14 @@ INLINE float256 mix(const float256 a, const float256 b, float t) {
 }
 
 INLINE float256 cubic_spline(const __m256 p0, const __m256 p1, const __m256 p2, const __m256 p3, float s, float tension = 0.5f) {
-	const float256 vt = set_256(tension);
-	const float256 s1 = set_256(s);
+	const float256 vt = set_f256(tension);
+	const float256 s1 = set_f256(s);
 	const float256 s2 = mul(s1, s1);
 	const float256 s3 = mul(s2, s1);
 	const float256 v0 = mul(sub(p2, p0), vt);
 	const float256 v1 = mul(sub(p3, p1), vt);
-	const float256 x0 = add(mul(set_256(2), sub(p1, p2)), add(v0, v1));
-	const float256 x1 = sub(mul(set_256(3), sub(p2, p1)), add(mul(set_256(2), v0), v1));
+	const float256 x0 = add(mul(set_f256(2), sub(p1, p2)), add(v0, v1));
+	const float256 x1 = sub(mul(set_f256(3), sub(p2, p1)), add(mul(set_f256(2), v0), v1));
 	const float256 r0 = add(mul(x0, s3), mul(x1, s2));
 	const float256 r1 = add(mul(v0, s1), p1);
 	const float256 res = add(r0, r1);
@@ -321,7 +321,7 @@ INLINE float256 cubic_spline(const __m256 p0, const __m256 p1, const __m256 p2, 
 
 #endif
 
-// 512-bit wide
+// 512-bit wide (Super future cutting edge shiet)
 
 #if 0
 

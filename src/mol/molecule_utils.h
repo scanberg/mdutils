@@ -74,6 +74,10 @@ void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
 
 // Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)
 // W-component is supplied by user
+void transform_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
+
+// Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)
+// W-component is supplied by user
 void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
 
 // Transforms points as homogeneous vectors[x,y,z,1] with supplied transformation matrix and applies 'perspective' division
