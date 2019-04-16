@@ -117,8 +117,8 @@ bool internal_filter_mask(Bitfield mask, CString filter, const FilterContext& ct
     bitfield::init(&chunk_mask, mask.count);
     defer { bitfield::free(&chunk_mask); };
 
-    bool state_and = true;
-    bool state_or = false;
+    bool state_and = false;
+    bool state_or = true;
     bool state_not = false;
 
     for (const auto& chunk : chunks) {
@@ -195,7 +195,7 @@ bool compute_filter_mask(Bitfield mask, const CString filter, const MoleculeStru
 
 	const FilterContext ctx{ molecule, stored_selections };
 
-    bitfield::set_all(mask);
+    bitfield::clear_all(mask);
     return internal_filter_mask(mask, filter, ctx);
 }
 
