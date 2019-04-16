@@ -40,6 +40,7 @@ void draw_triangle(const vec3& v0, const vec3& v1, const vec3& v2, uint32 color 
         Draws a plane given a center point and two support vectors.
 */
 void draw_plane(const vec3& center, const vec3& plane_u, const vec3& plane_v, uint32 color = DEFAULT_COLOR);
+void draw_plane_wireframe(const vec3& center, const vec3& plane_u, const vec3& plane_v, uint32 color = DEFAULT_COLOR, int segments_u = 4, int segments_v = 4);
 
 // Composits
 // void draw_aabb(const vec3& min_box, const vec3& max_box);

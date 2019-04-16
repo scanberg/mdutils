@@ -322,6 +322,32 @@ void draw_plane(const vec3& center, const vec3& vec_u, const vec3& vec_v, uint32
     append_draw_command(idx, 6, GL_TRIANGLES);
 }
 
+void draw_plane_wireframe(const vec3& center, const vec3& vec_u, const vec3& vec_v, uint32 color, int segments_u, int segments_v) {
+	ASSERT(segments_u > 0);
+	ASSERT(segments_v > 0);
+
+	const Index idx = (Index)vertices.count;
+	const vec3 normal = math::normalize(math::cross(vec_u, vec_v));
+
+	vertices.push_back({ {center - vec_u + vec_v}, normal, {0, 1}, color });
+	vertices.push_back({ {center - vec_u - vec_v}, normal, {0, 0}, color });
+	vertices.push_back({ {center + vec_u + vec_v}, normal, {1, 1}, color });
+	vertices.push_back({ {center + vec_u - vec_v}, normal, {1, 0}, color });
+
+	for (int i = 0; i <= segments_u; i++) {
+		const float t = -1.0f + 2.0f * ((float)i / (float)segments_u);
+		const vec3 u = vec_u * t;
+		draw_line(center - vec_v + u, center + vec_v + u, color);
+	}
+
+	for (int i = 0; i <= segments_v; i++) {
+		const float t = -1.0f + 2.0f * ((float)i / (float)segments_v);
+		const vec3 v = vec_v * t;
+		draw_line(center - vec_u + v, center + vec_u + v, color);
+	}
+}
+
+
 /*
 void draw_aabb(const vec3& min_box, const vec3& max_box) {
     const Index idx = (Index)vertices.count;
