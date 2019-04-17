@@ -114,6 +114,8 @@ T mix(T const& a, T const& b, V t) {
     return lerp(a, b, t);
 }
 
+using glm::slerp;
+
 template <typename T, typename V>
 T catmull_rom(T const& v1, T const& v2, T const& v3, T const& v4, V s) {
     return glm::catmullRom(v1, v2, v3, v4, s);
