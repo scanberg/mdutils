@@ -79,43 +79,30 @@ vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* RESTRICT mass, int64 count);
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const Element* RESTRICT element, int64 count);
 
+// clang-format off
 void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
 						  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
 						  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 						  int64 count, float t);
 
 void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							  const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
-							  const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
+							  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+							  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
 							  int64 count, float t, const mat3& sim_box);
 
 void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						 const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
-						 const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
-						 const float* RESTRICT p2_x, const float* RESTRICT p2_y, const float* RESTRICT p2_z,
-						 const float* RESTRICT p3_x, const float* RESTRICT p3_y, const float* RESTRICT p3_z,
+						 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+						 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+						 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
+						 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 						 int64 count, float t);
 
-void cubic_interpolation_pbc_scalar(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-									const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
-									const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
-									const float* RESTRICT p2_x, const float* RESTRICT p2_y, const float* RESTRICT p2_z,
-									const float* RESTRICT p3_x, const float* RESTRICT p3_y, const float* RESTRICT p3_z,
-									int64 count, float t, const mat3& sim_box);
-
 void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							 const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
-							 const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
-                             const float* RESTRICT p2_x, const float* RESTRICT p2_y, const float* RESTRICT p2_z,
-							 const float* RESTRICT p3_x, const float* RESTRICT p3_y, const float* RESTRICT p3_z,
+							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+                             const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
+							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 							 int64 count, float t, const mat3& sim_box);
-
-void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								 const float* RESTRICT p0_x, const float* RESTRICT p0_y, const float* RESTRICT p0_z,
-								 const float* RESTRICT p1_x, const float* RESTRICT p1_y, const float* RESTRICT p1_z,
-								 const float* RESTRICT p2_x, const float* RESTRICT p2_y, const float* RESTRICT p2_z,
-								 const float* RESTRICT p3_x, const float* RESTRICT p3_y, const float* RESTRICT p3_z,
-								 int64 count, float t, const mat3& sim_box);
 
 void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
 						const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
@@ -123,9 +110,10 @@ void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RES
 						int64 count, float dt);
 
 void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							const float* RESTRICT prv_x, const float* RESTRICT prv_y, const float* RESTRICT prv_z,
-							const float* RESTRICT cur_x, const float* RESTRICT cur_y, const float* RESTRICT cur_z,
+							const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
+							const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
                             int64 count, float dt, const mat3& sim_box);
+// clang-format on
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
     const vec3 ext = sim_box * vec3(1, 1, 1);
