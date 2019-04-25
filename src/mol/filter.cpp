@@ -418,6 +418,7 @@ void initialize() {
                                         }});
 
     context->filter_commands.push_back({"current", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+                                            UNUSED(args);
                                             for (const auto& s : ctx.sel) {
                                                 if (compare("current", s.name)) {
                                                     bitfield::copy(mask, s.mask);
