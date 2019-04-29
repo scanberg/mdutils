@@ -5,37 +5,7 @@
 
 #include <string.h>
 #include <type_traits>
-
-template <class T>
-struct InitializerList {
-    using value_type = T;
-    using reference = const T&;
-    using const_reference = const T&;
-
-    using iterator = const T*;
-    using const_iterator = const T*;
-
-    constexpr InitializerList() noexcept = default;
-    constexpr InitializerList(const T* first_arg, const T* last_arg) noexcept : first(first_arg), last(last_arg) {}
-
-    constexpr const T* beg() const noexcept { return first; }
-    constexpr const T* begin() const noexcept { return first; }
-    constexpr const T* end() const noexcept { return last; }
-    constexpr int64 size() const noexcept { return (int64)(_Last - _First); }
-
-    const T* first = nullptr;
-    const T* last = nullptr;
-};
-
-template <class T>
-constexpr const T* begin(InitializerList<T> list) noexcept {
-    return list.begin();
-}
-
-template <class T>
-constexpr const T* end(InitializerList<T> list) noexcept {
-    return list.end();
-}
+#include <initializer_list>
 
 /*
   This is an 'array-view' which exposes access to some data which is not owned by the array itself.
@@ -49,6 +19,7 @@ struct Array {
     Array() = default;
     Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
     Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
+    Array(std::initializer_list<T> init_list) : ptr(init_list.begin()), count(init_list.size()) {}
 
     template <size_t N>
     Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
@@ -182,15 +153,8 @@ template <typename T>
 struct DynamicArray : Array<T> {
     static_assert(std::is_trivially_destructible<T>::value, "DynamicArray only supports trivially destructable 'POD' data types");
 
-    DynamicArray() noexcept : m_capacity(init_capacity()) {
-        this->ptr = (T*)CALLOC(m_capacity, sizeof(T));
-        this->count = 0;
-    }
-
-    DynamicArray(int64 size) noexcept {
-		init(size);
-    }
-
+    DynamicArray() noexcept { init(0); }
+    DynamicArray(int64 size) noexcept { init(size); }
     DynamicArray(int64 size, const T& value) noexcept {
         init(size);
         if (size > 0) {
@@ -200,22 +164,10 @@ struct DynamicArray : Array<T> {
         }
     }
 
-    DynamicArray(const T* first, const T* last) noexcept {
-        const auto size = last - first;
-        init(size, first);
-    }
-
-    DynamicArray(InitializerList<T> init_list) noexcept {
-        init(init_list.size(), init_list.begin());
-    }
-
-    DynamicArray(const Array<const T>& clone_source) noexcept {
-		init(clone_source.size(), clone_source.data());
-    }
-
-    DynamicArray(const DynamicArray& other) noexcept {
-		init(other.size(), other.data());
-    }
+    DynamicArray(const T* first, const T* last) noexcept { init(last - first, first); }
+    DynamicArray(std::initializer_list<T> init_list) noexcept { init(init_list.size(), init_list.begin()); }
+    DynamicArray(const Array<const T>& clone_source) noexcept { init(clone_source.size(), clone_source.data()); }
+    DynamicArray(const DynamicArray& other) noexcept { init(other.size(), other.data()); }
 
     DynamicArray(DynamicArray&& other) noexcept {
         this->ptr = other.ptr;
@@ -361,18 +313,16 @@ struct DynamicArray : Array<T> {
     void clear() noexcept { this->count = 0; }
 
 private:
-	inline void init(int64 size, T* src_data = nullptr) {
+    inline void init(int64 size, const T* src_data = nullptr) {
         ASSERT(size >= 0);
         this->m_capacity = init_capacity(size);
-        if (size > 0) {
-            this->ptr = (T*)MALLOC(this->m_capacity * sizeof(T));
-            ASSERT(this->ptr);
-            if (src_data) {
-                memcpy(this->ptr, src_data, size * sizeof(T));
-            }
-        }
+        this->ptr = (T*)MALLOC(this->m_capacity * sizeof(T));
         this->count = size;
-	}
+        ASSERT(this->ptr);
+        if (size > 0 && src_data) {
+			memcpy(this->ptr, src_data, size * sizeof(T));
+        }
+    }
 
     inline int64 init_capacity(int64 sz = 0) const noexcept {
         constexpr int64 min_size = 8;
