@@ -1,18 +1,9 @@
 #pragma once
 
 #include <core/camera.h>
-#include <core/math_utils.h>
+#include <core/vector_types.h>
 
-void camera_trackball(Camera* camera, vec2 prev_ndc, vec2 curr_ndc);
-void camera_move(Camera* camera, vec3 vec);
-void look_at(vec3* position, quat* orientation, vec3 look_at, vec3 look_up);
-
-mat4 compute_world_to_view_matrix(const Camera& camera);
-mat4 compute_view_to_world_matrix(const Camera& camera);
-mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height);
-mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
-mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height);
-
+/*
 struct FpsControllerState {
     struct {
         bool forward_button = false;
@@ -28,8 +19,7 @@ struct FpsControllerState {
         float rotation_speed = 1.f;
     } params;
 };
-
-void camera_controller_fps(Camera* camera, const FpsControllerState& state);
+*/
 
 struct TrackballControllerState {
     struct {
@@ -58,7 +48,18 @@ struct TrackballControllerState {
 };
 
 enum TrackballFlags_ { TrackballFlags_RotateReturnsTrue = 1, TrackballFlags_PanReturnsTrue = 2, TrackballFlags_DollyReturnsTrue = 4 };
-
 typedef int TrackballFlags;
 
+void camera_trackball(Camera* camera, vec2 prev_ndc, vec2 curr_ndc);
+void camera_move(Camera* camera, vec3 vec);
+void look_at(vec3* position, quat* orientation, const vec3& look_at, const vec3& look_up);
+
+mat4 compute_world_to_view_matrix(const Camera& camera);
+mat4 compute_view_to_world_matrix(const Camera& camera);
+mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height);
+mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
+mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height);
+
 bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* trackball_state, TrackballFlags flags = 0xFFFFFFFF);
+
+//void camera_controller_fps(Camera* camera, const FpsControllerState& state);
