@@ -10,6 +10,7 @@
 #include <glm/gtc/random.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/spline.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <stdlib.h>
 
 namespace math {
@@ -115,6 +116,22 @@ T mix(T const& a, T const& b, V t) {
 }
 
 using glm::slerp;
+
+using glm::squad;
+using glm::intermediate;
+
+inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
+
+	//const auto q0p = (dot(q0, q1) > 0.0f) ? q1 : conjugate(q1);
+    //const auto q1p = q1;
+    //const auto q2p = (dot(q2, q1) > 0.0f) ? q2 : conjugate(q2);
+    //const auto q3p = (dot(q3, q1) > 0.0f) ? q3 : conjugate(q3);
+
+    const auto i1 = intermediate(q0, q1, q2);
+    const auto i2 = intermediate(q1, q2, q3);
+    const float s2 = 2.0f * s * (1.0f - s);
+    return slerp(slerp(q1, q2, s), slerp(i1, i2, s), s2);
+}
 
 template <typename T, typename V>
 T catmull_rom(T const& v1, T const& v2, T const& v3, T const& v4, V s) {
