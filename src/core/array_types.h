@@ -242,7 +242,7 @@ struct DynamicArray : Array<T> {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
-        memcpy(end(), arr.ptr, arr.count * sizeof(T));
+        memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
     }
 
@@ -250,7 +250,7 @@ struct DynamicArray : Array<T> {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
-        memcpy(end(), arr.ptr, arr.count * sizeof(T));
+        memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
     }
 
@@ -260,13 +260,13 @@ struct DynamicArray : Array<T> {
         }
         this->ptr[this->count] = item;
         this->count++;
-        return back();
+        return this->back();
     }
 
     T pop_back() noexcept {
         ASSERT(this->count > 0);
         this->count--;
-        return back();
+        return this->back();
     }
 
     void reserve(int64 new_capacity) noexcept {
@@ -294,28 +294,28 @@ struct DynamicArray : Array<T> {
     }
 
     T* insert(T* it, const T& v) noexcept {
-        ASSERT(beg() <= it && it <= end());
-        const auto off = it - beg();
+        ASSERT(this->beg() <= it && it <= this->end());
+        const auto off = it - this->beg();
         if (this->count == m_capacity) reserve(grow_capacity(this->count + 1));
-        if (off < (int64)this->count) memmove(beg() + off + 1, beg() + off, ((size_t)this->count - (size_t)off) * sizeof(T));
+        if (off < (int64)this->count) memmove(this->beg() + off + 1, this->beg() + off, ((size_t)this->count - (size_t)off) * sizeof(T));
         this->ptr[off] = v;
         this->count++;
-        return beg() + off;
+        return this->beg() + off;
     }
 
     void remove(T* it, int64 num_items = 1) noexcept {
-        ASSERT(beg() <= it && it < end());
-        ASSERT(it + num_items <= end());
+        ASSERT(this->beg() <= it && it < this->end());
+        ASSERT(it + num_items <= this->end());
         auto dst = it;
         auto src = it + num_items;
-        memmove(dst, src, (end() - src) * sizeof(T));
+        memmove(dst, src, (this->end() - src) * sizeof(T));
         this->count--;
     }
 
     void swap_back_and_pop(T* it) noexcept {
-        ASSERT(beg() <= it && it < end());
-        if (it != &back()) *it = back();
-        pop_back();
+        ASSERT(this->beg() <= it && it < this->end());
+        *it = this->back();
+        this->pop_back();
     }
 
     void clear() noexcept { this->count = 0; }
