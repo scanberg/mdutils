@@ -111,7 +111,7 @@ struct StringBuffer {
 
     StringBuffer& operator+=(CString txt);
 
-    const char operator[](int64 i) const {
+    char operator[](int64 i) const {
         ASSERT(0 <= i && i < MaxSize);
         return buffer[i];
     }

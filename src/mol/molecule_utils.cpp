@@ -1143,9 +1143,9 @@ void compute_velocities_pbc_128(float* RESTRICT out_x, float* RESTRICT out_y, fl
         const __m128 dp_y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
         const __m128 dp_z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
 
-        const __m128 dx = simd::mul(simd::sub(x1, x0), dt128);
-        const __m128 dy = simd::mul(simd::sub(y1, y0), dt128);
-        const __m128 dz = simd::mul(simd::sub(z1, z0), dt128);
+        const __m128 dx = simd::mul(simd::sub(x1, dp_x0), dt128);
+        const __m128 dy = simd::mul(simd::sub(y1, dp_y0), dt128);
+        const __m128 dz = simd::mul(simd::sub(z1, dp_z0), dt128);
 
         simd::store(out_x + i, dx);
         simd::store(out_y + i, dy);

@@ -102,8 +102,8 @@ static inline void append_draw_command(Index offset, Index count, GLenum primiti
     if (commands.size() > 0 && commands.back().primitive_type == primitive_type) {
         commands.back().count += count;
     } else {
-        ASSERT(curr_view_matrix_idx > -1, "Immediate Mode View Matrix not set!");
-        ASSERT(curr_proj_matrix_idx > -1, "Immediate Mode Proj Matrix not set!");
+        ASSERT(curr_view_matrix_idx > -1 && "Immediate Mode View Matrix not set!");
+        ASSERT(curr_proj_matrix_idx > -1 && "Immediate Mode Proj Matrix not set!");
         // ASSERT(curr_material_idx > -1, "Material not set!");
 
         DrawCommand cmd{offset, count, primitive_type, program, curr_view_matrix_idx, curr_proj_matrix_idx};
@@ -326,7 +326,6 @@ void draw_plane_wireframe(const vec3& center, const vec3& vec_u, const vec3& vec
 	ASSERT(segments_u > 0);
 	ASSERT(segments_v > 0);
 
-	const Index idx = (Index)vertices.size();
 	const vec3 normal = math::normalize(math::cross(vec_u, vec_v));
 
 	vertices.push_back({ {center - vec_u + vec_v}, normal, {0, 1}, color });
