@@ -8,24 +8,27 @@
 
 #ifndef NDEBUG
 #define DEBUG
-inline void _assert(const char* file, const char* func, int line, bool cond, const char* fmt, ...) {
-    if (!cond) {
-        va_list ap;
-        va_start(ap, fmt);
-        fprintf(stderr, "ASSERTION FAILED!\n%s:%s:%i\n", file, func, line);
-        vfprintf(stderr, fmt, ap);
-        va_end(ap);
-        assert(false);
-    }
+/*
+inline bool _assert(const char* file, const char* func, int line, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "ASSERTION FAILED!\n%s:%s:%i\n", file, func, line);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    assert(false);
+    return false;
 }
-inline void _assert(const char* file, const char* func, int line, bool cond) { _assert(file, func, line, cond, ""); }
-
-#define ASSERT(...) _assert(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+inline bool _assert(const char* file, const char* func, int line) { _assert(file, func, line, ""); }
+*/
+#define ASSERT(COND) assert(COND)
 #else
 #define ASSERT(...) \
     {}
 #endif
 #define STATIC_ASSERT(cond, msg) static_assert(cond, msg)
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
 
 // This is to handle big files. 64-bit versions
 #ifdef _WIN32

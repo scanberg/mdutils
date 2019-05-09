@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <initializer_list>
 
+#include <string_view>
 /*
   This is an 'array-view' which exposes access to some data which is not owned by the array itself.
   Nothing will be allocated or freed by the constructors and destructors of this object.
@@ -16,43 +17,42 @@ template <typename T>
 struct Array {
     using ElementType = T;
 
-    Array() = default;
-    Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
-    Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
-    Array(std::initializer_list<T> init_list) : ptr(init_list.begin()), count(init_list.size()) {}
+    constexpr Array() : ptr(nullptr), count(0) {}
+    constexpr Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
+    constexpr Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
 
     template <size_t N>
-    Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
+    constexpr Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
 
-    Array<T> subarray(Range<int32> range) {
+    constexpr Array<T> subarray(Range<int32> range) noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    Array<const T> subarray(Range<int32> range) const {
+    constexpr Array<const T> subarray(Range<int32> range) const noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    Array<T> subarray(Range<int64> range) {
+    constexpr Array<T> subarray(Range<int64> range) noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    Array<const T> subarray(Range<int64> range) const {
+    constexpr Array<const T> subarray(Range<int64> range) const noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    Array<T> subarray(int64 _offset, int64 _count = -1) {
+    constexpr Array<T> subarray(int64 _offset, int64 _count = -1) noexcept {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
@@ -62,7 +62,7 @@ struct Array {
         return {ptr + _offset, _count};
     }
 
-    Array<const T> subarray(int64 _offset, int64 _count = -1) const {
+    constexpr Array<const T> subarray(int64 _offset, int64 _count = -1) const noexcept {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
@@ -72,53 +72,53 @@ struct Array {
         return {ptr + _offset, _count};
     }
 
-    const T* data() const { return ptr; }
-    const T* begin() const { return ptr; }
-    const T* beg() const { return ptr; }
-    const T* end() const { return ptr + count; }
+    constexpr const T* data() const noexcept { return ptr; }
+    constexpr const T* begin() const noexcept { return ptr; }
+    constexpr const T* beg() const noexcept { return ptr; }
+    constexpr const T* end() const noexcept { return ptr + count; }
 
-    T* data() { return ptr; }
-    T* begin() { return ptr; }
-    T* beg() { return ptr; }
-    T* end() { return ptr + count; }
+    constexpr T* data() noexcept { return ptr; }
+    constexpr T* begin() noexcept { return ptr; }
+    constexpr T* beg() noexcept { return ptr; }
+    constexpr T* end() noexcept { return ptr + count; }
 
-    const T& front() const {
+    constexpr const T& front() const noexcept {
         ASSERT(count > 0);
         return ptr[0];
     }
-    const T& back() const {
+    constexpr const T& back() const noexcept {
         ASSERT(count > 0);
         return ptr[count - 1];
     }
-    T& front() {
+    constexpr T& front() noexcept {
         ASSERT(count > 0);
         return ptr[0];
     }
-    T& back() {
+    constexpr T& back() noexcept {
         ASSERT(count > 0);
         return ptr[count - 1];
     }
 
-    int64 size() const { return count; }
-    int64 size_in_bytes() const { return count * sizeof(T); }
+    constexpr int64 size() const noexcept { return count; }
+    constexpr int64 size_in_bytes() const noexcept { return count * sizeof(T); }
 
-    operator bool() const { return ptr != nullptr && count > 0; }
-    const T& operator[](int64 i) const {
+    constexpr operator bool() const noexcept { return ptr != nullptr && count > 0; }
+    constexpr const T& operator[](int64 i) const noexcept {
         ASSERT(i < count);
         return ptr[i];
     }
-    T& operator[](int64 i) {
+    constexpr T& operator[](int64 i) noexcept {
         ASSERT(i < count);
         return ptr[i];
     }
 
-    operator Array<const T>() const { return {ptr, count}; }
+    constexpr operator Array<const T>() const noexcept { return {ptr, count}; }
 
-    T* ptr = nullptr;
-    int64 count = 0;
+    T* ptr;
+    int64 count;
 };
 
-// Light-weight std::array alternative
+// Light-weight std::array alternative, this has not been used and tested in practice
 template <typename T, int64 Size>
 struct StaticArray : Array<T> {
     static constexpr int64 MaxSize = Size;
@@ -171,20 +171,20 @@ struct DynamicArray : Array<T> {
 
     DynamicArray(DynamicArray&& other) noexcept {
         this->ptr = other.ptr;
-        this->m_capacity = other.m_capacity;
+        m_capacity = other.m_capacity;
         this->count = other.count;
         other.ptr = nullptr;
         other.m_capacity = 0;
         other.count = 0;
     }
 
-    ~DynamicArray() {
+    ~DynamicArray() noexcept {
         if (this->ptr) {
             FREE(this->ptr);
             this->ptr = nullptr;
         }
         this->count = 0;
-        this->m_capacity = 0;
+        m_capacity = 0;
     }
 
     DynamicArray& operator=(const Array<const T>& other) noexcept {
@@ -217,7 +217,7 @@ struct DynamicArray : Array<T> {
                 FREE(this->ptr);
             }
             this->ptr = other.ptr;
-            this->m_capacity = other.m_capacity;
+            m_capacity = other.m_capacity;
             this->count = other.count;
             other.ptr = nullptr;
             other.m_capacity = 0;
@@ -226,13 +226,23 @@ struct DynamicArray : Array<T> {
         return *this;
     }
 
+	T& operator[](int64 i) noexcept {
+        ASSERT(0 <= i && i < this->count);
+        return this->ptr[i];
+	}
+
+	const T& operator[](int64 i) const noexcept {
+        ASSERT(0 <= i && i < this->count);
+        return this->ptr[i];
+    }
+
     int64 capacity() const noexcept { return m_capacity; }
 
     void append(Array<const T> arr) noexcept {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
-        memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
+        memcpy(end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
     }
 
@@ -240,7 +250,7 @@ struct DynamicArray : Array<T> {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
-        memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
+        memcpy(end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
     }
 
@@ -250,13 +260,13 @@ struct DynamicArray : Array<T> {
         }
         this->ptr[this->count] = item;
         this->count++;
-        return this->back();
+        return back();
     }
 
     T pop_back() noexcept {
         ASSERT(this->count > 0);
         this->count--;
-        return this->ptr[this->count];
+        return back();
     }
 
     void reserve(int64 new_capacity) noexcept {
@@ -272,64 +282,62 @@ struct DynamicArray : Array<T> {
 
     // Resizes the array to a new size and zeros eventual new slots
     void resize(int64 new_count) noexcept {
-        if (new_count == this->count) {
-            return;
-        } else if (new_count < this->count) {
+        if (new_count < this->count) {
             this->count = new_count;
-        } else {
+        } else if (new_count > this->count) {
             if (m_capacity < new_count) {
                 reserve(grow_capacity(new_count));
-                // memset(this->data + this->count, 0, (new_count - this->count) * sizeof(T));
+                // memset(data + this->count, 0, (new_count - this->count) * sizeof(T));
             }
             this->count = new_count;
         }
     }
 
     T* insert(T* it, const T& v) noexcept {
-        ASSERT(this->beg() <= it && it <= this->end());
-        const auto off = it - this->beg();
+        ASSERT(beg() <= it && it <= end());
+        const auto off = it - beg();
         if (this->count == m_capacity) reserve(grow_capacity(this->count + 1));
-        if (off < (int64)this->count) memmove(this->beg() + off + 1, this->beg() + off, ((size_t)this->count - (size_t)off) * sizeof(T));
+        if (off < (int64)this->count) memmove(beg() + off + 1, beg() + off, ((size_t)this->count - (size_t)off) * sizeof(T));
         this->ptr[off] = v;
         this->count++;
-        return this->beg() + off;
+        return beg() + off;
     }
 
     void remove(T* it, int64 num_items = 1) noexcept {
-        ASSERT(this->beg() <= it && it < this->end());
-        ASSERT(it + num_items <= this->end());
+        ASSERT(beg() <= it && it < end());
+        ASSERT(it + num_items <= end());
         auto dst = it;
         auto src = it + num_items;
-        memmove(dst, src, (this->end() - src) * sizeof(T));
+        memmove(dst, src, (end() - src) * sizeof(T));
         this->count--;
     }
 
     void swap_back_and_pop(T* it) noexcept {
-        ASSERT(this->beg() <= it && it < this->end());
-        if (it != &this->back()) *it = this->back();
+        ASSERT(beg() <= it && it < end());
+        if (it != &back()) *it = back();
         pop_back();
     }
 
     void clear() noexcept { this->count = 0; }
 
 private:
-    inline void init(int64 size, const T* src_data = nullptr) {
+    void init(int64 size, const T* src_data = nullptr) {
         ASSERT(size >= 0);
-        this->m_capacity = init_capacity(size);
-        this->ptr = (T*)MALLOC(this->m_capacity * sizeof(T));
+        m_capacity = init_capacity(size);
+        this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
         this->count = size;
         ASSERT(this->ptr);
         if (size > 0 && src_data) {
-			memcpy(this->ptr, src_data, size * sizeof(T));
+            memcpy(this->ptr, src_data, size * sizeof(T));
         }
     }
 
-    inline int64 init_capacity(int64 sz = 0) const noexcept {
+    int64 init_capacity(int64 sz = 0) const noexcept {
         constexpr int64 min_size = 8;
         return sz > min_size ? sz : min_size;
     }
 
-    inline int64 grow_capacity(int64 sz) const noexcept {
+    int64 grow_capacity(int64 sz) const noexcept {
         const int64 new_capacity = m_capacity != 0 ? (m_capacity + m_capacity / 2) : init_capacity(0);
         return new_capacity > sz ? new_capacity : sz;
     }
@@ -346,23 +354,22 @@ Array<T> allocate_array(int64 num_elements) noexcept {
 template <typename T>
 void free_array(Array<T>* arr) noexcept {
     ASSERT(arr);
-    if (arr->ptr) {
-        FREE(arr->ptr);
+    if (arr->data()) {
+        FREE(arr->data());
     }
-    arr->ptr = nullptr;
-    arr->count = 0;
+    *arr = {};
 }
 
 template <typename T>
 void zero_array(Array<T> arr) noexcept {
-    memset(arr.ptr, 0, arr.size_in_bytes());
+    memset(arr.data(), 0, arr.size_in_bytes());
 }
 
 template <typename T>
 void memset_array(Array<T> arr, const T& val) noexcept {
     ASSERT(arr);
     for (int64 i = 0; i < arr.count; i++) {
-        *(arr.ptr + i) = val;
+        *(arr.data() + i) = val;
     }
 }
 
@@ -372,7 +379,7 @@ void memset_array(Array<T> arr, const T& val, int64 offset, int64 length) noexce
     ASSERT(0 <= offset && offset < arr.count);
     ASSERT(0 < length && offset + length <= arr.count);
     for (int64 i = offset; i < offset + length; i++) {
-        *(arr.ptr + i) = val;
+        *(arr.data() + i) = val;
     }
 }
 
@@ -381,7 +388,7 @@ void memset_array(Array<T> arr, const T& val, Range<int32> range) noexcept {
     ASSERT(arr);
     ASSERT(0 <= range.beg && range.end <= arr.count);
     for (int32 i = range.beg; i < range.end; i++) {
-        *(arr.ptr + i) = val;
+        *(arr.data() + i) = val;
     }
 }
 
@@ -390,7 +397,7 @@ void memset_array(Array<T> arr, const T& val, Range<int64> range) noexcept {
     ASSERT(arr);
     ASSERT(0 <= range.beg && range.end <= arr.count);
     for (int64 i = range.beg; i < range.end; i++) {
-        *(arr.ptr + i) = val;
+        *(arr.data() + i) = val;
     }
 }
 

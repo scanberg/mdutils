@@ -106,7 +106,7 @@ bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
     defer{ TMP_FREE(mem); };
 
 	auto bytes_read = fread(mem, 1, mem_size, file);
-	CString pdb_str = { (uint8*)mem, (int64)bytes_read };
+	CString pdb_str = { (const char*)mem, (int64)bytes_read };
 
     return load_molecule_from_string(mol, pdb_str);
 }
@@ -157,10 +157,12 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
             labels.push_back(trim(line.substr(12, 4)));
 
             if (line.size() > 60) {
-                occupancies.push_back(to_float(line.substr(54, 6)));
+                const auto [occupancy, success] = to_float(line.substr(54, 6));
+                occupancies.push_back(success ? occupancy : 0.0f);
             }
             if (line.size() > 66) {
-                temp_factors.push_back(to_float(line.substr(60, 6)));
+                const auto [temp, success] = to_float(line.substr(60, 6));
+				temp_factors.push_back(success ? temp : 0.0f);
             }
 
 			Element elem;
@@ -216,8 +218,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
         chains = compute_chains(residues);
     }
 
-    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.count, (int32)residues.count, (int32)chains.count, (int32)backbone_segments.count, (int32)backbone_sequences.count,
-                            (int32)donors.count, (int32)acceptors.count);
+    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
+                            (int32)donors.size(), (int32)acceptors.size());
 
     // Copy data into molecule
     memcpy(mol->atom.position.x, pos_x.data(), pos_x.size_in_bytes());
@@ -228,18 +230,18 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     memset(mol->atom.velocity.z, 0, num_atoms * sizeof(float));
     memcpy(mol->atom.radius, radii.data(), num_atoms * sizeof(float));
     memcpy(mol->atom.mass, masses.data(), num_atoms * sizeof(float));
-    memcpy(mol->atom.element, elements.ptr, elements.size_in_bytes());
-    memcpy(mol->atom.label, labels.ptr, labels.size_in_bytes());
-    memcpy(mol->atom.res_idx, residue_indices.ptr, residue_indices.size_in_bytes());
+    memcpy(mol->atom.element, elements.data(), elements.size_in_bytes());
+    memcpy(mol->atom.label, labels.data(), labels.size_in_bytes());
+    memcpy(mol->atom.res_idx, residue_indices.data(), residue_indices.size_in_bytes());
 
-    memcpy(mol->residues.ptr, residues.ptr, residues.size_in_bytes());
-    memcpy(mol->chains.ptr, chains.ptr, chains.size_in_bytes());
-    memcpy(mol->covalent_bonds.ptr, covalent_bonds.ptr, covalent_bonds.size_in_bytes());
-    memcpy(mol->backbone.segments.ptr, backbone_segments.ptr, backbone_segments.size_in_bytes());
-    memcpy(mol->backbone.angles.ptr, backbone_angles.ptr, backbone_angles.size_in_bytes());
-    memcpy(mol->backbone.sequences.ptr, backbone_sequences.ptr, backbone_sequences.size_in_bytes());
-    memcpy(mol->hydrogen_bond.donors.ptr, donors.ptr, donors.size_in_bytes());
-    memcpy(mol->hydrogen_bond.acceptors.ptr, acceptors.ptr, acceptors.size_in_bytes());
+    memcpy(mol->residues.data(), residues.data(), residues.size_in_bytes());
+    memcpy(mol->chains.data(), chains.data(), chains.size_in_bytes());
+    memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
+    memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
+    memcpy(mol->backbone.angles.data(), backbone_angles.data(), backbone_angles.size_in_bytes());
+    memcpy(mol->backbone.sequences.data(), backbone_sequences.data(), backbone_sequences.size_in_bytes());
+    memcpy(mol->hydrogen_bond.donors.data(), donors.data(), donors.size_in_bytes());
+    memcpy(mol->hydrogen_bond.acceptors.data(), acceptors.data(), acceptors.size_in_bytes());
 
     return true;
 }
@@ -318,7 +320,7 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
 	constexpr auto page_size = MEGABYTES(32);
     void* mem = TMP_MALLOC(2 * page_size);
     defer { TMP_FREE(mem); };
-	uint8* page[2] = {(uint8*)mem, (uint8*)mem + page_size};
+	char* page[2] = {(char*)mem, (char*)mem + page_size};
 
 	auto bytes_read = fread(page[0], 1, 2 * page_size, file);
     int64 global_offset = 0;
@@ -429,7 +431,7 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
 	FSEEK((FILE*)traj->file.handle, traj->frame_offsets[i], SEEK_SET);
     const auto bytes_read = fread(mem, 1, num_bytes, (FILE*)traj->file.handle);
     
-	CString mdl_str = { (uint8*)mem, (int64)bytes_read };
+	CString mdl_str = { (const char*)mem, (int64)bytes_read };
 	TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
 	extract_trajectory_frame_data(frame, mdl_str);
 
@@ -460,12 +462,13 @@ bool extract_molecule_info(MoleculeInfo* info, CString pdb_string) {
 	int32 num_chains = 0;
 
 	uint32 curr_res_pattern = 0;
-	uint8 curr_chain_pattern = 0;
+	char   curr_chain_pattern = 0;
+
 	CString line;
 	while (pdb_string && (line = extract_line(pdb_string))) {
 		if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
 			const uint32 res_pattern = *(uint32*)(&line[22]);
-			const uint8 chain_pattern = line[21];
+			const char chain_pattern = line[21];
 
 			num_atoms++;
 			if (res_pattern != curr_res_pattern) {

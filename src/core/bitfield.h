@@ -79,7 +79,7 @@ inline void init(Bitfield* field, Bitfield src) {
 }
 
 inline void copy(Bitfield dst, const Bitfield src) {
-	ASSERT(dst.size() == src.size(), "Bitfield size did not match");
+	ASSERT(dst.size() == src.size() && "Bitfield size did not match");
 	memcpy(dst.ptr, src.ptr, dst.size_in_bytes());
 }
 

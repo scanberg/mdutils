@@ -47,7 +47,7 @@ void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const f
     frame->cell_ext = (max_box - min_box) / (vec3)frame->cell_count;
     frame->cells.resize(frame->cell_count.x * frame->cell_count.y * frame->cell_count.z);
     frame->entries.resize(count);
-    memset(frame->cells.ptr, 0, frame->cells.size() * sizeof(Cell));
+    memset(frame->cells.data(), 0, frame->cells.size() * sizeof(Cell));
 
     uint32* l_idx = (uint32*)TMP_MALLOC(count * sizeof(uint32));
     uint32* g_idx = (uint32*)TMP_MALLOC(count * sizeof(uint32));
@@ -63,11 +63,11 @@ void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const f
         g_idx[i] = cell_idx;
     }
 
-    for (int i = 1; i < frame->cells.count; i++) {
+    for (int i = 1; i < frame->cells.size(); i++) {
         frame->cells[i].offset = frame->cells[i - 1].offset + frame->cells[i - 1].count;
     }
 
-    for (int i = 0; i < frame->entries.count; i++) {
+    for (int i = 0; i < frame->entries.size(); i++) {
         int dst = frame->cells[g_idx[i]].offset + l_idx[i];
         frame->entries[dst].position = {pos_x[i], pos_y[i], pos_z[i]};
         frame->entries[dst].index = i;

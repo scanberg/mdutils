@@ -10,7 +10,7 @@ namespace hydrogen_bond {
 // OH and NH atoms are assumed to be donors if the concecutive atom is marked with 'H' for Hydrogen.
 int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds) {
     ASSERT(donors);
-    int32 pre_count = (int32)donors->count;
+    int32 pre_count = (int32)donors->size();
     for (int32 i = 0; i < (int32)elements.size(); i++) {
         if (elements[i] == Element::H) {
             // get all bonds with atom i
@@ -44,7 +44,7 @@ for (int32 i = 0; i < num_labels; i++) {
 }
     */
 
-    return (int32)donors->count - pre_count;
+    return (int32)donors->size() - pre_count;
 }
 
 DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds) {
@@ -57,13 +57,13 @@ DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Ar
 // This essentially just a filter on atom element which extracts Oxygen and Nitrogen
 int32 compute_acceptors(DynamicArray<HydrogenBondAcceptor>* acceptors, Array<const Element> elements) {
     ASSERT(acceptors);
-    const int32 pre_count = (int32)acceptors->count;
+    const int32 pre_count = (int32)acceptors->size();
     for (int32 i = 0; i < (int32)elements.count; i++) {
         if (elements[i] == Element::O || elements[i] == Element::N || elements[i] == Element::F) {
             acceptors->push_back(i);
         }
     }
-    return (int32)acceptors->count - pre_count;
+    return (int32)acceptors->size() - pre_count;
 }
 
 DynamicArray<HydrogenBondAcceptor> compute_acceptors(Array<const Element> elements) {
@@ -93,7 +93,7 @@ int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondD
         acceptor_idx[i] = acceptors[i];
     }
 
-    int32 pre_count = (int32)bonds->count;
+    int32 pre_count = (int32)bonds->size();
     spatialhash::Frame frame = spatialhash::compute_frame(acceptor_pos_x.data(), acceptor_pos_y.data(), acceptor_pos_z.data(), num_acceptors, vec3(dist_cutoff));
     for (const auto& don : donors) {
         vec3 donor_pos_xyz = {atom_pos_x[don.donor_idx], atom_pos_y[don.donor_idx], atom_pos_z[don.donor_idx]};
@@ -108,7 +108,7 @@ int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondD
             }
         });
     }
-    return (int32)bonds->count - pre_count;
+    return (int32)bonds->size() - pre_count;
 }
 
 DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y, const float* atom_pos_z,

@@ -29,11 +29,11 @@ inline LineFormat get_format(CString line) {
         return LineFormat::Unknown;
     }
 
-    const uint8* c = &line[20];
+    const char* c = &line[20];
     while (c != line.end() && *c == ' ') c++;
     while (c != line.end() && *c != ' ') c++;
 
-    auto len = c - (&line[20]);
+    const auto len = c - (&line[20]);
     if (len < 10) {
         return LineFormat::Narrow;
     } else {
@@ -127,7 +127,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
 
 		if (cur_res != res_id) {
 			cur_res = res_id;
-			res_count = (int)residues.count;
+			res_count = (int)residues.size();
 			CString res_name_trim = trim(CString(res_name));
 			Residue res{};
 			res.name = res_name_trim;
@@ -177,7 +177,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
 
-    for (ChainIdx c = 0; c < chains.count; c++) {
+    for (ChainIdx c = 0; c < chains.size(); c++) {
         for (auto i = chains[c].res_range.beg; i < chains[c].res_range.end; i++) {
             residues[i].chain_idx = c;
         }
@@ -202,14 +202,14 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     memcpy(mol->atom.label, atom_label, sizeof(Label) * num_atoms);
     memcpy(mol->atom.res_idx, atom_res_idx, sizeof(ResIdx) * num_atoms);
 
-    memcpy(mol->residues.ptr, residues.ptr, residues.size_in_bytes());
-    memcpy(mol->chains.ptr, chains.ptr, chains.size_in_bytes());
-    memcpy(mol->covalent_bonds.ptr, covalent_bonds.ptr, covalent_bonds.size_in_bytes());
-    memcpy(mol->backbone.segments.ptr, backbone_segments.ptr, backbone_segments.size_in_bytes());
-    memcpy(mol->backbone.angles.ptr, backbone_angles.ptr, backbone_angles.size_in_bytes());
-    memcpy(mol->backbone.sequences.ptr, backbone_sequences.ptr, backbone_sequences.size_in_bytes());
-    memcpy(mol->hydrogen_bond.donors.ptr, donors.ptr, donors.size_in_bytes());
-    memcpy(mol->hydrogen_bond.acceptors.ptr, acceptors.ptr, acceptors.size_in_bytes());
+    memcpy(mol->residues.data(), residues.data(), residues.size_in_bytes());
+    memcpy(mol->chains.data(), chains.data(), chains.size_in_bytes());
+    memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
+    memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
+    memcpy(mol->backbone.angles.data(), backbone_angles.data(), backbone_angles.size_in_bytes());
+    memcpy(mol->backbone.sequences.data(), backbone_sequences.data(), backbone_sequences.size_in_bytes());
+    memcpy(mol->hydrogen_bond.donors.data(), donors.data(), donors.size_in_bytes());
+    memcpy(mol->hydrogen_bond.acceptors.data(), acceptors.data(), acceptors.size_in_bytes());
 
     return true;
 }

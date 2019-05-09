@@ -42,9 +42,6 @@
         if (glPopDebugGroup) glPopDebugGroup(); \
     }
 
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-
 namespace postprocessing {
 
 // @TODO: Use half-res render targets for SSAO
@@ -189,7 +186,7 @@ static struct {
 
 } gl;
 
-static const char* v_shader_src_fs_quad = R"(
+static constexpr CString v_shader_src_fs_quad = R"(
 #version 150 core
 
 out vec2 tc;
@@ -204,7 +201,7 @@ void main() {
 }
 )";
 
-static const char* f_shader_src_linearize_depth = R"(
+static constexpr CString f_shader_src_linearize_depth = R"(
 #ifndef PERSPECTIVE
 #define PERSPECTIVE 1
 #endif
@@ -229,7 +226,7 @@ void main() {
 }
 )";
 
-static const char* f_shader_src_mip_map_min_depth = R"(
+static constexpr CString f_shader_src_mip_map_min_depth = R"(
 uniform sampler2D u_tex_depth;
 
 out vec4 out_frag;
@@ -683,7 +680,7 @@ void shutdown() {}
 namespace blit {
 static GLuint program = 0;
 static GLint uniform_loc_texture = -1;
-static const char* f_shader_src = R"(
+constexpr CString f_shader_src = R"(
 #version 150 core
 
 uniform sampler2D u_texture;
@@ -742,7 +739,7 @@ void initialize(int32 width, int32 height) {
         blit_velocity.uniform_loc.curr_clip_to_prev_clip_mat = glGetUniformLocation(blit_velocity.program, "u_curr_clip_to_prev_clip_mat");
     }
     {
-        const char* defines = {"#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE)};
+        constexpr CString defines = "#define TILE_SIZE " TOSTRING(VEL_TILE_SIZE);
         String f_shader_src = allocate_and_read_textfile(MDUTILS_SHADER_DIR "/velocity/blit_tilemax.frag");
         defer { free_string(&f_shader_src); };
         setup_program(&blit_tilemax.program, "tilemax", f_shader_src, defines);
@@ -857,7 +854,8 @@ void initialize(int width, int height) {
 
     if (!gl.v_shader_fs_quad) {
         gl.v_shader_fs_quad = glCreateShader(GL_VERTEX_SHADER);
-        glShaderSource(gl.v_shader_fs_quad, 1, &v_shader_src_fs_quad, 0);
+        const char* src[] = {v_shader_src_fs_quad.cstr()};
+        glShaderSource(gl.v_shader_fs_quad, 1, src, 0);
         glCompileShader(gl.v_shader_fs_quad);
         if (gl::get_shader_compile_error(buffer, BUFFER_SIZE, gl.v_shader_fs_quad)) {
             LOG_ERROR("Error while compiling postprocessing fs-quad vertex shader:\n%s", buffer);

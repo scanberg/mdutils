@@ -511,7 +511,7 @@ void voxelize_spheres_cpu(const GPUVolume& vol, Array<const vec3> atom_pos, Arra
 
     DynamicArray<uint32> voxel_data(voxel_count);
     // For running mean
-    DynamicArray<float> voxel_counter(voxel_data.count, 1);
+    DynamicArray<float> voxel_counter(voxel_data.size(), 1);
 
     for (int32 i = 0; i < N; i++) {
         const auto& pos = atom_pos[i];
@@ -546,7 +546,7 @@ void voxelize_spheres_cpu(const GPUVolume& vol, Array<const vec3> atom_pos, Arra
     }
 
     glBindTexture(GL_TEXTURE_3D, vol.texture_id);
-    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, vol.resolution.x, vol.resolution.y, vol.resolution.z, GL_RGBA, GL_UNSIGNED_BYTE, voxel_data.ptr);
+    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, vol.resolution.x, vol.resolution.y, vol.resolution.z, GL_RGBA, GL_UNSIGNED_BYTE, voxel_data.data());
     glGenerateMipmap(GL_TEXTURE_3D);
     glBindTexture(GL_TEXTURE_3D, 0);
 }

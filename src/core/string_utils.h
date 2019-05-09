@@ -39,7 +39,7 @@ struct ConversionResult {
     T value;
     bool success;
 
-    operator T() { return value; }
+    constexpr operator T() const { return value; }
 };
 
 // Wrappers around strtof
@@ -52,23 +52,24 @@ ConversionResult<int32> to_int32(CString str);
 ConversionResult<int64> to_int64(CString str);
 inline ConversionResult<int> to_int(CString str) { return to_int32(str); }
 
-inline int char_to_digit(uint8 c) { return c - '0'; }
+inline int char_to_digit(char c) { return c - '0'; }
 
 template <typename Float = float32>
-inline float fast_str_to_float(CString str) {
-	const uint8* c = str.beg();
+constexpr inline float fast_str_to_float(CString str) {
+	const char* c = str.beg();
+    const char* end = str.end();
 
 	Float val = 0;
 	Float base = 1;
 	Float sign = 1;
 
-	while (c != str.end()) {
+	while (c != end) {
 		if ('0' <= *c && *c <= '9') {
-			val *= 10;
+			val *= (Float)10;
 			val += char_to_digit(*c);
 		}
 		else if (*c == '-') {
-			sign = -1;
+			sign = -(Float)1;
 		}
 		else if (*c == '.') {
 			c++;
@@ -76,14 +77,14 @@ inline float fast_str_to_float(CString str) {
 		}
 		c++;
 	}
-	while (c != str.end() && *c != ' ') {
+        while (c != end && *c != ' ') {
 		if ('0' <= *c && *c <= '9') {
 			base *= (Float)0.1;
 			val += char_to_digit(*c) * base;
 		}
 		c++;
 	}
-	if (c != str.end() && (*c == 'e' || *c == 'E')) {
+    if (c != end && (*c == 'e' || *c == 'E')) {
 		c++;
 		// @TODO: Read exponent
 	}
@@ -119,17 +120,17 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
 // Converts windows backslashes '\\' to forward slashes '/'
 void convert_backslashes(String str);
 
-bool is_digit(uint8 c);
-bool is_alpha(uint8 c);
-bool is_whitespace(uint8 c);
+bool is_digit(char c);
+bool is_alpha(char c);
+bool is_whitespace(char c);
 bool contains_whitespace(CString str);
 bool balanced_parentheses(CString str);
 
 CString extract_parentheses(CString str);
 CString extract_parentheses_contents(CString str);
 
-const uint8* find_character(CString str, uint8 c);
-bool contains_character(CString str, uint8 c);
+const char* find_character(CString str, char c);
+bool contains_character(CString str, char c);
 
 // Attempts to find a pattern inside a target string
 // Returns empty CString if pattern is not found
@@ -137,9 +138,9 @@ bool contains_character(CString str, uint8 c);
 CString find_string(CString target, CString pattern);
 
 // Tokenizes a string into shorter strings based on some delimiter
-DynamicArray<String> tokenize(String str, uint8 delimiter = ' ');
+DynamicArray<String> tokenize(String str, char delimiter = ' ');
 DynamicArray<String> tokenize(String str, CString delimiter);
-DynamicArray<CString> ctokenize(CString str, uint8 delimiter = ' ');
+DynamicArray<CString> ctokenize(CString str, char delimiter = ' ');
 DynamicArray<CString> ctokenize(CString str, CString delimiter);
 
 // Positive range extraction functionality

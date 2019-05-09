@@ -49,11 +49,11 @@ int32 count_parentheses(CString str) {
 }
 
 CString extract_parenthesis(CString str) {
-    const uint8* beg = str.beg();
+    const char* beg = str.beg();
     while (beg != str.end() && *beg != '(') beg++;
     if (beg == str.end()) return {};
 
-    const uint8* end = beg + 1;
+    const char* end = beg + 1;
     int count = 1;
     while (end++ != str.end() && count > 0) {
         if (*end == '(') count++;
@@ -66,14 +66,14 @@ CString extract_parenthesis(CString str) {
 DynamicArray<CString> extract_chunks(CString str) {
     DynamicArray<CString> chunks;
 
-    const uint8* beg = str.beg();
+    const char* beg = str.beg();
     while (beg != str.end()) {
         if (*beg == '(') {
             CString par = extract_parenthesis(CString(beg, str.end()));
             chunks.push_back({par.beg(), par.end()});  // Exclude actual parentheses
             beg = par.end();
         } else if (*beg != ' ') {
-            const uint8* end = beg;
+            const char* end = beg;
             while (end != str.end() && *end != ' ') end++;
             chunks.push_back(CString(beg, end));
             beg = end;
@@ -134,29 +134,31 @@ bool internal_filter_mask(Bitfield mask, CString filter, const FilterContext& ct
                 if (!internal_filter_mask(chunk_mask, CString(chunk.beg() + 1, chunk.end() - 1), ctx)) return false;
             } else {
                 auto tokens = ctokenize(chunk);
-                auto cmd = find_filter_command(tokens[0]);
-                if (!cmd) {
-                    StringBuffer<32> buf = tokens[0];
-                    LOG_ERROR("Could not match command: '%s'\n", buf.beg());
-                    return false;
-                }
-
-                auto args = tokens.subarray(1);
-
-                while (args.count > 0 && compare_ignore_case(args[0], "not")) {
-                    state_not = !state_not;
-                    args = args.subarray(1);
-                }
-
-                bitfield::clear_all(chunk_mask);
-                if (!cmd->func(chunk_mask, ctx, args)) {
-                    StringBuffer<32> buf = tokens[0];
-                    LOG_ERROR("Could not parse command: '%s' with arguments: ", buf.beg());
-                    for (const auto& arg : args) {
-                        buf = arg;
-                        printf("'%s'", buf.beg());
+                if (tokens.size() > 0) {
+                    auto cmd = find_filter_command(tokens[0]);
+                    if (!cmd) {
+                        StringBuffer<32> buf = tokens[0];
+                        LOG_ERROR("Could not match command: '%s'\n", buf.beg());
+                        return false;
                     }
-                    return false;
+
+                    auto args = tokens.subarray(1);
+
+                    while (args.count > 0 && compare_ignore_case(args[0], "not")) {
+                        state_not = !state_not;
+                        args = args.subarray(1);
+                    }
+
+                    bitfield::clear_all(chunk_mask);
+                    if (!cmd->func(chunk_mask, ctx, args)) {
+                        StringBuffer<32> buf = tokens[0];
+                        LOG_ERROR("Could not parse command: '%s' with arguments: ", buf.beg());
+                        for (const auto& arg : args) {
+                            buf = arg;
+                            printf("'%s'", buf.beg());
+                        }
+                        return false;
+                    }
                 }
             }
 

@@ -1103,9 +1103,9 @@ void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float*
         const SIMD_TYPE_F dp_y0 = de_periodize(y1, y0, full_box_ext_y, half_box_ext_y);
         const SIMD_TYPE_F dp_z0 = de_periodize(z1, z0, full_box_ext_z, half_box_ext_z);
 
-        const SIMD_TYPE_F dx = simd::mul(simd::sub(x1, x0), dt_wide);
-        const SIMD_TYPE_F dy = simd::mul(simd::sub(y1, y0), dt_wide);
-        const SIMD_TYPE_F dz = simd::mul(simd::sub(z1, z0), dt_wide);
+        const SIMD_TYPE_F dx = simd::mul(simd::sub(x1, dp_x0), dt_wide);
+        const SIMD_TYPE_F dy = simd::mul(simd::sub(y1, dp_y0), dt_wide);
+        const SIMD_TYPE_F dz = simd::mul(simd::sub(z1, dp_z0), dt_wide);
 
         simd::store(out_x + i, dx);
         simd::store(out_y + i, dy);
@@ -1366,19 +1366,19 @@ DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
         }
     }
 
-    if (residue_bonds.count == 0) {
+    if (residue_bonds.size() == 0) {
         // No residue bonds, No chains.
         return {};
     }
 
     DynamicArray<int> residue_chains(residues.count, -1);
 
-    if (residue_bonds.count > 0) {
+    if (residue_bonds.size() > 0) {
         int curr_chain_idx = 0;
         int res_bond_idx = 0;
         for (int i = 0; i < residues.count; i++) {
             if (residue_chains[i] == -1) residue_chains[i] = curr_chain_idx++;
-            for (; res_bond_idx < residue_bonds.count; res_bond_idx++) {
+            for (; res_bond_idx < residue_bonds.size(); res_bond_idx++) {
                 const auto& res_bond = residue_bonds[res_bond_idx];
                 if (i == res_bond.idx[0]) {
                     residue_chains[res_bond.idx[1]] = residue_chains[res_bond.idx[0]];
@@ -1481,7 +1481,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
         segments.push_back(seg);
     }
 
-    if (invalid_segments == segments.count) return {};
+    if (invalid_segments == segments.size()) return {};
 
     return segments;
 }
@@ -1733,8 +1733,8 @@ void compute_atom_masses(float* out_mass, const Element* element, int64 count) {
 
 bool is_amino_acid(const Residue& res) { return aminoacid::get_from_string(res.name) != AminoAcid::Unknown; }
 
+static constexpr CString dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
 bool is_dna(const Residue& res) {
-    constexpr const char* dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
     for (auto dna_res : dna_residues) {
         if (compare(res.name, dna_res)) return true;
     }

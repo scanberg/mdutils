@@ -1,5 +1,6 @@
-﻿#include <core/string_utils.h>
+﻿#include "string_utils.h"
 #include <core/common.h>
+#include <core/log.h>
 #include <stdio.h>
 #include <ctype.h>
 
@@ -15,14 +16,14 @@ extern "C" {
 char* Railgun_Trolldom(char* pbTarget, char* pbPattern, uint32_t cbTarget, uint32_t cbPattern);
 }
 
-static inline bool internal_compare_ignore_case(const uint8* str_a, const uint8* str_b, int64 len) {
+static inline bool internal_compare_ignore_case(const char* str_a, const char* str_b, int64 len) {
     for (int64 i = 0; i < len; i++) {
         if (tolower(str_a[i]) != tolower(str_b[i])) return false;
     }
     return true;
 }
 
-static inline bool internal_compare(const uint8* str_a, const uint8* str_b, int64 len) { return memcmp(str_a, str_b, len) == 0; }
+static inline bool internal_compare(const char* str_a, const char* str_b, int64 len) { return memcmp(str_a, str_b, len) == 0; }
 
 bool compare(CString str_a, CString str_b) {
     if (str_a.count != str_b.count) return false;
@@ -43,7 +44,7 @@ bool compare_n(CString str_a, CString str_b, int64 num_chars) {
 }
 
 bool compare_n_ignore_case(CString str_a, CString str_b, int64 num_chars) {
-	const int64 len = MIN(str_a.count, str_b.count);
+    const int64 len = MIN(str_a.count, str_b.count);
     if (len < num_chars) return false;
     return internal_compare_ignore_case(str_a.ptr, str_b.ptr, num_chars);
 }
@@ -67,14 +68,22 @@ void copy_n(String dst, CString src, int64 num_chars) {
 
 String allocate_string(CString str) {
     if (str.count == 0) return {};
-    uint8* ptr = (uint8*)MALLOC(str.count + 1);
+    char* ptr = (char*)MALLOC(str.count + 1);
+    if (!ptr) {
+        LOG_ERROR("Could not allocate space for string.");
+        return {};
+    }
     strncpy((char*)ptr, str.cstr(), str.count + 1);
     return {ptr, str.count};
 }
 
 String allocate_string(int32 length) {
     if (length == 0) return {};
-    uint8* ptr = (uint8*)MALLOC(length);
+    char* ptr = (char*)MALLOC(length);
+    if (!ptr) {
+        LOG_ERROR("Could not allocate space for string.");
+        return {};
+    }
     return {ptr, length};
 }
 
@@ -91,8 +100,8 @@ CString peek_line(CString str) {
         return {};
     }
 
-    const uint8* line_beg = str.beg();
-    const uint8* line_end = (const uint8*)memchr(str.beg(), '\n', str.length());
+    const char* line_beg = str.beg();
+    const char* line_end = (const char*)memchr(str.beg(), '\n', str.length());
     if (!line_end) {
         line_end = str.end();
     }
@@ -101,8 +110,8 @@ CString peek_line(CString str) {
 }
 
 CString extract_line(CString& str) {
-    const uint8* str_beg = str.ptr;
-    const uint8* str_end = str.ptr + str.count;
+    const char* str_beg = str.ptr;
+    const char* str_end = str.ptr + str.count;
 
     if (str_beg == str_end) {
         return {};
@@ -111,8 +120,8 @@ CString extract_line(CString& str) {
     // If we start on a new line character or return character, skip these
     while (str_beg != str_end && (*str_beg == '\r' || *str_beg == '\n')) ++str_beg;
 
-    const uint8* line_beg = str_beg;
-    const uint8* line_end = (const uint8*)memchr(str_beg, '\n', str.length());
+    const char* line_beg = str_beg;
+    const char* line_end = (const char*)memchr(str_beg, '\n', str.length());
     if (!line_end) {
         line_end = str_end;
         str_beg = str_end;
@@ -134,16 +143,16 @@ CString extract_line(CString& str) {
 
 /*
 bool copy_line(String& line, CString& str) {
-    const uint8* str_beg = str.data;
-    const uint8* str_end = str.data + str.count;
+    const char* str_beg = str.data;
+    const char* str_end = str.data + str.count;
 
     if (str_beg == str_end) {
         line = {};
         return false;
     }
 
-    const uint8* line_beg = str_beg;
-    const uint8* line_end = line_beg;
+    const char* line_beg = str_beg;
+    const char* line_end = line_beg;
 
     // Find return or new line character
     while (line_end < str_end && *line_end != '\r' && *line_end != '\n') ++line_end;
@@ -154,7 +163,7 @@ bool copy_line(String& line, CString& str) {
 
     // @NOTE: Do not modify line.count, its value contains the length of the buffer its pointing to
     auto count = MIN(line_end - line_beg, line.count - 1);
-    line.data = (uint8*)memcpy(line.data, line_beg, count);
+    line.data = (char*)memcpy(line.data, line_beg, count);
     line.data[count] = '\0';
 
     str.data = str_beg;
@@ -197,8 +206,8 @@ ConversionResult<int64> to_int64(CString str) {
 }
 
 CString trim(CString str) {
-    const uint8* beg = str.ptr;
-    const uint8* end = str.ptr + str.count;
+    const char* beg = str.ptr;
+    const char* end = str.ptr + str.count;
 
     while (beg < end && is_whitespace(*beg)) ++beg;
     while (end > beg && (is_whitespace(*(end - 1)) || *(end - 1) == '\0')) --end;
@@ -207,8 +216,8 @@ CString trim(CString str) {
 }
 
 String trim(String str) {
-    uint8* beg = str.ptr;
-    uint8* end = str.ptr + str.count;
+    char* beg = str.ptr;
+    char* end = str.ptr + str.count;
 
     while (beg < end && is_whitespace(*beg)) ++beg;
     while (end > beg && is_whitespace(*(end - 1))) --end;
@@ -231,7 +240,11 @@ String allocate_and_read_textfile(CString filename) {
 
     if (file_size <= 0) return {};
 
-    uint8* ptr = (uint8*)MALLOC(file_size + 1);
+    char* ptr = (char*)MALLOC(file_size + 1);
+    if (!ptr) {
+        LOG_ERROR("Could not allocate space for string.");
+        return {};
+    }
     fread(ptr, 1, file_size, file);
     ptr[file_size] = '\0';
 
@@ -245,8 +258,8 @@ CString get_directory(CString url) {
 
     url = trim(url);
 
-    const uint8* beg = url.begin();
-    const uint8* end = url.end() - 1;
+    const char* beg = url.begin();
+    const char* end = url.end() - 1;
 
     while (end != beg && *end != '\\' && *end != '/') {
         end--;
@@ -262,8 +275,8 @@ CString get_file(CString url) {
 
     url = trim(url);
 
-    const uint8* beg = url.end() - 1;
-    const uint8* end = url.end();
+    const char* beg = url.end() - 1;
+    const char* end = url.end();
 
     while (beg != url.begin() && *beg != '\\' && *beg != '/') {
         beg--;
@@ -280,8 +293,8 @@ CString get_file_without_extension(CString url) {
 
     url = trim(url);
 
-    const uint8* beg = url.end() - 1;
-    const uint8* end = url.end();
+    const char* beg = url.end() - 1;
+    const char* end = url.end();
 
     while (beg != url.begin() && *beg != '\\' && *beg != '/') beg--;
     if (beg != url.begin()) beg++;
@@ -298,8 +311,8 @@ CString get_file_extension(CString url) {
 
     url = trim(url);
 
-    const uint8* beg = url.end() - 1;
-    const uint8* end = url.end();
+    const char* beg = url.end() - 1;
+    const char* end = url.end();
 
     while (beg != url.begin() && *beg != '.' && *beg != '\\' && *beg != '/') beg--;
 
@@ -319,8 +332,8 @@ inline static bool char_in_string(char c, CString str) {
 }
 
 StringBuffer<256> get_relative_path(CString from, CString to) {
-    const uint8* c_from = from.beg();
-    const uint8* c_to = to.beg();
+    const char* c_from = from.beg();
+    const char* c_to = to.beg();
     while (c_from != from.end() && c_to != to.end() && *c_from == *c_to) {
         c_from++;
         c_to++;
@@ -332,7 +345,7 @@ StringBuffer<256> get_relative_path(CString from, CString to) {
     }
 
     int dir_count = 0;
-    for (const uint8* c = c_from; c != from.end(); c++ /* <- LOL! */) {
+    for (const char* c = c_from; c != from.end(); c++ /* <- LOL! */) {
         if (*c == '\\' || *c == '/') dir_count++;
     }
 
@@ -360,11 +373,11 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
     }
 
     int dir_count = 0;
-    for (const uint8* c = relative_file.beg(); c < relative_file.end(); c += 3) {
+    for (const char* c = relative_file.beg(); c < relative_file.end(); c += 3) {
         if (c[0] == '.' && (c + 1) != relative_file.end() && c[1] == '.' && (c + 2) != relative_file.end() && (c[2] == '/' || c[2] == '\\')) dir_count++;
     }
 
-    const uint8* c = abs_dir.end() - 1;
+    const char* c = abs_dir.end() - 1;
     while (c > abs_dir.beg() && dir_count > 0) {
         if (*c == '/' || *c == '\\') {
             if (--dir_count == 0) break;
@@ -382,19 +395,19 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
 }
 
 void convert_backslashes(String str) {
-    for (uint8* c = str.beg(); c != str.end(); c++) {
+    for (char* c = str.beg(); c != str.end(); c++) {
         if (*c == '\\') *c = '/';
     }
 }
 
-bool is_digit(uint8 c) { return isdigit(c); }
+bool is_digit(char c) { return isdigit(c); }
 
-bool is_alpha(uint8 c) { return isalpha(c); }
+bool is_alpha(char c) { return isalpha(c); }
 
-bool is_whitespace(uint8 c) { return isspace(c); }
+bool is_whitespace(char c) { return isspace(c); }
 
 bool contains_whitespace(CString str) {
-    for (const uint8* c = str.beg(); c != str.end(); c++) {
+    for (const char* c = str.beg(); c != str.end(); c++) {
         if (is_whitespace(*c)) return true;
     }
     return false;
@@ -402,7 +415,7 @@ bool contains_whitespace(CString str) {
 
 bool balanced_parentheses(CString str) {
     int count = 0;
-    const uint8* ptr = str.beg();
+    const char* ptr = str.beg();
     while (ptr != str.end()) {
         if (*ptr == '(')
             count++;
@@ -414,12 +427,12 @@ bool balanced_parentheses(CString str) {
 }
 
 CString extract_parentheses(CString str) {
-    const uint8* beg = str.beg();
+    const char* beg = str.beg();
 
     while (beg != str.end() && *beg != '(') beg++;
     if (beg == str.end()) return {beg, str.end()};
 
-    const uint8* end = beg + 1;
+    const char* end = beg + 1;
     int count = 1;
     while (end != str.end()) {
         if (*end == '(')
@@ -440,25 +453,25 @@ CString extract_parentheses_contents(CString str) {
     return {p.beg() + 1, p.end() - 1};
 }
 
-const uint8* find_character(CString str, uint8 c) { return (const uint8*)memchr(str.ptr, c, str.length()); }
+const char* find_character(CString str, char c) { return (const char*)memchr(str.ptr, c, str.length()); }
 
-bool contains_character(CString str, uint8 c) { return find_character(str, c) != str.end(); }
+bool contains_character(CString str, char c) { return find_character(str, c) != str.end(); }
 
 CString find_string(CString target, CString pattern) {
     if (target.count == 0 || pattern.count == 0) return {};
 
     char* ptr = Railgun_Trolldom((char*)target.cstr(), (char*)pattern.cstr(), (uint32)target.size_in_bytes(), (uint32)pattern.size_in_bytes());
     if (ptr) {
-        return {(uint8*)ptr, pattern.length()};
+        return {(char*)ptr, pattern.length()};
     }
     return {};
 }
 
-DynamicArray<String> tokenize(String str, uint8 delimiter) {
+DynamicArray<String> tokenize(String str, char delimiter) {
     DynamicArray<String> tokens;
 
-    uint8* beg = str.beg();
-    uint8* end = str.beg();
+    char* beg = str.beg();
+    char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
         while (end != str.end() && *end != '\0' && *end != delimiter) end++;
@@ -474,8 +487,8 @@ DynamicArray<String> tokenize(String str, uint8 delimiter) {
 DynamicArray<String> tokenize(String str, CString delimiter) {
     DynamicArray<String> tokens;
 
-    uint8* beg = str.beg();
-    uint8* end = str.beg();
+    char* beg = str.beg();
+    char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
         while (end != str.end() && *end != '\0' && !char_in_string(*end, delimiter)) end++;
@@ -488,11 +501,11 @@ DynamicArray<String> tokenize(String str, CString delimiter) {
     return tokens;
 }
 
-DynamicArray<CString> ctokenize(CString str, uint8 delimiter) {
+DynamicArray<CString> ctokenize(CString str, char delimiter) {
     DynamicArray<CString> tokens;
 
-    const uint8* beg = str.beg();
-    const uint8* end = str.beg();
+    const char* beg = str.beg();
+    const char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
         while (end != str.end() && *end != '\0' && *end != delimiter) end++;
@@ -508,8 +521,8 @@ DynamicArray<CString> ctokenize(CString str, uint8 delimiter) {
 DynamicArray<CString> ctokenize(CString str, CString delimiter) {
     DynamicArray<CString> tokens;
 
-    const uint8* beg = str.beg();
-    const uint8* end = str.beg();
+    const char* beg = str.beg();
+    const char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
         while (end != str.end() && *end != '\0' && !char_in_string(*end, delimiter)) end++;
@@ -522,12 +535,12 @@ DynamicArray<CString> ctokenize(CString str, CString delimiter) {
     return tokens;
 }
 
-constexpr uint8 delimiter = ':';
-constexpr uint8 wildcard = '*';
+constexpr char delimiter = ':';
+constexpr char wildcard = '*';
 
 // Range extraction functionality
 bool is_range(CString arg) {
-    for (const uint8* c = arg.beg(); c != arg.end(); c++) {
+    for (const char* c = arg.beg(); c != arg.end(); c++) {
         if (is_digit(*c)) continue;
         if (*c == delimiter) return true;
         if (*c == wildcard) return true;
@@ -547,7 +560,7 @@ bool extract_range(Range<int32>* range, CString arg) {
         return true;
     }
 
-    const uint8* mid = arg.beg();
+    const char* mid = arg.beg();
     while (mid != arg.end() && *mid != delimiter) mid++;
     if (mid == arg.end()) return false;
 

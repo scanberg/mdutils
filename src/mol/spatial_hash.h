@@ -42,7 +42,7 @@ inline int compute_cell_idx(const Frame& frame, vec3 coord) { return compute_cel
 
 inline Cell get_cell(const Frame& frame, ivec3 cell_coord) {
     int idx = compute_cell_idx(frame, cell_coord);
-    ASSERT(idx < frame.cells.count);
+    ASSERT(idx < frame.cells.size());
     return frame.cells[idx];
 }
 

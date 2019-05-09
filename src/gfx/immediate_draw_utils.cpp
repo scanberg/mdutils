@@ -99,7 +99,7 @@ void main() {
 )";
 
 static inline void append_draw_command(Index offset, Index count, GLenum primitive_type) {
-    if (commands.count > 0 && commands.back().primitive_type == primitive_type) {
+    if (commands.size() > 0 && commands.back().primitive_type == primitive_type) {
         commands.back().count += count;
     } else {
         ASSERT(curr_view_matrix_idx > -1, "Immediate Mode View Matrix not set!");
@@ -190,12 +190,12 @@ void shutdown() {
 }
 
 void set_view_matrix(const mat4& model_view_matrix) {
-    curr_view_matrix_idx = (int)matrix_stack.count;
+    curr_view_matrix_idx = (int)matrix_stack.size();
     matrix_stack.push_back(model_view_matrix);
 }
 
 void set_proj_matrix(const mat4& proj_matrix) {
-    curr_proj_matrix_idx = (int)matrix_stack.count;
+    curr_proj_matrix_idx = (int)matrix_stack.size();
     matrix_stack.push_back(proj_matrix);
 }
 
@@ -203,10 +203,10 @@ void flush() {
     glBindVertexArray(vao);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.count * sizeof(Vertex), vertices.ptr, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STREAM_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.count * sizeof(Index), indices.ptr, GL_STREAM_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(Index), indices.data(), GL_STREAM_DRAW);
 
     glEnable(GL_PROGRAM_POINT_SIZE);
     // glEnable(GL_BLEND);
@@ -268,7 +268,7 @@ void flush() {
 
 // PRIMITIVES
 void draw_point(const vec3& pos, uint32 color) {
-    const Index idx = (Index)vertices.count;
+    const Index idx = (Index)vertices.size();
 
     vertices.push_back({pos, vec3(0, 0, 1), {0, 0}, color});
     indices.push_back(idx);
@@ -277,7 +277,7 @@ void draw_point(const vec3& pos, uint32 color) {
 }
 
 void draw_line(const vec3& from, const vec3& to, uint32 color) {
-    const Index idx = (Index)vertices.count;
+    const Index idx = (Index)vertices.size();
 
     vertices.push_back({from, {0, 0, 1}, {0, 0}, color});
     vertices.push_back({to, {0, 0, 1}, {0, 1}, color});
@@ -289,7 +289,7 @@ void draw_line(const vec3& from, const vec3& to, uint32 color) {
 }
 
 void draw_triangle(const vec3& p0, const vec3& p1, const vec3& p2, uint32 color) {
-    const Index idx = (Index)vertices.count;
+    const Index idx = (Index)vertices.size();
     const vec3 normal = math::normalize(math::cross(p1 - p0, p2 - p0));
 
     vertices.push_back({p0, normal, {0, 0}, color});
@@ -304,7 +304,7 @@ void draw_triangle(const vec3& p0, const vec3& p1, const vec3& p2, uint32 color)
 }
 
 void draw_plane(const vec3& center, const vec3& vec_u, const vec3& vec_v, uint32 color) {
-    const Index idx = (Index)vertices.count;
+    const Index idx = (Index)vertices.size();
     const vec3 normal = math::normalize(math::cross(vec_u, vec_v));
 
     vertices.push_back({{center - vec_u + vec_v}, normal, {0, 1}, color});
@@ -326,7 +326,7 @@ void draw_plane_wireframe(const vec3& center, const vec3& vec_u, const vec3& vec
 	ASSERT(segments_u > 0);
 	ASSERT(segments_v > 0);
 
-	const Index idx = (Index)vertices.count;
+	const Index idx = (Index)vertices.size();
 	const vec3 normal = math::normalize(math::cross(vec_u, vec_v));
 
 	vertices.push_back({ {center - vec_u + vec_v}, normal, {0, 1}, color });
