@@ -169,7 +169,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
 			extract_element(&elem, line);
             elements.push_back(elem);
 
-            auto res_id = to_int(line.substr(22, 4));
+            int res_id = to_int(line.substr(22, 4));
             char chain_id = line[21];
 
             // New Chain

@@ -111,7 +111,7 @@ struct StringBuffer {
 
     StringBuffer& operator+=(CString txt);
 
-    const char operator[](int64 i) const {
+    char operator[](int64 i) const {
         ASSERT(0 <= i && i < MaxSize);
         return buffer[i];
     }
@@ -216,7 +216,7 @@ struct String : Array<char> {
 
     template <int64 length>
     constexpr String(char (&cstr)[length]) noexcept {
-        ptr = (uint8*)cstr;
+        ptr = cstr;
         count = length;
     }
 

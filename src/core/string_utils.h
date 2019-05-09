@@ -38,7 +38,6 @@ template <typename T>
 struct ConversionResult {
     T value;
     bool success;
-
     constexpr operator T() const { return value; }
 };
 
@@ -77,7 +76,7 @@ constexpr inline float fast_str_to_float(CString str) {
 		}
 		c++;
 	}
-        while (c != end && *c != ' ') {
+    while (c != end && *c != ' ') {
 		if ('0' <= *c && *c <= '9') {
 			base *= (Float)0.1;
 			val += char_to_digit(*c) * base;

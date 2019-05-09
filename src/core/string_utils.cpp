@@ -39,14 +39,14 @@ bool compare_ignore_case(CString str_a, CString str_b) {
 
 bool compare_n(CString str_a, CString str_b, int64 num_chars) {
     const int64 len = MIN(str_a.count, str_b.count);
-    if (MIN(str_a.count, str_b.count) < num_chars) return false;
-    return internal_compare(str_a.ptr, str_b.ptr, num_chars);
+    //if (MIN(str_a.count, str_b.count) < num_chars) return false;
+    return internal_compare(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
 bool compare_n_ignore_case(CString str_a, CString str_b, int64 num_chars) {
     const int64 len = MIN(str_a.count, str_b.count);
-    if (len < num_chars) return false;
-    return internal_compare_ignore_case(str_a.ptr, str_b.ptr, num_chars);
+    //if (len < num_chars) return false;
+    return internal_compare_ignore_case(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
 void copy(String dst, CString src) {
