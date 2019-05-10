@@ -279,7 +279,6 @@ INLINE float horizontal_add(const float256 v) {
 	float128 vlow = _mm256_castps256_ps128(v);
 	const float128 vhigh = _mm256_extractf128_ps(v, 1); // high 128
 	vlow = _mm_add_ps(vlow, vhigh);     // add the low 128
-
 	float128 shuf = _mm_movehdup_ps(vlow);        // broadcast elements 3,1 to 2,0
 	float128 sums = _mm_add_ps(vlow, shuf);
 	shuf = _mm_movehl_ps(shuf, sums); // high half -> low half

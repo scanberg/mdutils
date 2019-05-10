@@ -18,8 +18,12 @@ constexpr float PI = 3.14159265358979323846264338327950288f;
 constexpr float SQRT_TWO = 1.41421356237309504880f;
 constexpr float EPSILON = 1.192092896e-07f;
 constexpr float FLOAT_MAX = 3.402823466e+38f;
-constexpr float RAD_TO_DEG = 180.f / PI;
-constexpr float DEG_TO_RAD = PI / 180.f;
+
+// @Note: The only reason here for using templates is to support vectors as well...
+template <typename T>
+constexpr T rad_to_deg(const T& rad) { return rad * (180.0f / PI); }
+template <typename T>
+constexpr T deg_to_rad(const T& deg) { return deg * (PI / 180.0f); }
 
 // Core
 using glm::abs;
@@ -70,10 +74,12 @@ inline float distance2(const T& a, const T& b) {
 
 using glm::normalize;
 
-template <int N, typename T, glm::qualifier Q>
-T angle(glm::vec<N, T, Q> const& a, glm::vec<N, T, Q> const& b) {
-    return acos(dot(normalize(a), normalize(b)));
-}
+using glm::angle;
+using glm::axis;
+
+inline float angle(const vec2& a, const vec2& b) { return acos(dot(normalize(a), normalize(b))); }
+inline float angle(const vec3& a, const vec3& b) { return acos(dot(normalize(a), normalize(b))); }
+inline float angle(const vec4& a, const vec4& b) { return acos(dot(normalize(a), normalize(b))); }
 
 template <int N, typename T, glm::qualifier Q>
 T angle(glm::vec<N, T, Q> const& a, glm::vec<N, T, Q> const& b, glm::vec<N, T, Q> const& c) {

@@ -150,14 +150,6 @@ struct CString : Array<const char> {
         count = strnlen(buf.cstr(), buf.MaxSize);
     }
 
-    /*
-constexpr CString(const char* cstr, int64 len) noexcept {
-    ptr = (const ElementType*)cstr;
-    //if (len == -1) len = strlen(cstr);
-    count = len;
-}
-    */
-
     constexpr CString(const char* cstr, int64 len) noexcept {
         ptr = cstr;
         count = len;
@@ -190,18 +182,13 @@ constexpr CString(const char* cstr, int64 len) noexcept {
 };
 
 struct String : Array<char> {
-    constexpr String() noexcept {
-        ptr = 0;
-        count = 0;
-    }
+    constexpr String() = default;
 
     template <int64 N>
     constexpr String(StringBuffer<N>& buf) noexcept {
         ptr = buf.buffer;
         count = buf.MaxSize;
     }
-
-    // constexpr String(const String& other) noexcept : Array(other.ptr, other.count) {}
 
     constexpr String(char* cstr, int64 length) noexcept {
         ptr = cstr;
@@ -225,12 +212,12 @@ struct String : Array<char> {
         return {arr.ptr, arr.count};
     }
 
-    constexpr char* cstr() const noexcept { return (char*)ptr; }
+    constexpr char* cstr() const noexcept { return ptr; }
     constexpr int64 length() const noexcept { return count; }
 
     constexpr operator CString() noexcept { return CString(ptr, count); }
-    // operator char*() { return (char*)ptr; }
-    // operator const char*() { return (const char*)ptr; }
+    operator char*() { return (char*)ptr; }
+    operator const char*() { return (const char*)ptr; }
     constexpr operator bool() noexcept { return (ptr != 0 && count != 0); }
 };
 

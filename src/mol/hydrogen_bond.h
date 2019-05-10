@@ -25,9 +25,9 @@ int32 compute_donors(DynamicArray<HydrogenBondAcceptor>* donors, Array<const Ele
 DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds);
 
 int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y,
-                    const float* atom_pos_z, float dist_cutoff = 3.f, float angle_cutoff = 20.f * math::DEG_TO_RAD);
+                    const float* atom_pos_z, float dist_cutoff = 3.f, float angle_cutoff = math::deg_to_rad(20.f));
 DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y, const float* atom_pos_z,
-                                         float dist_cutoff = 3.f, float angle_cutoff = 20.f * math::DEG_TO_RAD);
+                                         float dist_cutoff = 3.f, float angle_cutoff = math::deg_to_rad(20.f));
 
 /*
 void compute_bonds_trajectory(HydrogenBondTrajectory* hbt, const MoleculeDynamic& dyn, float dist_cutoff, float angle_cutoff);
