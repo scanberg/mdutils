@@ -3,7 +3,7 @@
 // 32-byte alignment for 256-bit vectorization (AVX+ architectures)
 #define ALIGNMENT 32
 
-bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_backbone_segments, int32 num_backbone_sequences,
+bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_sequences, int32 num_backbone_segments, int32 num_backbone_sequences,
                              int32 num_hydrogen_bond_donors, int32 num_hydrogen_bond_acceptors) {
     free_molecule_structure(mol);
 
@@ -12,6 +12,7 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     alloc_size += num_bonds * sizeof(Bond);
     alloc_size += num_residues * sizeof(Residue);
     alloc_size += num_chains * sizeof(Chain);
+    alloc_size += num_sequences * sizeof(Sequence);
     alloc_size += num_backbone_segments * sizeof(BackboneSegment);
     alloc_size += num_backbone_segments * sizeof(BackboneAngle);
     alloc_size += num_backbone_sequences * sizeof(BackboneSequence);
@@ -66,6 +67,7 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     mol->covalent_bonds = {(Bond*)(mol->atom.res_idx + num_atoms), num_bonds};
     mol->residues = {(Residue*)(mol->covalent_bonds.end()), num_residues};
     mol->chains = {(Chain*)(mol->residues.end()), num_chains};
+    mol->sequences = {(Sequence*)(mol->chains.end()), num_sequences};
     mol->backbone.segments = {(BackboneSegment*)(mol->chains.end()), num_backbone_segments};
     mol->backbone.angles = {(BackboneAngle*)(mol->backbone.segments.end()), num_backbone_segments};
     mol->backbone.sequences = {(BackboneSequence*)(mol->backbone.angles.end()), num_backbone_sequences};

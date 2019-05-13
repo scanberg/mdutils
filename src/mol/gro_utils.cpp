@@ -173,17 +173,17 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
     auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, atom_pos_x, atom_pos_y, atom_pos_z);
-    auto chains = compute_chains(residues);
+    auto sequences = compute_sequences(residues);
     auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
 
-    for (ChainIdx c = 0; c < chains.size(); c++) {
-        for (auto i = chains[c].res_range.beg; i < chains[c].res_range.end; i++) {
-            residues[i].chain_idx = c;
+    for (SeqIdx i = 0; i < (SeqIdx)sequences.size(); i++) {
+        for (auto& res : residues.subarray(sequences[i].res_range)) {
+            res.sequence_idx = i;
         }
     }
 
-    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
+    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), 0, (int32)sequences.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
                             (int32)donors.size(), (int32)acceptors.size());
 
     // Copy data into molecule
@@ -203,7 +203,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     memcpy(mol->atom.res_idx, atom_res_idx, sizeof(ResIdx) * num_atoms);
 
     memcpy(mol->residues.data(), residues.data(), residues.size_in_bytes());
-    memcpy(mol->chains.data(), chains.data(), chains.size_in_bytes());
+    memcpy(mol->sequences.data(), sequences.data(), sequences.size_in_bytes());
     memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
     memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
     memcpy(mol->backbone.angles.data(), backbone_angles.data(), backbone_angles.size_in_bytes());

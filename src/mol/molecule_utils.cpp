@@ -20,10 +20,11 @@ inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     return res;
 }
 
-inline float de_periodize(float a, float b, float full_ext, float half_ext) {
-    const float delta = b - a;
-    const float signed_mask = math::sign(delta) * math::step(half_ext, math::abs(delta));
-    const float res = b - full_ext * signed_mask;
+template <typename T>
+inline T de_periodize(T a, T b, T full_ext, T half_ext) {
+    const T delta = b - a;
+    const T signed_mask = math::sign(delta) * math::step(half_ext, math::abs(delta));
+    const T res = b - full_ext * signed_mask;
     return res;
 }
 
@@ -331,6 +332,27 @@ vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const f
         vec_sum.x += in_x[i] * mass;
         vec_sum.y += in_y[i] * mass;
         vec_sum.z += in_z[i] * mass;
+        mass_sum += mass;
+    }
+    return vec_sum / mass_sum;
+}
+
+vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m, int64 count, const mat3& box) {
+    if (count == 0) return vec3(0);
+    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
+
+	const vec3 full_ext = box * vec3(1.0f);
+	const vec3 half_ext = box * vec3(0.5f);
+
+    vec3 vec_sum{0, 0, 0};
+    float mass_sum = 0.0f;
+    int64 i = 0;
+    vec3 p = {in_x[0], in_y[0], in_z[0]};
+
+    for (; i < count; i++) {
+        const float mass = in_m[i];
+        p = de_periodize({in_x[i], in_y[i], in_z[i]}, p, full_ext, half_ext);
+        vec_sum += p * mass;
         mass_sum += mass;
     }
     return vec_sum / mass_sum;
@@ -1246,6 +1268,18 @@ void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<co
 }
 */
 
+void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, Array<const Sequence> sequences, const mat3& sim_box) {
+    const vec3 ext = sim_box * vec3(1.0f);
+	const vec3 one_over_ext = 1.0f / ext;
+
+    for (int64 i = 0; i < sequences.size(); i++) {
+        const auto& range = sequences[i].atom_range;
+        const vec3 com = compute_com_periodic(x + range.beg, y + range.beg, z + range.beg, mass, range.size(), sim_box);
+        const vec3 com_dp = math::fract(com * one_over_ext) * ext;
+        translate_positions(x, y, z, range.size(), com_dp - com);
+    }
+}
+
 inline bool covelent_bond_heuristic(float x0, float y0, float z0, Element e0, float x1, float y1, float z1, Element e1) {
     const float d = element::covalent_radius(e0) + element::covalent_radius(e1);
     const float d_max = d + 0.3f;
@@ -1357,57 +1391,76 @@ DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y
 
 // @NOTE this method is sub-optimal and can surely be improved...
 // Residues should have no more than 2 potential connections to other residues.
-DynamicArray<Chain> compute_chains(Array<const Residue> residues) {
+DynamicArray<Sequence> compute_sequences(Array<const Residue> residues) {
 
-    DynamicArray<Bond> residue_bonds;
+    /*
+DynamicArray<Bond> residue_bonds;
+for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
+    if (has_covalent_bond(residues[i], residues[i + 1])) {
+        residue_bonds.push_back({{i, i + 1}});
+    }
+}
+
+if (residue_bonds.size() == 0) {
+    // No residue bonds, return residues as individual sequences
+    DynamicArray<Sequence> seq(residues.size());
+    for (int64 i = 0; i < residues.size(); i++) {
+        seq[i].atom_range = residues[i].atom_range;
+        seq[i].res_range = {(ResIdx)i, (ResIdx)i + 1};
+    }
+    return seq;
+}
+
+DynamicArray<int> residue_sequences(residues.size(), -1);
+if (residue_bonds.size() > 0) {
+    int curr_seq_idx = 0;
+    int res_bond_idx = 0;
+    for (int i = 0; i < residues.count; i++) {
+        if (residue_sequences[i] == -1) residue_sequences[i] = curr_seq_idx++;
+        for (; res_bond_idx < residue_bonds.size(); res_bond_idx++) {
+            const auto& res_bond = residue_bonds[res_bond_idx];
+            if (i == res_bond.idx[0]) {
+                residue_sequences[res_bond.idx[1]] = residue_sequences[res_bond.idx[0]];
+            } else if (res_bond.idx[0] > i)
+                break;
+        }
+    }
+}
+    */
+
+    DynamicArray<Sequence> seq;
+    seq.push_back({{0, 1}, residues[0].atom_range});
     for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
         if (has_covalent_bond(residues[i], residues[i + 1])) {
-            residue_bonds.push_back({{i, i + 1}});
+            seq.back().res_range.end++;
+            seq.back().atom_range.end = residues[i + 1].atom_range.end;
+        } else {
+            seq.push_back({{i + 1, i + 2}, residues[i + 1].atom_range});
         }
     }
 
-    if (residue_bonds.size() == 0) {
-        // No residue bonds, No chains.
-        return {};
+    return seq;
+
+    /*
+DynamicArray<Sequence> sequences;
+int curr_seq_idx = -1;
+for (int i = 0; i < residue_sequences.size(); i++) {
+    if (residue_sequences[i] != curr_seq_idx) {
+        sequences.push_back({});
+        sequences.back().res_range = {(ResIdx)i, (ResIdx)i};
     }
-
-    DynamicArray<int> residue_chains(residues.count, -1);
-
-    if (residue_bonds.size() > 0) {
-        int curr_chain_idx = 0;
-        int res_bond_idx = 0;
-        for (int i = 0; i < residues.count; i++) {
-            if (residue_chains[i] == -1) residue_chains[i] = curr_chain_idx++;
-            for (; res_bond_idx < residue_bonds.size(); res_bond_idx++) {
-                const auto& res_bond = residue_bonds[res_bond_idx];
-                if (i == res_bond.idx[0]) {
-                    residue_chains[res_bond.idx[1]] = residue_chains[res_bond.idx[0]];
-                } else if (res_bond.idx[0] > i)
-                    break;
-            }
-        }
+    if (sequences.size() > 0) {
+        sequences.back().res_range.end++;
     }
+}
 
-    DynamicArray<Chain> chains;
-    int curr_chain_idx = -1;
-    for (int i = 0; i < residue_chains.size(); i++) {
-        if (residue_chains[i] != curr_chain_idx) {
-            curr_chain_idx = residue_chains[i];
-            Label lbl;
-            snprintf(lbl.cstr(), lbl.capacity(), "C%i", curr_chain_idx);
-            chains.push_back({lbl, {(ResIdx)i, (ResIdx)i}, {}});
-        }
-        if (chains.size() > 0) {
-            chains.back().res_range.end++;
-        }
-    }
+for (auto& s : sequences) {
+    s.atom_range.beg = residues[s.res_range.beg].atom_range.beg;
+    s.atom_range.end = residues[s.res_range.end - 1].atom_range.end;
+}
 
-    for (auto& c : chains) {
-        c.atom_range.beg = residues[c.res_range.beg].atom_range.beg;
-        c.atom_range.end = residues[c.res_range.end - 1].atom_range.end;
-    }
-
-    return chains;
+return sequences;
+    */
 }
 
 DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
@@ -1695,7 +1748,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
         Array<vec2> frame_angles = get_backbone_angles(*data, f_idx);
         for (const auto& bb_seq : dynamic.molecule.backbone.sequences) {
             auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
-            auto bb_angles = frame_angles.subarray(bb_seq.beg, bb_seq.end - bb_seq.beg);
+            auto bb_angles = frame_angles.subarray(bb_seq);
 
             if (bb_segments.size() < 2) {
                 memset(bb_angles.ptr, 0, bb_angles.size_in_bytes());

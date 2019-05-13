@@ -116,17 +116,11 @@ void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float*
 // clang-format on
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
-    const vec3 ext = sim_box * vec3(1, 1, 1);
-    vec3 out;
-    for (int i = 0; i < 3; i++) {
-        out[i] = (pos[i] > ext[i]) ? (pos[i] - ext[i]) : (pos[i]);
-    }
-    return out;
+    const vec3 ext = sim_box * vec3(1.0f);
+    return math::fract(pos / ext) * ext;
 }
 
-void apply_pbc_atoms(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat3& sim_box);
-void apply_pbc_residues(float* pos_x, float* pos_y, float* pos_z, Array<const Residue> residues, const mat3& sim_box);
-void apply_pbc_chains(float* pos_x, float* pos_y, float* pos_z, Array<const Chain> chains, const mat3& sim_box);
+void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, Array<const Sequence> sequences, const mat3& sim_box);
 
 void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx);
 
@@ -140,7 +134,7 @@ DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y
 bool has_covalent_bond(const Residue& res_a, const Residue& res_b);
 bool valid_segment(const BackboneSegment& seg);
 
-DynamicArray<Chain> compute_chains(Array<const Residue> residue);
+DynamicArray<Sequence> compute_sequences(Array<const Residue> residue);
 
 DynamicArray<float> compute_atom_radii(Array<const Element> elements);
 void compute_atom_radii(float* out_radii, const Element* element, int64 count);

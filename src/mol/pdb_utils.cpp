@@ -208,17 +208,14 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     auto masses = compute_atom_masses(elements);
     auto radii = compute_atom_radii(elements);
     auto covalent_bonds = compute_covalent_bonds(residues, pos_x.data(), pos_y.data(), pos_z.data(), elements.data(), num_atoms);
+    auto sequences = compute_sequences(residues);
     auto backbone_segments = compute_backbone_segments(residues, labels);
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
     auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, pos_x.data(), pos_y.data(), pos_z.data());
     auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors(elements);
 
-    if (chains.size() == 0) {
-        chains = compute_chains(residues);
-    }
-
-    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
+    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(), (int32)sequences.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
                             (int32)donors.size(), (int32)acceptors.size());
 
     // Copy data into molecule
@@ -236,6 +233,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
 
     memcpy(mol->residues.data(), residues.data(), residues.size_in_bytes());
     memcpy(mol->chains.data(), chains.data(), chains.size_in_bytes());
+    memcpy(mol->sequences.data(), sequences.data(), sequences.size_in_bytes());
     memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
     memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
     memcpy(mol->backbone.angles.data(), backbone_angles.data(), backbone_angles.size_in_bytes());
