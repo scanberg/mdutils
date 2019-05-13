@@ -21,9 +21,13 @@ constexpr float FLOAT_MAX = 3.402823466e+38f;
 
 // @Note: The only reason here for using templates is to support vectors as well...
 template <typename T>
-constexpr T rad_to_deg(const T& rad) { return rad * (180.0f / PI); }
+constexpr T rad_to_deg(const T& rad) {
+    return rad * (180.0f / PI);
+}
 template <typename T>
-constexpr T deg_to_rad(const T& deg) { return deg * (PI / 180.0f); }
+constexpr T deg_to_rad(const T& deg) {
+    return deg * (PI / 180.0f);
+}
 
 // Core
 using glm::abs;
@@ -123,20 +127,31 @@ T mix(T const& a, T const& b, V t) {
 
 using glm::slerp;
 
-using glm::squad;
 using glm::intermediate;
+using glm::squad;
 
 inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
+	const auto d01 = dot(q0, q1);
+    const auto d12 = dot(q1, q2);
+    const auto d23 = dot(q2, q3);
 
-	//const auto q0p = (dot(q0, q1) > 0.0f) ? q1 : conjugate(q1);
-    //const auto q1p = q1;
-    //const auto q2p = (dot(q2, q1) > 0.0f) ? q2 : conjugate(q2);
-    //const auto q3p = (dot(q3, q1) > 0.0f) ? q3 : conjugate(q3);
-
-    const auto i1 = intermediate(q0, q1, q2);
-    const auto i2 = intermediate(q1, q2, q3);
+    const auto i1 = intermediate((d01 < 0.0f) ? -q0 : q0, q1, (d12 < 0.0f) ? -q2 : q2);
+    const auto i2 = intermediate((d12 < 0.0f) ? -q1 : q1, q2, (d23 < 0.0f) ? -q3 : q3);
     const float s2 = 2.0f * s * (1.0f - s);
     return slerp(slerp(q1, q2, s), slerp(i1, i2, s), s2);
+}
+
+inline quat nlerp(const quat& q0, const quat& q1, float s) { return normalize(lerp(q0, dot(q0, q1) < 0.0f ? -q1 : q1, s)); }
+
+inline quat cubic_nlerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
+    const auto d01 = dot(q0, q1);
+    const auto d12 = dot(q1, q2);
+    const auto d23 = dot(q2, q3);
+
+    const auto i1 = intermediate((d01 < 0.0f) ? -q0 : q0, q1, (d12 < 0.0f) ? -q2 : q2);
+    const auto i2 = intermediate((d12 < 0.0f) ? -q1 : q1, q2, (d23 < 0.0f) ? -q3 : q3);
+    const float s2 = 2.0f * s * (1.0f - s);
+    return nlerp(nlerp(q1, q2, s), nlerp(i1, i2, s), s2);
 }
 
 template <typename T, typename V>
@@ -192,40 +207,35 @@ inline vec3 unproject(const vec3& window_coords, const mat4& inv_view_proj_mat, 
 
 // Barycentric
 inline vec3 cartesian_to_barycentric(const vec2& a, const vec2& b, const vec2& c, const vec2& cartesian) {
-	const vec2 v0 = b - a;
-	const vec2 v1 = c - a;
-	const vec2 v2 = cartesian - a;
-	const float inv_denom = v0.x * v1.y - v1.x * v0.y;
-	const float v = (v2.x * v1.y - v1.x * v2.y) * inv_denom;
-	const float w = (v0.x * v2.y - v2.x * v0.y) * inv_denom;
-	const float u = 1.0f - v - w;
-	return { u, v, w };
+    const vec2 v0 = b - a;
+    const vec2 v1 = c - a;
+    const vec2 v2 = cartesian - a;
+    const float inv_denom = v0.x * v1.y - v1.x * v0.y;
+    const float v = (v2.x * v1.y - v1.x * v2.y) * inv_denom;
+    const float w = (v0.x * v2.y - v2.x * v0.y) * inv_denom;
+    const float u = 1.0f - v - w;
+    return {u, v, w};
 }
 
-inline vec2 barycentric_to_cartesian(const vec2& a, const vec2& b, const vec2& c, const vec3& barycentric) {
-	return a * barycentric[0] + b * barycentric[1] + c * barycentric[2];
-}
+inline vec2 barycentric_to_cartesian(const vec2& a, const vec2& b, const vec2& c, const vec3& barycentric) { return a * barycentric[0] + b * barycentric[1] + c * barycentric[2]; }
 
 inline vec3 cartesian_to_barycentric(const vec3& a, const vec3& b, const vec3& c, const vec3& cartesian) {
-	const vec3 v0 = b - a;
-	const vec3 v1 = c - a;
-	const vec3 v2 = cartesian - a;
-	const float d00 = dot(v0, v0);
-	const float d01 = dot(v0, v1);
-	const float d11 = dot(v1, v1);
-	const float d20 = dot(v2, v0);
-	const float d21 = dot(v2, v1);
-	const float inv_denom = d00 * d11 - d01 * d01;
-	const float v = (d11 * d20 - d01 * d21) * inv_denom;
-	const float w = (d00 * d21 - d01 * d20) * inv_denom;
-	const float u = 1.0f - v - w;
-	return { u, v, w };
+    const vec3 v0 = b - a;
+    const vec3 v1 = c - a;
+    const vec3 v2 = cartesian - a;
+    const float d00 = dot(v0, v0);
+    const float d01 = dot(v0, v1);
+    const float d11 = dot(v1, v1);
+    const float d20 = dot(v2, v0);
+    const float d21 = dot(v2, v1);
+    const float inv_denom = d00 * d11 - d01 * d01;
+    const float v = (d11 * d20 - d01 * d21) * inv_denom;
+    const float w = (d00 * d21 - d01 * d20) * inv_denom;
+    const float u = 1.0f - v - w;
+    return {u, v, w};
 }
 
-inline vec3 barycentric_to_cartesian(const vec3& a, const vec3& b, const vec3& c, const vec3& barycentric) {
-	return a * barycentric[0] + b * barycentric[1] + c * barycentric[2];
-}
-
+inline vec3 barycentric_to_cartesian(const vec3& a, const vec3& b, const vec3& c, const vec3& barycentric) { return a * barycentric[0] + b * barycentric[1] + c * barycentric[2]; }
 
 // Random
 inline float rnd() { return (float)rand() / (float)RAND_MAX; }
