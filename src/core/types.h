@@ -15,7 +15,7 @@ typedef uint64_t uint64;
 typedef float float32;
 typedef double float64;
 
-// SOA Containers for vector types
+// SOA Containers for vector types, not used in practice so far...
 struct Float2Stream {
 	float* x = nullptr;
 	float* y = nullptr;
@@ -46,39 +46,39 @@ struct Range {
         T end = 0, y, max;
     };
 
-    Range() = default;
-    Range(T lo, T hi) : beg(lo), end(hi){};
+    constexpr Range() = default;
+    constexpr Range(T lo, T hi) : beg(lo), end(hi){};
 
-    operator bool() const { return beg != end && beg < end; }
-	Range& operator +=(T val) {
+    constexpr operator bool() const { return beg != end && beg < end; }
+	constexpr Range& operator +=(T val) {
 		beg += val;
 		end += val;
 		return *this;
 	}
-	Range& operator -=(T val) {
+	constexpr Range& operator -=(T val) {
 		beg -= val;
 		end -= val;
 		return *this;
 	}
-    int64 size() const { return end - beg; }
+    constexpr int64 size() const { return end - beg; }
 };
 
 template <typename T>
-bool operator==(const Range<T>& r_a, const Range<T>& r_b) {
+constexpr bool operator==(const Range<T>& r_a, const Range<T>& r_b) {
     return r_a.beg == r_b.beg && r_a.end == r_b.end;
 }
 
 template <typename T>
-bool operator!=(const Range<T>& r_a, const Range<T>& r_b) {
+constexpr bool operator!=(const Range<T>& r_a, const Range<T>& r_b) {
     return !(r_a == r_b);
 }
 
 template <typename T>
-Range<T> operator+(const Range<T>& range, T val) {
+constexpr Range<T> operator+(const Range<T>& range, T val) {
 	return { range.x + val, range.y + val };
 }
 
 template <typename T>
-Range<T> operator-(const Range<T>& range, T val) {
+constexpr Range<T> operator-(const Range<T>& range, T val) {
 	return { range.x - val, range.y - val };
 }

@@ -272,6 +272,7 @@ struct DynamicArray : Array<T> {
     void reserve(int64 new_capacity) noexcept {
         if (new_capacity < m_capacity) return;
         T* new_data = (T*)CALLOC(new_capacity, sizeof(T));
+        ASSERT(new_data);
         if (this->ptr) {
             memcpy(new_data, this->ptr, this->count * sizeof(T));
         }
