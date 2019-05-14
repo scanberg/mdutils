@@ -118,17 +118,22 @@ struct Array {
     int64 count;
 };
 
+/*
 // Light-weight std::array alternative, this has not been used and tested in practice
 template <typename T, int64 Size>
 struct StaticArray : Array<T> {
     static constexpr int64 MaxSize = Size;
     STATIC_ASSERT(Size > 0, "StaticArray must have a length of > 0");
-    StaticArray() : Array<T>(buffer, Size) {}
-    StaticArray(int64 count) : Array<T>(buffer, count < MaxSize ? count : MaxSize) { ASSERT(0 <= count && count <= MaxSize); }
+
+    constexpr StaticArray() : Array<T>(buffer, Size) {}
+    constexpr StaticArray(int64 count) : Array<T>(buffer, count < MaxSize ? count : MaxSize) { ASSERT(0 <= count && count <= MaxSize); }
 
     template <int64 N>
-    StaticArray(const T (&arr)[N]) noexcept : Array<T>(buffer, N) {
-        memcpy(buffer, arr, N * sizeof(T));
+    constexpr StaticArray(const T (&arr)[N]) noexcept : Array<T>(buffer, N) {
+        // memcpy(buffer, arr, N * sizeof(T));
+        for (int64 i = 0; i < N; i++) {
+            buffer[i] = arr[i];
+		}
     }
 
     StaticArray(const T* first, const T* last) noexcept {
@@ -146,6 +151,7 @@ struct StaticArray : Array<T> {
 
     T buffer[Size];
 };
+*/
 
 // Light-weight std::vector alternative
 // @WARNING: THIS IS NOT A STRAIGHT FORWARD REPLACEMENT TO STD::VECTOR AS CONSTRUCTORS AND DESTRUCTORS ARE NEVER CALLED.
