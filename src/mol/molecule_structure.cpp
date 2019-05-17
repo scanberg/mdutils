@@ -8,7 +8,7 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     free_molecule_structure(mol);
 
     int64 alloc_size = 0;
-    alloc_size += num_atoms * (sizeof(Element) + sizeof(Label) + sizeof(ResIdx));
+    alloc_size += num_atoms * (sizeof(Element) + sizeof(Label) + sizeof(ResIdx) + sizeof(ChainIdx) + sizeof(SeqIdx));
     alloc_size += num_bonds * sizeof(Bond);
     alloc_size += num_residues * sizeof(Residue);
     alloc_size += num_chains * sizeof(Chain);
@@ -61,14 +61,16 @@ bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_
     ASSERT(IS_ALIGNED(mol->atom.mass, ALIGNMENT));
 
     mol->atom.element = (Element*)data;
-    mol->atom.label = (Label*)get_elements(*mol).end();
-    mol->atom.res_idx = (ResIdx*)get_labels(*mol).end();
+    mol->atom.label = (Label*)(mol->atom.element + num_atoms);
+    mol->atom.res_idx = (ResIdx*)(mol->atom.label + num_atoms);
+    mol->atom.chain_idx = (ChainIdx*)(mol->atom.res_idx + num_atoms);
+    mol->atom.seq_idx = (ChainIdx*)(mol->atom.chain_idx + num_atoms);
 
-    mol->covalent_bonds = {(Bond*)(mol->atom.res_idx + num_atoms), num_bonds};
+    mol->covalent_bonds = {(Bond*)(mol->atom.seq_idx + num_atoms), num_bonds};
     mol->residues = {(Residue*)(mol->covalent_bonds.end()), num_residues};
     mol->chains = {(Chain*)(mol->residues.end()), num_chains};
     mol->sequences = {(Sequence*)(mol->chains.end()), num_sequences};
-    mol->backbone.segments = {(BackboneSegment*)(mol->chains.end()), num_backbone_segments};
+    mol->backbone.segments = {(BackboneSegment*)(mol->sequences.end()), num_backbone_segments};
     mol->backbone.angles = {(BackboneAngle*)(mol->backbone.segments.end()), num_backbone_segments};
     mol->backbone.sequences = {(BackboneSequence*)(mol->backbone.angles.end()), num_backbone_sequences};
     mol->hydrogen_bond.donors = {(HydrogenBondDonor*)(mol->backbone.sequences.end()), num_hydrogen_bond_donors};

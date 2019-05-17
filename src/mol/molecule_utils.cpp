@@ -20,6 +20,23 @@ inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     return res;
 }
 
+inline vec3 apply_pbc(const vec3& v, const vec3& box_ext) {
+    vec3 res = v;
+    if (res.x < 0.0f)
+        res.x += box_ext.x;
+    else if (res.x > box_ext.x)
+        res.x -= box_ext.x;
+    if (res.y < 0.0f)
+        res.y += box_ext.y;
+    else if (res.y > box_ext.y)
+        res.y -= box_ext.y;
+    if (res.z < 0.0f)
+        res.z += box_ext.z;
+    else if (res.z > box_ext.z)
+        res.z -= box_ext.z;
+    return res;
+}
+
 template <typename T>
 inline T de_periodize(T a, T b, T full_ext, T half_ext) {
     const T delta = b - a;
@@ -57,24 +74,27 @@ inline __m512 de_periodize(const __m512 a, const __m512 b, const __m512 full_ext
 #endif
 
 void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
-    SIMD_TYPE_F t_x = SIMD_SET_F(translation.x);
-    SIMD_TYPE_F t_y = SIMD_SET_F(translation.y);
-    SIMD_TYPE_F t_z = SIMD_SET_F(translation.z);
-
     int64 i = 0;
+
     const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
-    for (; i < simd_count; i += SIMD_WIDTH) {
-        SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out_x + i);
-        SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out_y + i);
-        SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out_z + i);
+    if (simd_count > 0) {
+        SIMD_TYPE_F t_x = SIMD_SET_F(translation.x);
+        SIMD_TYPE_F t_y = SIMD_SET_F(translation.y);
+        SIMD_TYPE_F t_z = SIMD_SET_F(translation.z);
 
-        p_x = simd::add(p_x, t_x);
-        p_y = simd::add(p_y, t_y);
-        p_z = simd::add(p_z, t_z);
+		for (; i < simd_count; i += SIMD_WIDTH) {
+			SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out_x + i);
+			SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out_y + i);
+			SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out_z + i);
 
-        SIMD_STORE(in_out_x + i, p_x);
-        SIMD_STORE(in_out_y + i, p_y);
-        SIMD_STORE(in_out_z + i, p_z);
+			p_x = simd::add(p_x, t_x);
+			p_y = simd::add(p_y, t_y);
+			p_z = simd::add(p_z, t_z);
+
+			SIMD_STORE(in_out_x + i, p_x);
+			SIMD_STORE(in_out_y + i, p_y);
+			SIMD_STORE(in_out_z + i, p_z);
+		}
     }
 
     for (; i < count; i++) {
@@ -341,15 +361,14 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
-	const vec3 full_ext = box * vec3(1.0f);
-	const vec3 half_ext = box * vec3(0.5f);
+    const vec3 full_ext = box * vec3(1.0f);
+    const vec3 half_ext = box * vec3(0.5f);
 
     vec3 vec_sum{0, 0, 0};
     float mass_sum = 0.0f;
-    int64 i = 0;
     vec3 p = {in_x[0], in_y[0], in_z[0]};
 
-    for (; i < count; i++) {
+    for (int64 i = 0; i < count; i++) {
         const float mass = in_m[i];
         p = de_periodize({in_x[i], in_y[i], in_z[i]}, p, full_ext, half_ext);
         vec_sum += p * mass;
@@ -1270,13 +1289,21 @@ void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<co
 
 void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, Array<const Sequence> sequences, const mat3& sim_box) {
     const vec3 ext = sim_box * vec3(1.0f);
-	const vec3 one_over_ext = 1.0f / ext;
+    const vec3 one_over_ext = 1.0f / ext;
 
     for (int64 i = 0; i < sequences.size(); i++) {
         const auto& range = sequences[i].atom_range;
-        const vec3 com = compute_com_periodic(x + range.beg, y + range.beg, z + range.beg, mass, range.size(), sim_box);
-        const vec3 com_dp = math::fract(com * one_over_ext) * ext;
-        translate_positions(x, y, z, range.size(), com_dp - com);
+        float* seq_x = x + range.beg;
+        float* seq_y = y + range.beg;
+        float* seq_z = z + range.beg;
+        const float* seq_mass = mass + range.beg;
+        const vec3 com = compute_com_periodic(seq_x, seq_y, seq_z, seq_mass, range.size(), sim_box);
+        const vec3 com_dp = apply_pbc(com, ext);
+        const vec3 delta = com_dp - com;
+        const float d2 = math::dot(delta, delta);
+        if (d2 > 0.0f) {
+            translate_positions(seq_x, seq_y, seq_z, range.size(), delta);
+        }
     }
 }
 

@@ -42,8 +42,8 @@ using HydrogenBondAcceptor = AtomIdx;
 struct Residue {
     Label name{};
     ResIdx id = -1;
-    ChainIdx chain_idx = -1;
-    SeqIdx sequence_idx = -1;
+    //ChainIdx chain_idx = -1;
+    //SeqIdx sequence_idx = -1;
 
     AtomRange atom_range;
 
@@ -92,6 +92,9 @@ struct MoleculeStructure {
         Element* element = nullptr;
         Label* label = nullptr;
         ResIdx* res_idx = nullptr;
+        ChainIdx* chain_idx = nullptr;
+        SeqIdx* seq_idx = nullptr;
+
     } atom;
 
     Array<Bond> covalent_bonds{};
@@ -175,6 +178,17 @@ inline Chain get_chain(const MoleculeStructure& mol, ChainIdx idx) {
     ASSERT(0 <= idx && idx < mol.chains.count);
     return mol.chains[idx];
 }
+
+inline Sequence get_sequence(MoleculeStructure& mol, SeqIdx idx) {
+    ASSERT(0 <= idx && idx < mol.sequences.count);
+    return mol.sequences[idx];
+}
+
+inline Sequence get_sequence(const MoleculeStructure& mol, SeqIdx idx) {
+    ASSERT(0 <= idx && idx < mol.sequences.count);
+    return mol.sequences[idx];
+}
+
 /*
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, const Chain& chain) {
     ASSERT(0 <= chain.res_range.beg && chain.res_range.end <= mol.residues.count);

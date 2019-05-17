@@ -132,7 +132,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
 			Residue res{};
 			res.name = res_name_trim;
 			res.id = res_id;
-			res.chain_idx = 0;
+			//res.chain_idx = 0;
 			res.atom_range = { i, i };
 			residues.push_back(res);
 		}
@@ -177,14 +177,20 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
 
-    for (SeqIdx i = 0; i < (SeqIdx)sequences.size(); i++) {
-        for (auto& res : residues.subarray(sequences[i].res_range)) {
-            res.sequence_idx = i;
-        }
-    }
-
     init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), 0, (int32)sequences.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
                             (int32)donors.size(), (int32)acceptors.size());
+
+    for (int32 i = 0; i < num_atoms; i++) {
+        mol->atom.res_idx[i] = -1;
+        mol->atom.chain_idx[i] = -1;
+        mol->atom.seq_idx[i] = -1;
+    }
+
+    for (SeqIdx seq_idx = 0; seq_idx < (SeqIdx)sequences.size(); seq_idx++) {
+        for (AtomIdx i = sequences[seq_idx].atom_range.beg; i != sequences[seq_idx].atom_range.end; i++) {
+            mol->atom.seq_idx[i] = seq_idx;
+        }
+    }
 
     // Copy data into molecule
     memcpy(mol->atom.position.x, atom_pos_x, sizeof(float) * num_atoms);
