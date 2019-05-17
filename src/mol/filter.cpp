@@ -395,6 +395,20 @@ void initialize() {
                                             return true;
                                         }});
 
+    context->filter_commands.push_back({"sequence", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
+                                            if (ctx.mol.sequences.count == 0) return true;
+                                            DynamicArray<Range<int32>> ranges;
+                                            if (!extract_ranges(&ranges, args)) return false;
+                                            for (auto user_range : ranges) {
+                                                auto range = fix_range(user_range, 1, (int32)ctx.mol.sequences.count);
+                                                for (int i = range.x - 1; i < range.y; i++) {
+                                                    const Sequence& seq = get_sequence(ctx.mol, (SeqIdx)i);
+                                                    bitfield::set_range(mask, seq.atom_range);
+                                                }
+                                            }
+                                            return true;
+                                        }});
+
     context->filter_commands.push_back({"chainid", [](Bitfield mask, const FilterContext& ctx, Array<const CString> args) {
                                             for (int i = 0; i < args.count; i++) {
                                                 for (const auto& chain : ctx.mol.chains) {
