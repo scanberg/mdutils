@@ -15,6 +15,7 @@ namespace filter {
 void initialize();
 void shutdown();
 bool compute_filter_mask(Bitfield mask, CString filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selectons = {});
+bool filter_uses_selection(CString filter, Array<const StoredSelection> stored_selectons);
 
 template <typename T>
 void extract_filtered_data(DynamicArray<T>* dst_data, Array<const T> src_data, Array<const bool> mask) {
