@@ -131,7 +131,7 @@ using glm::intermediate;
 using glm::squad;
 
 inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
-	const auto d01 = dot(q0, q1);
+    const auto d01 = dot(q0, q1);
     const auto d12 = dot(q1, q2);
     const auto d23 = dot(q2, q3);
 
@@ -336,6 +336,51 @@ inline vec3 rgb_to_hcl(vec3 rgb) {
     HCL.z = lerp(-U, V, Q) / (HCLmaxL * 2);
     return HCL;
 }
+
+inline vec3 rgb_to_XYZ(vec3 rgb) {
+    const mat3 RGB_2_XYZ = {0.4124564, 0.3575761, 0.1804375, 0.2126729, 0.7151522, 0.0721750, 0.0193339, 0.1191920, 0.9503041};
+    return RGB_2_XYZ * rgb;
+}
+
+inline vec3 XYZ_to_rgb(vec3 XYZ) {
+    const mat3 XYZ_2_RGB = {3.2404542, -1.5371385, -0.4985314, -0.9692660, 1.8760108, 0.0415560, 0.0556434, -0.2040259, 1.0572252};
+    return XYZ_2_RGB * XYZ;
+}
+
+inline vec3 XYZ_to_Lab(vec3 XYZ) {
+    const auto f = [](float t) {
+        const float d = 6.f / 29.f;
+        return t > d * d * d ? powf(t, 0.33333333f) : (t / (3.f * d * d) + 4.f / 29.f);
+    };
+
+    const float Xn = 0.950489f;  // reference white
+    const float Yn = 1.0f;
+    const float Zn = 0.825188f;
+    const float L = 116.f * f(XYZ.y / Yn) - 16.f;             // maximum L = 100
+    const float a = 500.f * (f(XYZ.x / Xn) - f(XYZ.y / Yn));  // maximum
+    const float b = 200.f * (f(XYZ.y / Yn) - f(XYZ.z / Zn));
+
+    return {L, a, b};
+}
+
+inline vec3 Lab_to_XYZ(vec3 Lab) {
+    const auto f = [](float t) {
+        const float d = 6.f / 29.f;
+        return t > d ? t * t * t : 3.0f * d * d * (t - 4.f / 29.f);
+    };
+
+    const float Xn = 0.950489f;  // reference white
+    const float Yn = 1.0f;
+    const float Zn = 0.825188f;
+    const float X = Xn * f((Lab.x + 16.f) / 116.f + Lab.y / 500.f);
+    const float Y = Yn * f((Lab.x + 16.f) / 116.f);
+    const float Z = Zn * f((Lab.x + 16.f) / 116.f - Lab.z / 200.f);
+
+    return {X, Y, Z};
+}
+
+inline vec3 rgb_to_Lab(vec3 rgb) { return XYZ_to_Lab(rgb_to_XYZ(rgb)); }
+inline vec3 Lab_to_rgb(vec3 Lab) { return XYZ_to_rgb(Lab_to_XYZ(Lab)); }
 
 inline vec3 hcl_to_rgb(float h, float c, float l) { return hcl_to_rgb({h, c, l}); }
 inline vec3 rgb_to_hcl(float r, float g, float b) { return rgb_to_hcl({r, g, b}); }
