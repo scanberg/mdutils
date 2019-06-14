@@ -54,27 +54,21 @@ mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int
     return glm::ortho(-h_w, h_w, -h_h, h_h, camera.near_plane, camera.far_plane);
 }
 
-void look_at(vec3* position, quat* orientation, const vec3& look_at, const vec3& look_up) {
-    ASSERT(position);
-    ASSERT(orientation);
+mat3 look_at(const vec3& look_from, const vec3& look_at, const vec3& look_up) {
+    const vec3 f(math::normalize(look_at - look_from));
+    const vec3 s(math::normalize(math::cross(f, look_up)));
+    const vec3 u(math::cross(s, f));
 
-    const vec3 look = *position - look_at;
-    float len2 = dot(look, look);
-    if (len2 > 0.0001f) {
-        const vec3 out = look / sqrtf(len2);
-        const vec3 right = normalize(cross(look_up, look));
-        const vec3 up = cross(out, right); // @TODO: Make sure out and up do not coincide
-        *orientation = glm::quat_cast(mat3(right, up, out));
-    }
-
-    // @TODO: make sure look_up is kept.
+	const mat4 M = {{s.x, u.x, -f.x, 0.0f}, {s.y, u.y, -f.y, 0.0f}, {s.z, u.z, -f.z, 0.0f}, {-math::dot(s, look_from), -math::dot(u, look_from), math::dot(f, look_from), 1.0f}};
+    return M;
 }
 
 /*
 void camera_controller_fps(Camera* camera, const FpsControllerState& state) {
     (void)camera;
     (void)state;
-    
+    
+
     ASSERT(camera);
 
     mouse_vel *= 0.01f;

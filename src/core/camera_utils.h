@@ -50,9 +50,10 @@ struct TrackballControllerState {
 enum TrackballFlags_ { TrackballFlags_RotateReturnsTrue = 1, TrackballFlags_PanReturnsTrue = 2, TrackballFlags_DollyReturnsTrue = 4 };
 typedef int TrackballFlags;
 
+mat3 look_at(const vec3& look_from, const vec3& look_at, const vec3& look_up = {0, 1, 0});
+
 void camera_trackball(Camera* camera, vec2 prev_ndc, vec2 curr_ndc);
 void camera_move(Camera* camera, vec3 vec);
-void look_at(vec3* position, quat* orientation, const vec3& look_at, const vec3& look_up);
 
 mat4 compute_world_to_view_matrix(const Camera& camera);
 mat4 compute_view_to_world_matrix(const Camera& camera);
