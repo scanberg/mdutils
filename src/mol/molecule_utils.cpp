@@ -1298,10 +1298,10 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
         float* seq_z = z + range.beg;
         const float* seq_mass = mass + range.beg;
         const vec3 com = compute_com_periodic(seq_x, seq_y, seq_z, seq_mass, range.size(), sim_box);
-        const vec3 com_dp = apply_pbc(com, ext);
+        const vec3 com_dp = apply_pbc(com, sim_box);
         const vec3 delta = com_dp - com;
         const float d2 = math::dot(delta, delta);
-        if (d2 > 0.0f) {
+        if (d2 > 0.0001f) {
             translate_positions(seq_x, seq_y, seq_z, range.size(), delta);
         }
     }
