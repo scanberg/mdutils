@@ -20,14 +20,9 @@ constexpr float EPSILON = 1.192092896e-07f;
 constexpr float FLOAT_MAX = 3.402823466e+38f;
 
 // @Note: The only reason here for using templates is to support vectors as well...
-template <typename T>
-constexpr T rad_to_deg(const T& rad) {
-    return rad * (180.0f / PI);
-}
-template <typename T>
-constexpr T deg_to_rad(const T& deg) {
-    return deg * (PI / 180.0f);
-}
+constexpr float rad_to_deg(float rad) { return rad * (180.0f / PI); }
+
+constexpr float deg_to_rad(float deg) { return deg * (PI / 180.0f); }
 
 // Core
 using glm::abs;
@@ -63,30 +58,36 @@ using glm::tanh;
 // Vector
 using glm::cross;
 using glm::distance;
+using glm::distance2;
 using glm::dot;
 using glm::length;
-template <typename T>
-inline float length2(const T& v) {
-    return dot(v, v);
-}
-using glm::distance;
-template <typename T>
-inline float distance2(const T& a, const T& b) {
-    T c = a - b;
-    return dot(c, c);
-}
-
+using glm::length2;
 using glm::normalize;
 
+// Quaternion
+using glm::conjugate;
 using glm::angle;
 using glm::axis;
+using glm::slerp;
+using glm::squad;
 
-inline float angle(const vec2& a, const vec2& b) { return acos(dot(normalize(a), normalize(b))); }
-inline float angle(const vec3& a, const vec3& b) { return acos(dot(normalize(a), normalize(b))); }
-inline float angle(const vec4& a, const vec4& b) { return acos(dot(normalize(a), normalize(b))); }
+// Matrix
+using glm::determinant;
+using glm::inverse;
+using glm::transpose;
 
-template <int N, typename T, glm::qualifier Q>
-T angle(glm::vec<N, T, Q> const& a, glm::vec<N, T, Q> const& b, glm::vec<N, T, Q> const& c) {
+// Cast
+using glm::mat3_cast;
+using glm::mat4_cast;
+using glm::quat_cast;
+
+template <typename T>
+auto angle(const T& a, const T& b) {
+    return acos(dot(normalize(a), normalize(b)));
+}
+
+template <typename T>
+auto angle(const T& a, const T& b, const T& c) {
     return angle(a - b, c - b);
 }
 
@@ -101,19 +102,6 @@ inline float dihedral_angle(const vec3& p0, const vec3& p1, const vec3& p2, cons
 
 inline float dihedral_angle(const vec3 p[4]) { return dihedral_angle(p[0], p[1], p[2], p[3]); }
 
-// Matrix
-using glm::determinant;
-using glm::inverse;
-using glm::transpose;
-
-// Quat
-using glm::conjugate;
-
-// Cast
-using glm::mat3_cast;
-using glm::mat4_cast;
-using glm::quat_cast;
-
 // Interpolation
 template <typename T, typename V>
 T lerp(T const& a, T const& b, V t) {
@@ -125,48 +113,54 @@ T mix(T const& a, T const& b, V t) {
     return lerp(a, b, t);
 }
 
-using glm::slerp;
-
-using glm::intermediate;
-using glm::squad;
-
-inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
-    const auto d01 = dot(q0, q1);
-    const auto d12 = dot(q1, q2);
-    const auto d23 = dot(q2, q3);
-
-    const auto i1 = intermediate((d01 < 0.0f) ? -q0 : q0, q1, (d12 < 0.0f) ? -q2 : q2);
-    const auto i2 = intermediate((d12 < 0.0f) ? -q1 : q1, q2, (d23 < 0.0f) ? -q3 : q3);
-    const float s2 = 2.0f * s * (1.0f - s);
-    return slerp(slerp(q1, q2, s), slerp(i1, i2, s), s2);
-}
-
 inline quat nlerp(const quat& q0, const quat& q1, float s) { return normalize(lerp(q0, dot(q0, q1) < 0.0f ? -q1 : q1, s)); }
 
 inline quat cubic_nlerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
-    const auto d01 = dot(q0, q1);
-    const auto d12 = dot(q1, q2);
-    const auto d23 = dot(q2, q3);
+    // @NOTE: Avoid doing cubic interpolation if q1 and q2 are very similar.
+    // This avoids stability issues which come from computing intermediate quaternions from very close quaternions
+    if (abs(dot(q1, q2)) > 0.995f) {
+        return nlerp(q1, q2, s);
+    }
 
-    const auto i1 = intermediate((d01 < 0.0f) ? -q0 : q0, q1, (d12 < 0.0f) ? -q2 : q2);
-    const auto i2 = intermediate((d12 < 0.0f) ? -q1 : q1, q2, (d23 < 0.0f) ? -q3 : q3);
+    const quat sq0 = dot(q0, q1) < 0.0f ? -q0 : q0;
+    const quat sq2 = dot(q1, q2) < 0.0f ? -q2 : q2;
+    const quat sq3 = dot(sq2, q3) < 0.0f ? -q3 : q3;
+
+    const auto i1 = intermediate(sq0, q1, sq2);
+    const auto i2 = intermediate(q1, sq2, sq3);
+
     const float s2 = 2.0f * s * (1.0f - s);
-    return nlerp(nlerp(q1, q2, s), nlerp(i1, i2, s), s2);
+    return normalize(lerp(normalize(lerp(q1, sq2, s)), normalize(lerp(i1, i2, s)), s2));
 }
 
-template <typename T, typename V>
-T catmull_rom(T const& v1, T const& v2, T const& v3, T const& v4, V s) {
+inline quat intermediate(const quat& prev, const quat& curr, const quat& next) {
+    const quat inv = inverse(curr);
+    const quat a = log(next * inv);
+    const quat b = log(prev * inv);
+    const quat c = a + b;
+    return exp(c * 0.25f) * curr;
+}
+
+inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
+    // @NOTE: Avoid doing cubic interpolation if q1 and q2 are very similar.
+    // This avoids stability issues which come from computing intermediate quaternions from very close quaternions
+    if (abs(dot(q1, q2)) > 0.995f) {
+        return nlerp(q1, q2, s);
+    }
+
+    const quat sq0 = dot(q0, q1) < 0.0f ? -q0 : q0;
+    const quat sq2 = dot(q1, q2) < 0.0f ? -q2 : q2;
+    const quat sq3 = dot(sq2, q3) < 0.0f ? -q3 : q3;
+
+    const auto i1 = normalize(intermediate(sq0, q1, sq2));
+    const auto i2 = normalize(intermediate(q1, sq2, sq3));
+
+    return squad(q1, sq2, i1, i2, s);
+}
+
+template <typename T>
+T::value_type catmull_rom(const T& v1, const T& v2, const T& v3, const T& v4, T::value_type s) {
     return glm::catmullRom(v1, v2, v3, v4, s);
-}
-
-template <typename T, typename V>
-T cubic(T const& v1, T const& v2, T const& v3, T const& v4, V s) {
-    return glm::cubic(v1, v2, v3, v4, s);
-}
-
-template <typename T, typename V>
-T hermite(T const& v1, T const& t1, T const& v2, T const& t2, V s) {
-    return glm::cubic(v1, t1, v2, t2, s);
 }
 
 template <typename T, typename V>
