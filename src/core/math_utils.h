@@ -20,9 +20,11 @@ constexpr float EPSILON = 1.192092896e-07f;
 constexpr float FLOAT_MAX = 3.402823466e+38f;
 
 // @Note: The only reason here for using templates is to support vectors as well...
-constexpr float rad_to_deg(float rad) { return rad * (180.0f / PI); }
+template <typename T>
+constexpr T rad_to_deg(const T& rad) { return rad * (180.0f / PI); }
 
-constexpr float deg_to_rad(float deg) { return deg * (PI / 180.0f); }
+template <typename T>
+constexpr T deg_to_rad(const T& deg) { return deg * (PI / 180.0f); }
 
 // Core
 using glm::abs;
@@ -158,8 +160,8 @@ inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const qu
     return squad(q1, sq2, i1, i2, s);
 }
 
-template <typename T>
-T::value_type catmull_rom(const T& v1, const T& v2, const T& v3, const T& v4, T::value_type s) {
+template <typename T, typename V>
+V catmull_rom(const T& v1, const T& v2, const T& v3, const T& v4, V s) {
     return glm::catmullRom(v1, v2, v3, v4, s);
 }
 
