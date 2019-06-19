@@ -9,7 +9,7 @@
 struct TrajectoryFrame {
     int32 index = 0;
     float32 time = 0;
-    mat3 box{};
+    mat3 box = {0,0,0,0,0,0,0,0,0};
     struct {
         float* x = nullptr;
         float* y = nullptr;
