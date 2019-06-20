@@ -21,10 +21,14 @@ constexpr float FLOAT_MAX = 3.402823466e+38f;
 
 // @Note: The only reason here for using templates is to support vectors as well...
 template <typename T>
-constexpr T rad_to_deg(const T& rad) { return rad * (180.0f / PI); }
+constexpr T rad_to_deg(const T& rad) {
+    return rad * (180.0f / PI);
+}
 
 template <typename T>
-constexpr T deg_to_rad(const T& deg) { return deg * (PI / 180.0f); }
+constexpr T deg_to_rad(const T& deg) {
+    return deg * (PI / 180.0f);
+}
 
 // Core
 using glm::abs;
@@ -67,9 +71,9 @@ using glm::length2;
 using glm::normalize;
 
 // Quaternion
-using glm::conjugate;
 using glm::angle;
 using glm::axis;
+using glm::conjugate;
 using glm::slerp;
 using glm::squad;
 
@@ -91,6 +95,11 @@ auto angle(const T& a, const T& b) {
 template <typename T>
 auto angle(const T& a, const T& b, const T& c) {
     return angle(a - b, c - b);
+}
+
+template <typename T>
+auto euler_angles(const T& a) {
+    return glm::eulerAngles(a);
 }
 
 inline float dihedral_angle(const vec3& p0, const vec3& p1, const vec3& p2, const vec3& p3) {
@@ -213,12 +222,16 @@ inline vec3 cartesian_to_barycentric(const vec2& a, const vec2& b, const vec2& c
     return {u, v, w};
 }
 
-inline vec2 barycentric_to_cartesian(const vec2& a, const vec2& b, const vec2& c, const vec3& barycentric) { return a * barycentric[0] + b * barycentric[1] + c * barycentric[2]; }
+template <typename T>
+inline T barycentric_to_cartesian(const T& a, const T& b, const T& c, const vec3& barycentric) {
+    return a * barycentric[0] + b * barycentric[1] + c * barycentric[2];
+}
 
-inline vec3 cartesian_to_barycentric(const vec3& a, const vec3& b, const vec3& c, const vec3& cartesian) {
-    const vec3 v0 = b - a;
-    const vec3 v1 = c - a;
-    const vec3 v2 = cartesian - a;
+template <typename T>
+inline vec3 cartesian_to_barycentric(const T& a, const T& b, const T& c, const T& cartesian) {
+    const T v0 = b - a;
+    const T v1 = c - a;
+    const T v2 = cartesian - a;
     const float d00 = dot(v0, v0);
     const float d01 = dot(v0, v1);
     const float d11 = dot(v1, v1);
@@ -230,8 +243,6 @@ inline vec3 cartesian_to_barycentric(const vec3& a, const vec3& b, const vec3& c
     const float u = 1.0f - v - w;
     return {u, v, w};
 }
-
-inline vec3 barycentric_to_cartesian(const vec3& a, const vec3& b, const vec3& c, const vec3& barycentric) { return a * barycentric[0] + b * barycentric[1] + c * barycentric[2]; }
 
 // Random
 inline float rnd() { return (float)rand() / (float)RAND_MAX; }
