@@ -76,6 +76,7 @@ using glm::axis;
 using glm::conjugate;
 using glm::slerp;
 using glm::squad;
+using glm::intermediate;
 
 // Matrix
 using glm::determinant;
@@ -129,7 +130,7 @@ inline quat nlerp(const quat& q0, const quat& q1, float s) { return normalize(le
 inline quat cubic_nlerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
     // @NOTE: Avoid doing cubic interpolation if q1 and q2 are very similar.
     // This avoids stability issues which come from computing intermediate quaternions from very close quaternions
-    if (abs(dot(q1, q2)) > 0.995f) {
+    if (dot(q1, q2) > 0.95f) {
         return nlerp(q1, q2, s);
     }
 
@@ -137,25 +138,26 @@ inline quat cubic_nlerp(const quat& q0, const quat& q1, const quat& q2, const qu
     const quat sq2 = dot(q1, q2) < 0.0f ? -q2 : q2;
     const quat sq3 = dot(sq2, q3) < 0.0f ? -q3 : q3;
 
-    const auto i1 = intermediate(sq0, q1, sq2);
-    const auto i2 = intermediate(q1, sq2, sq3);
+    const auto i1 = normalize(intermediate(sq0, q1, sq2));
+    const auto i2 = normalize(intermediate(q1, sq2, sq3));
 
     const float s2 = 2.0f * s * (1.0f - s);
     return normalize(lerp(normalize(lerp(q1, sq2, s)), normalize(lerp(i1, i2, s)), s2));
 }
 
+/*
 inline quat intermediate(const quat& prev, const quat& curr, const quat& next) {
     const quat inv = inverse(curr);
     const quat a = log(next * inv);
     const quat b = log(prev * inv);
-    const quat c = a + b;
-    return exp(c * 0.25f) * curr;
+    return exp((a + b) * -0.25f) * curr;
 }
+*/
 
 inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
     // @NOTE: Avoid doing cubic interpolation if q1 and q2 are very similar.
     // This avoids stability issues which come from computing intermediate quaternions from very close quaternions
-    if (abs(dot(q1, q2)) > 0.995f) {
+    if (dot(q1, q2) > 0.95f) {
         return nlerp(q1, q2, s);
     }
 
