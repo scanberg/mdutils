@@ -41,25 +41,26 @@ void free_image(Image* img) {
     img->data = nullptr;
 }
 
-bool read_image(Image* img, CString filename) {
+bool read_image(Image* img, CString filename, int32 requestedChannels) {
     ASSERT(img);
 
     StringBuffer<512> zstr = filename;
     int x, y, channels;
-    uint8* data = stbi_load(zstr.cstr(), &x, &y, &channels, 4);
+    uint8* data = stbi_load(zstr.cstr(), &x, &y, &channels, requestedChannels);
     if (!data) return false;
 
     free_image(img);
     img->width = x;
     img->height = y;
+    img->channels = requestedChannels;
     img->data = (uint32*)data;
 
     return true;
 }
 
 bool write_image(const Image& img, CString filename) {
-	StringBuffer<512> zstr = filename;
-	return stbi_write_bmp(zstr.cstr(), img.width, img.height, 4, img.data) != 0;
+    StringBuffer<512> zstr = filename;
+    return stbi_write_bmp(zstr.cstr(), img.width, img.height, img.channels, img.data) != 0;
 }
 
 // All this is ported and stolen from here and needs to be verified
