@@ -404,9 +404,9 @@ void initialize() {
         glGenTextures(1, &tex_noise);
         Image img;
         defer { free_image(&img); };
-        if (read_image(&img, MDUTILS_IMAGE_DIR "/bluenoise/RGBA_512.png")) {
+        if (read_image(&img, MDUTILS_IMAGE_DIR "/bluenoise/RGBA_512.png", 4)) {
             glBindTexture(GL_TEXTURE_2D, tex_noise);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 512, 512, 0, GL_RED, GL_UNSIGNED_BYTE, img.data);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 512, 512, 0, GL_RGBA, GL_UNSIGNED_BYTE, img.data);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
