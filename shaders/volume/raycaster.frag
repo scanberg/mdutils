@@ -2,8 +2,10 @@
 
 uniform sampler2D u_tex_depth;
 uniform sampler3D u_tex_volume;
+uniform sampler2D u_tex_tf;
 uniform vec3      u_color;
-uniform float     u_scale;
+uniform float     u_scale = 1.0;
+uniform float     u_alpha_scale = 1.0;
 uniform vec2      u_inv_res;
 uniform mat4      u_view_to_model_mat;
 uniform mat4      u_model_to_tex_mat;
@@ -51,8 +53,14 @@ vec4 fetch_voxel(vec3 tc) {
     return vec4(mix(vec3(0), u_color, min(a * 10.0, 1.0)), a);
 }
 
-const float REF = 150.0;
-const float step = 0.005;
+vec4 classify(float density) {
+    vec4 c = texture(u_tex_tf, vec2(density, 0.5));
+    c.a = clamp(c.a * u_alpha_scale, 0.0, 1.0);
+    return c;
+}
+
+const float REF_SAMPLING_RATE = 150.0;
+const float step = 0.00125;
 
 void main() {
     // Do everything in model space
@@ -72,11 +80,26 @@ void main() {
     vec4 result = vec4(0);
     for (float t = t_entry + step; t < t_exit; t += step) {
         vec3 pos  = ori + dir * t;
-        vec4 rgba = fetch_voxel((u_model_to_tex_mat * vec4(pos, 1)).xyz);
+
+        vec3 texcoord = (u_model_to_tex_mat * vec4(pos, 1)).xyz;
+
+        if (texcoord.y > 0.5) continue;
+
+        float density = texture(u_tex_volume, texcoord).r;
+        vec4 srcColor = classify(density * u_scale * 10.0);
+
+        srcColor.a = 1.0 - pow(1.0 - srcColor.a, step * REF_SAMPLING_RATE);
+        // pre-multiplied alpha
+        srcColor.rgb *= srcColor.a;
+        result += (1.0 - result.a) * srcColor;
+
+        /*
+        vec4 rgba = fetch_voxel(texcoord);
         rgba.a    = 1.0 - pow(1.0 - rgba.a, step * REF);
         rgba.rgb *= rgba.a;
-
         result += (1.0 - result.a) * rgba;
+        */
+
         if (result.a > 0.99) break;
     }
 

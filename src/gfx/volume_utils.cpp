@@ -1,6 +1,7 @@
 #include "volume_utils.h"
 #include <core/common.h>
 #include <core/log.h>
+#include <core/image.h>
 #include <core/math_utils.h>
 #include <gfx/gl_utils.h>
 #include <stdio.h>
@@ -12,12 +13,16 @@ static struct {
     GLuint vbo = 0;
     GLuint program = 0;
 
+    GLuint tfTexture = 0;
+
     struct {
         GLint model_view_proj_matrix = -1;
         GLint tex_depth = -1;
         GLint tex_volume = -1;
+        GLint tex_tf = -1;
         GLint color = -1;
         GLint scale = -1;
+        GLint alpha_scale = -1;
         GLint inv_res = -1;
         GLint view_to_model_matrix = -1;
         GLint model_to_tex_matrix = -1;
@@ -34,6 +39,11 @@ void initialize() {
         glDeleteShader(f_shader);
     };
 
+    if (v_shader == 0u || f_shader == 0u) {
+        LOG_WARNING("shader compilation failed, shader program for raycasting will not be updated");
+        return;
+    }
+
     if (!gl.program) gl.program = glCreateProgram();
     const GLuint shaders[] = {v_shader, f_shader};
     gl::attach_link_detach(gl.program, shaders);
@@ -41,8 +51,10 @@ void initialize() {
     gl.uniform_loc.model_view_proj_matrix = glGetUniformLocation(gl.program, "u_model_view_proj_mat");
     gl.uniform_loc.tex_depth = glGetUniformLocation(gl.program, "u_tex_depth");
     gl.uniform_loc.tex_volume = glGetUniformLocation(gl.program, "u_tex_volume");
+    gl.uniform_loc.tex_tf = glGetUniformLocation(gl.program, "u_tex_tf");
     gl.uniform_loc.color = glGetUniformLocation(gl.program, "u_color");
     gl.uniform_loc.scale = glGetUniformLocation(gl.program, "u_scale");
+    gl.uniform_loc.alpha_scale = glGetUniformLocation(gl.program, "u_alpha_scale");
     gl.uniform_loc.inv_res = glGetUniformLocation(gl.program, "u_inv_res");
     gl.uniform_loc.view_to_model_matrix = glGetUniformLocation(gl.program, "u_view_to_model_mat");
     gl.uniform_loc.model_to_tex_matrix = glGetUniformLocation(gl.program, "u_model_to_tex_mat");
@@ -89,6 +101,31 @@ void free_volume_texture(GLuint texture) {
     if (glIsTexture(texture)) glDeleteTextures(1, &texture);
 }
 
+void create_tf_texture(GLuint* texture, int* width, const CString& path) {  
+    ASSERT(texture);  
+    // load transfer function
+    if (*texture == 0 || !glIsTexture(*texture)) {
+        glGenTextures(1, texture);
+    }
+
+    Image img;
+    defer { free_image(&img); };
+    if (read_image(&img, path)) {
+        if (width) {
+            *width = img.width;
+        }
+        glBindTexture(GL_TEXTURE_2D, *texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.width, 1, 0,  GL_RGBA, GL_UNSIGNED_BYTE, img.data);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    } else {
+        LOG_WARNING("could not read TF ('%s')", path.cstr());
+    }
+}
+
 void set_volume_texture_data(GLuint texture, ivec3 dim, void* data) {
     if (glIsTexture(texture)) {
         glBindTexture(GL_TEXTURE_3D, texture);
@@ -124,8 +161,8 @@ void save_volume_to_file(const Volume& volume, const char* file) {
     fwrite(volume.voxel_data.ptr, sizeof(Volume::VoxelDataType), volume.voxel_data.count, f);
 }
 
-void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix, const mat4& proj_matrix, vec3 color,
-                           float opacity_scale) {
+void render_volume_texture(GLuint volume_texture, GLuint tf_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix, const mat4& proj_matrix, vec3 color,
+                           float density_scale, float alpha_scale) {
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
 
@@ -139,18 +176,23 @@ void render_volume_texture(GLuint volume_texture, GLuint depth_texture, const ma
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, depth_texture);
-
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_3D, volume_texture);
+
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, tf_texture);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, depth_texture);
 
     glUseProgram(gl.program);
 
     glUniform1i(gl.uniform_loc.tex_depth, 0);
     glUniform1i(gl.uniform_loc.tex_volume, 1);
+    glUniform1i(gl.uniform_loc.tex_tf, 2);
     glUniform3fv(gl.uniform_loc.color, 1, &color[0]);
-    glUniform1f(gl.uniform_loc.scale, opacity_scale);
+    glUniform1f(gl.uniform_loc.scale, density_scale);
+    glUniform1f(gl.uniform_loc.alpha_scale, alpha_scale);
     glUniform2fv(gl.uniform_loc.inv_res, 1, &inv_res[0]);
     glUniformMatrix4fv(gl.uniform_loc.model_view_proj_matrix, 1, GL_FALSE, &model_view_proj_matrix[0][0]);
     glUniformMatrix4fv(gl.uniform_loc.view_to_model_matrix, 1, GL_FALSE, &view_to_model_matrix[0][0]);
