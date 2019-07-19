@@ -60,9 +60,16 @@ vec4 classify(float density) {
 }
 
 const float REF_SAMPLING_RATE = 150.0;
-const float step = 0.00125;
+const float ERT_THRESHOLD = 0.99;
+const float samplingRate = 8.0;
+
+const float step = 0.005;
 
 void main() {
+    out_frag = vec4(model_pos, 1.0);
+    //out_frag = classify(model_pos.x);
+    //return;
+
     // Do everything in model space
     vec3 ori = model_eye;
     vec3 dir = normalize(model_pos - model_eye);
@@ -77,30 +84,40 @@ void main() {
         t_exit = min(t_exit, dot(stop_pos - ori, dir));
     }
 
+    if (t_entry == t_exit) discard;
+
+    vec3 entryPos = ori + dir * t_entry;
+    float tEnd = t_exit - t_entry;
+
+    float tIncr = min(tEnd, tEnd / (samplingRate * length(dir * tEnd * textureSize(u_tex_volume, 0))));
+    float samples = ceil(tEnd / tIncr);
+    tIncr = tEnd / samples;
+
     vec4 result = vec4(0);
-    for (float t = t_entry + step; t < t_exit; t += step) {
-        vec3 pos  = ori + dir * t;
+    float t = 0.5 * tIncr;
+    while (t < tEnd) {
+        vec3 samplePos = entryPos + t * dir;
 
-        vec3 texcoord = (u_model_to_tex_mat * vec4(pos, 1)).xyz;
+        if (samplePos.y > 0.5) {
+            t += tIncr;
+            continue;
+        }
 
-        if (texcoord.y > 0.5) continue;
+        float density = texture(u_tex_volume, samplePos).r;
+        vec4 srcColor = classify(density * u_scale);
 
-        float density = texture(u_tex_volume, texcoord).r;
-        vec4 srcColor = classify(density * u_scale * 10.0);
+        if (srcColor.a > 0.0) {
+            srcColor.a = 1.0 - pow(1.0 - srcColor.a, tIncr * REF_SAMPLING_RATE);
+            // pre-multiplied alpha
+            srcColor.rgb *= srcColor.a;
+            result += (1.0 - result.a) * srcColor;
+        }
 
-        srcColor.a = 1.0 - pow(1.0 - srcColor.a, step * REF_SAMPLING_RATE);
-        // pre-multiplied alpha
-        srcColor.rgb *= srcColor.a;
-        result += (1.0 - result.a) * srcColor;
-
-        /*
-        vec4 rgba = fetch_voxel(texcoord);
-        rgba.a    = 1.0 - pow(1.0 - rgba.a, step * REF);
-        rgba.rgb *= rgba.a;
-        result += (1.0 - result.a) * rgba;
-        */
-
-        if (result.a > 0.99) break;
+        if (result.a > ERT_THRESHOLD) {
+            t = tEnd;
+        } else {
+            t += tIncr;
+        }
     }
 
     out_frag = result;
