@@ -10,7 +10,6 @@
 
 namespace draw {
 static GLuint vao = 0;
-static GLuint tex_noise = 0;
 
 namespace vdw {
 static GLuint program = 0;
@@ -21,7 +20,6 @@ static GLint uniform_loc_inv_proj_mat = -1;
 static GLint uniform_loc_curr_view_to_prev_clip_mat = -1;
 static GLint uniform_loc_radius_scale = -1;
 static GLint uniform_loc_jitter_uv = -1;
-static GLint uniform_loc_tex_noise = -1;
 static GLint uniform_loc_frame = -1;
 
 static void initialize() {
@@ -44,7 +42,6 @@ static void initialize() {
     uniform_loc_curr_view_to_prev_clip_mat = glGetUniformLocation(program, "u_curr_view_to_prev_clip_mat");
     uniform_loc_radius_scale = glGetUniformLocation(program, "u_radius_scale");
     uniform_loc_jitter_uv = glGetUniformLocation(program, "u_jitter_uv");
-    uniform_loc_tex_noise = glGetUniformLocation(program, "u_tex_noise");
     uniform_loc_frame = glGetUniformLocation(program, "u_frame");
 }
 
@@ -400,23 +397,6 @@ void shutdown() {
 
 void initialize() {
     if (!vao) glGenVertexArrays(1, &vao);
-    if (!tex_noise) {
-        glGenTextures(1, &tex_noise);
-        Image img;
-        defer { free_image(&img); };
-        if (read_image(&img, MDUTILS_IMAGE_DIR "/bluenoise/RGBA_512.png", 4)) {
-            glBindTexture(GL_TEXTURE_2D, tex_noise);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 512, 512, 0, GL_RGBA, GL_UNSIGNED_BYTE, img.data);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        } else {
-            LOG_ERROR("COULD NOT READ NOISE TEXTURE");
-        }
-    }
-
     vdw::initialize();
     licorice::initialize();
     ribbon::intitialize();
@@ -462,9 +442,6 @@ void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint ato
     glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(AtomVelocity), (const GLvoid*)0);
     glEnableVertexAttribArray(3);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex_noise);
-
     glUseProgram(vdw::program);
 
     const mat4 curr_view_to_prev_clip_mat = view_param.previous.matrix.view_proj * view_param.matrix.inverse.view;
@@ -480,7 +457,6 @@ void draw_vdw(GLuint atom_position_buffer, GLuint atom_radius_buffer, GLuint ato
     glUniformMatrix4fv(vdw::uniform_loc_curr_view_to_prev_clip_mat, 1, GL_FALSE, &curr_view_to_prev_clip_mat[0][0]);
     glUniform1f(vdw::uniform_loc_radius_scale, radius_scale);
     glUniform4fv(vdw::uniform_loc_jitter_uv, 1, &jitter_uv[0]);
-    glUniform1i(vdw::uniform_loc_tex_noise, 0);
     glUniform1ui(vdw::uniform_loc_frame, frame);
 
     glDrawArrays(GL_POINTS, 0, atom_count);
