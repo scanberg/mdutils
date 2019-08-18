@@ -332,8 +332,8 @@ private:
         ASSERT(size >= 0);
         m_capacity = init_capacity(size);
         this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
-        this->count = size;
         ASSERT(this->ptr);
+        this->count = size;
         if (size > 0 && src_data) {
             memcpy(this->ptr, src_data, size * sizeof(T));
         }
