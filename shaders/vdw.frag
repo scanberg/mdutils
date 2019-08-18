@@ -51,14 +51,6 @@ void main() {
     //bool mask = val > 0.0;
     //bool mask = noise.x > 0.125;
 
-    //if (u_frame % 2U == 0U) mask = !mask;
-
-/*
-    if (in_frag.atom_idx < 5000U) {
-        if (mask) discard;
-    }
-    */   
-
     vec3 center = in_frag.view_sphere.xyz;
     float radius = in_frag.view_sphere.w;
     vec3 view_dir = -normalize(in_frag.view_coord.xyz);
