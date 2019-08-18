@@ -129,14 +129,17 @@ inline quat nlerp(const quat& q0, const quat& q1, float s) { return normalize(le
 
 inline quat cubic_nlerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
     // @NOTE: Avoid doing cubic interpolation if q1 and q2 are very similar.
-    // This avoids stability issues which come from computing intermediate quaternions from very close quaternions
-    if (dot(q1, q2) > 0.95f) {
+    // This avoids stability issues when computing intermediate quaternions from very similar quaternions
+    const float d12 = dot(q1, q2);
+    if (d12 > 0.995f) {
         return nlerp(q1, q2, s);
     }
 
-    const quat sq0 = dot(q0, q1) < 0.0f ? -q0 : q0;
-    const quat sq2 = dot(q1, q2) < 0.0f ? -q2 : q2;
-    const quat sq3 = dot(sq2, q3) < 0.0f ? -q3 : q3;
+    const quat sq2 = d12 < 0.0f ? -q2 : q2;
+    const float d01 = dot(q0, q1);
+    const float d23 = dot(sq2, q3);
+    const quat sq0 = d01 < 0.0f ? -q0 : q0;
+    const quat sq3 = d23 < 0.0f ? -q3 : q3;
 
     const auto i1 = normalize(intermediate(sq0, q1, sq2));
     const auto i2 = normalize(intermediate(q1, sq2, sq3));
@@ -156,14 +159,17 @@ inline quat intermediate(const quat& prev, const quat& curr, const quat& next) {
 
 inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const quat& q3, float s) {
     // @NOTE: Avoid doing cubic interpolation if q1 and q2 are very similar.
-    // This avoids stability issues which come from computing intermediate quaternions from very close quaternions
-    if (dot(q1, q2) > 0.95f) {
-        return nlerp(q1, q2, s);
+    // This avoids stability issues when computing intermediate quaternions from very similar quaternions
+    const float d12 = dot(q1, q2);
+    if (d12 > 0.995f) {
+        return slerp(q1, q2, s);
     }
 
-    const quat sq0 = dot(q0, q1) < 0.0f ? -q0 : q0;
-    const quat sq2 = dot(q1, q2) < 0.0f ? -q2 : q2;
-    const quat sq3 = dot(sq2, q3) < 0.0f ? -q3 : q3;
+    const quat sq2 = d12 < 0.0f ? -q2 : q2;
+    const float d01 = dot(q0, q1);
+    const float d23 = dot(sq2, q3);
+    const quat sq0 = d01 < 0.0f ? -q0 : q0;
+    const quat sq3 = d23 < 0.0f ? -q3 : q3;
 
     const auto i1 = normalize(intermediate(sq0, q1, sq2));
     const auto i2 = normalize(intermediate(q1, sq2, sq3));
