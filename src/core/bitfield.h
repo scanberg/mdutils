@@ -2,7 +2,6 @@
 
 #include <core/common.h>
 #include <core/types.h>
-//#include <core/simd.h>
 #include <core/array_types.h>
 
 struct Bitfield {
@@ -23,10 +22,9 @@ struct Bitfield {
 	const ElementType* end() const { return ptr + count; }
 
 	operator bool() const {
-		return ptr != nullptr && count != 0;
+		return ptr != nullptr;
 	}
 };
-//typedef Array<uint64> Bitfield;
 
 namespace bitfield {
 
