@@ -392,7 +392,7 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
     init_trajectory(traj, info.num_atoms, (int32)offsets.size(), dt, sim_box);
 
     traj->file.handle = file;
-    traj->file.path = allocate_string(filename);
+    traj->file.path = filename;
     traj->file.tag = PDB_FILE_TAG;
     traj->num_frames = 0;
     traj->frame_offsets = allocate_array<int64>(offsets.size());

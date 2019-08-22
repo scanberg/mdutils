@@ -133,7 +133,7 @@ bool internal_filter_mask(Bitfield mask, CString filter, const FilterContext& ct
                 ASSERT(chunk.back() == ')');
                 if (!internal_filter_mask(chunk_mask, CString(chunk.beg() + 1, chunk.end() - 1), ctx)) return false;
             } else {
-                auto tokens = ctokenize(chunk);
+                auto tokens = tokenize(chunk);
                 if (tokens.size() > 0) {
                     auto cmd = find_filter_command(tokens[0]);
                     if (!cmd) {
@@ -214,7 +214,7 @@ bool filter_uses_selection(CString filter, Array<const StoredSelection> stored_s
             ASSERT(chunk.back() == ')');
             if (filter_uses_selection(CString(chunk.beg() + 1, chunk.end() - 1), stored_selectons)) return true;
         } else {
-            for (const auto& token : ctokenize(chunk)) {
+            for (const auto& token : tokenize(chunk)) {
                 for (const auto& sel : stored_selectons) {
                     if (compare(token, sel.name) == true) {
                         return true;

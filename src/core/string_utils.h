@@ -64,8 +64,7 @@ constexpr inline float fast_str_to_float(CString str) {
 
 	while (c != end) {
 		if ('0' <= *c && *c <= '9') {
-			val *= (Float)10;
-			val += char_to_digit(*c);
+			val = val * (Float)10 + char_to_digit(*c);
 		}
 		else if (*c == '-') {
 			sign = -(Float)1;
@@ -93,7 +92,7 @@ constexpr inline float fast_str_to_float(CString str) {
 
 // Removes whitespace from begining and end of String
 CString trim(CString str);
-String trim(String str);
+//String trim(String str);
 
 // Reads text file and copies into allocated zero terminated String
 String allocate_and_read_textfile(CString filename);
@@ -137,10 +136,8 @@ bool contains_character(CString str, char c);
 CString find_string(CString target, CString pattern);
 
 // Tokenizes a string into shorter strings based on some delimiter
-DynamicArray<String> tokenize(String str, char delimiter = ' ');
-DynamicArray<String> tokenize(String str, CString delimiter);
-DynamicArray<CString> ctokenize(CString str, char delimiter = ' ');
-DynamicArray<CString> ctokenize(CString str, CString delimiter);
+DynamicArray<CString> tokenize(CString str, char delimiter = ' ');
+DynamicArray<CString> tokenize(CString str, CString delimiters);
 
 // Positive range extraction functionality
 // Examples of ranges:
@@ -154,6 +151,7 @@ bool is_range(CString arg);
 bool extract_range(Range<int32>* range, CString arg);
 bool extract_ranges(DynamicArray<Range<int32>>* ranges, Array<const CString> args);
 
+/*
 // Temporary string object with managed memory
 struct TmpString : CString {
     TmpString(CString str) {
@@ -172,6 +170,7 @@ struct TmpString : CString {
 // This is a hack to generate a zero terminated string from a CString object
 // Returns an object with a temporary allocated string which is freed upon its destruction
 inline TmpString make_tmp_str(CString str) { return TmpString(str); }
+*/
 
 inline void print_string(CString str) { printf("%.*s", (int)str.count, str.ptr); }
 

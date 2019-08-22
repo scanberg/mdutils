@@ -18,7 +18,6 @@ struct StringBuffer {
     static constexpr int64 MaxSize = Size;
     STATIC_ASSERT(MaxSize > 1, "Size of StringBuffer must be more than 1");
     char buffer[MaxSize] = {};
-    // int32 length = 0;
 
     StringBuffer(){};
 
@@ -128,7 +127,7 @@ struct StringBuffer {
     operator bool() const { return buffer[0] != '\0'; }
 
     int64 capacity() const { return MaxSize; }
-    int64 size() const { return MaxSize; }
+    int64 length() const { return strnlen(buffer, MaxSize); }
 
     char* cstr() const { return (char*)buffer; }
 

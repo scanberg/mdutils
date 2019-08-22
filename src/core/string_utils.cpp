@@ -50,18 +50,17 @@ bool compare_n_ignore_case(CString str_a, CString str_b, int64 num_chars) {
 }
 
 void copy(String dst, CString src) {
-    ASSERT(dst.ptr != 0);
-    ASSERT(src.ptr != 0);
-    auto len = MIN(dst.count, src.count);
+    ASSERT(dst.ptr);
+    ASSERT(src.ptr);
+    const auto len = MIN(dst.count, src.count);
     memcpy(dst.ptr, src.ptr, len);
     dst.ptr[src.count] = '\0';
 }
 
 void copy_n(String dst, CString src, int64 num_chars) {
-    ASSERT(dst.ptr != 0);
-    ASSERT(src.ptr != 0);
-    auto len = MIN(dst.count, src.count);
-    len = MIN(len, num_chars);
+    ASSERT(dst.ptr);
+    ASSERT(src.ptr);
+    const auto len = MIN(dst.count, MIN(src.count, num_chars));
     memcpy(dst.ptr, src.ptr, len);
     dst.ptr[num_chars] = '\0';
 }
@@ -467,41 +466,7 @@ CString find_string(CString target, CString pattern) {
     return {};
 }
 
-DynamicArray<String> tokenize(String str, char delimiter) {
-    DynamicArray<String> tokens;
-
-    char* beg = str.beg();
-    char* end = str.beg();
-
-    while (end != str.end() && *end != '\0') {
-        while (end != str.end() && *end != '\0' && *end != delimiter) end++;
-        tokens.push_back(String(beg, end));
-        beg = end;
-        while (beg != str.end() && *end != '\0' && *beg == delimiter) beg++;
-        end = beg;
-    }
-
-    return tokens;
-}
-
-DynamicArray<String> tokenize(String str, CString delimiter) {
-    DynamicArray<String> tokens;
-
-    char* beg = str.beg();
-    char* end = str.beg();
-
-    while (end != str.end() && *end != '\0') {
-        while (end != str.end() && *end != '\0' && !char_in_string(*end, delimiter)) end++;
-        tokens.push_back(String(beg, end));
-        beg = end;
-        while (beg != str.end() && *end != '\0' && char_in_string(*beg, delimiter)) beg++;
-        end = beg;
-    }
-
-    return tokens;
-}
-
-DynamicArray<CString> ctokenize(CString str, char delimiter) {
+DynamicArray<CString> tokenize(CString str, char delimiter) {
     DynamicArray<CString> tokens;
 
     const char* beg = str.beg();
@@ -518,17 +483,17 @@ DynamicArray<CString> ctokenize(CString str, char delimiter) {
     return tokens;
 }
 
-DynamicArray<CString> ctokenize(CString str, CString delimiter) {
+DynamicArray<CString> tokenize(CString str, CString delimiters) {
     DynamicArray<CString> tokens;
 
     const char* beg = str.beg();
     const char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
-        while (end != str.end() && *end != '\0' && !char_in_string(*end, delimiter)) end++;
+        while (end != str.end() && *end != '\0' && !char_in_string(*end, delimiters)) end++;
         tokens.push_back(CString(beg, end));
         beg = end;
-        while (beg != str.end() && *end != '\0' && char_in_string(*beg, delimiter)) beg++;
+        while (beg != str.end() && *end != '\0' && char_in_string(*beg, delimiters)) beg++;
         end = beg;
     }
 

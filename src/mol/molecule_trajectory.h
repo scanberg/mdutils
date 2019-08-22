@@ -26,7 +26,7 @@ struct MoleculeTrajectory {
     Type simulation_type = NVT;
 
 	struct {
-		String path{};
+		StringBuffer<512> path{};
 		void* handle = nullptr;
 		uint32 tag = 0;
 	} file;

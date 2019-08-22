@@ -60,7 +60,7 @@ void free_trajectory(MoleculeTrajectory* traj) {
     ASSERT(traj);
 
 	close_file_handle(traj);
-    free_string(&traj->file.path);
+    traj->file.path = "";
     if (traj->frame_offsets.ptr) FREE(traj->frame_offsets.ptr);
     if (traj->position_data.x) ALIGNED_FREE(traj->position_data.x);
     if (traj->frame_buffer.ptr) FREE(traj->frame_buffer.ptr);
