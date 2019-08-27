@@ -3,7 +3,6 @@
 uniform sampler2D u_tex_depth;
 uniform sampler3D u_tex_volume;
 uniform sampler2D u_tex_tf;
-uniform vec3      u_color;
 uniform float     u_scale = 1.0;
 uniform float     u_alpha_scale = 1.0;
 uniform vec2      u_inv_res;
@@ -48,10 +47,12 @@ vec4 depth_to_view_coord(vec2 tc, float depth) {
     return view_coord / view_coord.w;
 }
 
+/*
 vec4 fetch_voxel(vec3 tc) {
     float a = min(texture(u_tex_volume, tc).x * u_scale, 1.0);
     return vec4(mix(vec3(0), u_color, min(a * 10.0, 1.0)), a);
 }
+*/
 
 vec4 classify(float density) {
     vec4 c = texture(u_tex_tf, vec2(density, 0.5));
@@ -62,8 +63,6 @@ vec4 classify(float density) {
 const float REF_SAMPLING_RATE = 150.0;
 const float ERT_THRESHOLD = 0.99;
 const float samplingRate = 8.0;
-
-const float step = 0.005;
 
 void main() {
     out_frag = vec4(model_pos, 1.0);

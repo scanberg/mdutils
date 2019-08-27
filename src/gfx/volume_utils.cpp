@@ -20,7 +20,6 @@ static struct {
         GLint tex_depth = -1;
         GLint tex_volume = -1;
         GLint tex_tf = -1;
-        GLint color = -1;
         GLint scale = -1;
         GLint alpha_scale = -1;
         GLint inv_res = -1;
@@ -52,7 +51,6 @@ void initialize() {
     gl.uniform_loc.tex_depth = glGetUniformLocation(gl.program, "u_tex_depth");
     gl.uniform_loc.tex_volume = glGetUniformLocation(gl.program, "u_tex_volume");
     gl.uniform_loc.tex_tf = glGetUniformLocation(gl.program, "u_tex_tf");
-    gl.uniform_loc.color = glGetUniformLocation(gl.program, "u_color");
     gl.uniform_loc.scale = glGetUniformLocation(gl.program, "u_scale");
     gl.uniform_loc.alpha_scale = glGetUniformLocation(gl.program, "u_alpha_scale");
     gl.uniform_loc.inv_res = glGetUniformLocation(gl.program, "u_inv_res");
@@ -101,7 +99,7 @@ void free_volume_texture(GLuint texture) {
     if (glIsTexture(texture)) glDeleteTextures(1, &texture);
 }
 
-void create_tf_texture(GLuint* texture, int* width, const CString& path) {  
+void create_tf_texture(GLuint* texture, int* width, CString path) {  
     ASSERT(texture);  
     // load transfer function
     if (*texture == 0 || !glIsTexture(*texture)) {
@@ -122,7 +120,7 @@ void create_tf_texture(GLuint* texture, int* width, const CString& path) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glBindTexture(GL_TEXTURE_2D, 0);
     } else {
-        LOG_WARNING("could not read TF ('%s')", path.cstr());
+        LOG_WARNING("could not read TF ('%.s')", path.length(), path.cstr());
     }
 }
 
@@ -150,7 +148,7 @@ return math::inverse(mat4(vec4(scl.x, 0, 0, 0), vec4(0, scl.y, 0, 0), vec4(0, 0,
     */
 }
 
-void save_volume_to_file(const Volume& volume, const char* file) {
+void save_volume_to_file(const Volume& volume, CString file) {
     FILE* f = fopen(file, "wb");
     defer { fclose(f); };
 
@@ -158,10 +156,10 @@ void save_volume_to_file(const Volume& volume, const char* file) {
         LOG_ERROR("Could not open file %s", file);
         return;
     }
-    fwrite(volume.voxel_data.ptr, sizeof(Volume::VoxelDataType), volume.voxel_data.count, f);
+    fwrite(volume.voxel_data.data(), 1, volume.voxel_data.size_in_bytes(), f);
 }
 
-void render_volume_texture(GLuint volume_texture, GLuint tf_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix, const mat4& proj_matrix, vec3 color,
+void render_volume_texture(GLuint volume_texture, GLuint tf_texture, GLuint depth_texture, const mat4& texture_matrix, const mat4& model_matrix, const mat4& view_matrix, const mat4& proj_matrix,
                            float density_scale, float alpha_scale) {
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
@@ -190,7 +188,6 @@ void render_volume_texture(GLuint volume_texture, GLuint tf_texture, GLuint dept
     glUniform1i(gl.uniform_loc.tex_depth, 0);
     glUniform1i(gl.uniform_loc.tex_volume, 1);
     glUniform1i(gl.uniform_loc.tex_tf, 2);
-    glUniform3fv(gl.uniform_loc.color, 1, &color[0]);
     glUniform1f(gl.uniform_loc.scale, density_scale);
     glUniform1f(gl.uniform_loc.alpha_scale, alpha_scale);
     glUniform2fv(gl.uniform_loc.inv_res, 1, &inv_res[0]);
