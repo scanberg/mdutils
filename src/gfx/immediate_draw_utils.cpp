@@ -387,7 +387,7 @@ void draw_aabb(const vec3& min_box, const vec3& max_box) {
 }
 */
 
-void draw_aabb_wireframe(const vec3& min_box, const vec3& max_box, uint32 color) {
+void draw_box_wireframe(const vec3& min_box, const vec3& max_box, uint32 color) {
     // Z = min
     draw_line(vec3(min_box[0], min_box[1], min_box[2]), vec3(max_box[0], min_box[1], min_box[2]), color);
     draw_line(vec3(min_box[0], min_box[1], min_box[2]), vec3(min_box[0], max_box[1], min_box[2]), color);
@@ -405,6 +405,29 @@ void draw_aabb_wireframe(const vec3& min_box, const vec3& max_box, uint32 color)
     draw_line(vec3(min_box[0], max_box[1], min_box[2]), vec3(min_box[0], max_box[1], max_box[2]), color);
     draw_line(vec3(max_box[0], min_box[1], min_box[2]), vec3(max_box[0], min_box[1], max_box[2]), color);
     draw_line(vec3(max_box[0], max_box[1], min_box[2]), vec3(max_box[0], max_box[1], max_box[2]), color);
+}
+
+void draw_box_wireframe(const vec3& min_box, const vec3& max_box, const mat4& model_matrix, uint32 color) {
+
+    const mat3 R = mat3(model_matrix);
+    const vec3 trans = model_matrix[3];
+    // Z = min
+    draw_line(trans + R * vec3(min_box[0], min_box[1], min_box[2]), trans + R * vec3(max_box[0], min_box[1], min_box[2]), color);
+    draw_line(trans + R * vec3(min_box[0], min_box[1], min_box[2]), trans + R * vec3(min_box[0], max_box[1], min_box[2]), color);
+    draw_line(trans + R * vec3(max_box[0], min_box[1], min_box[2]), trans + R * vec3(max_box[0], max_box[1], min_box[2]), color);
+    draw_line(trans + R * vec3(min_box[0], max_box[1], min_box[2]), trans + R * vec3(max_box[0], max_box[1], min_box[2]), color);
+
+    // Z = max
+    draw_line(trans + R * vec3(min_box[0], min_box[1], max_box[2]), trans + R * vec3(max_box[0], min_box[1], max_box[2]), color);
+    draw_line(trans + R * vec3(min_box[0], min_box[1], max_box[2]), trans + R * vec3(min_box[0], max_box[1], max_box[2]), color);
+    draw_line(trans + R * vec3(max_box[0], min_box[1], max_box[2]), trans + R * vec3(max_box[0], max_box[1], max_box[2]), color);
+    draw_line(trans + R * vec3(min_box[0], max_box[1], max_box[2]), trans + R * vec3(max_box[0], max_box[1], max_box[2]), color);
+
+    // Z min max
+    draw_line(trans + R * vec3(min_box[0], min_box[1], min_box[2]), trans + R * vec3(min_box[0], min_box[1], max_box[2]), color);
+    draw_line(trans + R * vec3(min_box[0], max_box[1], min_box[2]), trans + R * vec3(min_box[0], max_box[1], max_box[2]), color);
+    draw_line(trans + R * vec3(max_box[0], min_box[1], min_box[2]), trans + R * vec3(max_box[0], min_box[1], max_box[2]), color);
+    draw_line(trans + R * vec3(max_box[0], max_box[1], min_box[2]), trans + R * vec3(max_box[0], max_box[1], max_box[2]), color);
 }
 
 void draw_basis(const mat4& basis, const float scale, uint32 x_color, uint32 y_color, uint32 z_color) {

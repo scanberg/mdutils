@@ -43,8 +43,8 @@ void draw_plane(const vec3& center, const vec3& plane_u, const vec3& plane_v, ui
 void draw_plane_wireframe(const vec3& center, const vec3& plane_u, const vec3& plane_v, uint32 color = DEFAULT_COLOR, int segments_u = 4, int segments_v = 4);
 
 // Composits
-// void draw_aabb(const vec3& min_box, const vec3& max_box);
-void draw_aabb_wireframe(const vec3& min_box, const vec3& max_box, uint32 color = DEFAULT_COLOR);
+void draw_box_wireframe(const vec3& min_box, const vec3& max_box, uint32 color = DEFAULT_COLOR);
+void draw_box_wireframe(const vec3& min_box, const vec3& max_box, const mat4& model_matrix, uint32 color = DEFAULT_COLOR);
 void draw_basis(const mat4& basis, const float scale = 1.f, uint32 x_color = COLOR_RED, uint32 y_color = COLOR_GREEN, uint32 z_color = COLOR_BLUE);
 
 // Advanced

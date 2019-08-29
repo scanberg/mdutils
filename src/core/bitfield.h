@@ -10,16 +10,16 @@ struct Bitfield {
 	ElementType* ptr = nullptr;
 	int64 count = 0;
 
-	int64 size() const { return count; }
-	int64 size_in_bytes() const { return (count + 8 - 1) / 8; } // @NOTE: round up integer div.
+	constexpr int64 size() const { return count; }
+	constexpr int64 size_in_bytes() const { return (count + 8 - 1) / 8; } // @NOTE: round up integer div.
 	
-	ElementType* data() { return ptr; }
-	ElementType* beg() { return ptr; }
-	ElementType* end() { return ptr + count; }
+	constexpr ElementType* data() { return ptr; }
+	constexpr ElementType* beg() { return ptr; }
+	constexpr ElementType* end() { return ptr + count; }
 
-	const ElementType* data() const { return ptr; }
-	const ElementType* beg() const { return ptr; }
-	const ElementType* end() const { return ptr + count; }
+	constexpr const ElementType* data() const { return ptr; }
+	constexpr const ElementType* beg() const { return ptr; }
+	constexpr const ElementType* end() const { return ptr + count; }
 
 	operator bool() const {
 		return ptr != nullptr;

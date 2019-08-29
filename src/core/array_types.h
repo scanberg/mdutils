@@ -6,8 +6,6 @@
 #include <string.h>
 #include <type_traits>
 #include <initializer_list>
-
-#include <string_view>
 /*
   This is an 'array-view' which exposes access to some data which is not owned by the array itself.
   Nothing will be allocated or freed by the constructors and destructors of this object.

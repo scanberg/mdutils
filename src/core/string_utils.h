@@ -151,28 +151,4 @@ bool is_range(CString arg);
 bool extract_range(Range<int32>* range, CString arg);
 bool extract_ranges(DynamicArray<Range<int32>>* ranges, Array<const CString> args);
 
-/*
-// Temporary string object with managed memory
-struct TmpString : CString {
-    TmpString(CString str) {
-        String tmp = allocate_string(str);
-        this->ptr = tmp.ptr;
-        this->count = tmp.count;
-    }
-    TmpString(const TmpString& other) = delete;
-    TmpString(TmpString&& other) noexcept {
-        this->ptr = other.ptr;
-        this->count = other.count;
-    }
-    ~TmpString() { FREE((void*)this->ptr); }
-};
-
-// This is a hack to generate a zero terminated string from a CString object
-// Returns an object with a temporary allocated string which is freed upon its destruction
-inline TmpString make_tmp_str(CString str) { return TmpString(str); }
-*/
-
 inline void print_string(CString str) { printf("%.*s", (int)str.count, str.ptr); }
-
-// TODO: Possibly implement a good templated print function in the style of printf as discussed here
-// https://stackoverflow.com/questions/17671772/c11-variadic-printf-performance
