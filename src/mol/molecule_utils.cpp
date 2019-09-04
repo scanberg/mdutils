@@ -104,6 +104,14 @@ void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
     }
 }
 
+void translate_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+    for (int64 i = 0; i < count; i++) {
+        in_out_x[i] += translation.x;
+        in_out_y[i] += translation.y;
+        in_out_z[i] += translation.z;
+    }
+}
+
 void transform_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
     for (int64 i = 0; i < count; i++) {
         vec4 v = {in_out_x[i], in_out_y[i], in_out_z[i], w_comp};
@@ -370,7 +378,8 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
 
     for (int64 i = 0; i < count; i++) {
         const float mass = in_m[i];
-        p = de_periodize({in_x[i], in_y[i], in_z[i]}, p, full_ext, half_ext);
+        const vec3 next_p = {in_x[i], in_y[i], in_z[i]};
+        p = de_periodize(p, next_p, full_ext, half_ext);
         vec_sum += p * mass;
         mass_sum += mass;
     }
@@ -1302,7 +1311,7 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
         const vec3 delta = com_dp - com;
         const float d2 = math::dot(delta, delta);
         if (d2 > 0.0001f) {
-            translate_positions(seq_x, seq_y, seq_z, range.size(), delta);
+            translate_positions_ref(seq_x, seq_y, seq_z, range.size(), delta);
         }
     }
 }
