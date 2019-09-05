@@ -1,8 +1,8 @@
 #include "mol/hydrogen_bond.h"
 #include <core/common.h>
 #include <core/log.h>
+#include <core/spatial_hash.h>
 #include <mol/trajectory_utils.h>
-#include <mol/spatial_hash.h>
 
 namespace hydrogen_bond {
 

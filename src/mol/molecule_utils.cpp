@@ -1,10 +1,12 @@
 #include "molecule_utils.h"
+
 #include <core/common.h>
 #include <core/simd.h>
 #include <core/hash.h>
 #include <core/log.h>
+#include <core/spatial_hash.h>
+
 #include <mol/trajectory_utils.h>
-#include <mol/spatial_hash.h>
 
 #include <ctype.h>
 
