@@ -4,13 +4,13 @@
 
 namespace logging {
 
-struct CBEntry {
+struct LoggingBackend {
     LoggingFunc func = nullptr;
     void* usr_data = nullptr;
 };
 
-static DynamicArray<CBEntry> entries;
-static constexpr int32 BUF_SIZE = KILOBYTES(64);
+static DynamicArray<LoggingBackend> entries;
+static constexpr int32 BUF_SIZE = KILOBYTES(64); // @NOTE (Robin): Ought to be enough for everyone, right?
 static char buf[BUF_SIZE];
 
 void initialize() {}

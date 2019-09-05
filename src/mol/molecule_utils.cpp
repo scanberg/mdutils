@@ -5,13 +5,8 @@
 #include <core/log.h>
 #include <mol/trajectory_utils.h>
 #include <mol/spatial_hash.h>
-#include <gfx/gl_utils.h>
-#include <gfx/immediate_draw_utils.h>
 
 #include <ctype.h>
-
-//#include "compute_velocity_ispc.h"
-//#include "interpolate_position_linear_ispc.h"
 
 inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_f128()), box_ext);
