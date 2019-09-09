@@ -70,7 +70,7 @@ inline __m512 de_periodize(const __m512 a, const __m512 b, const __m512 full_ext
 }
 #endif
 
-void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
     int64 i = 0;
 
     const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
@@ -101,7 +101,7 @@ void translate_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
     }
 }
 
-void translate_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+void translate_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
     for (int64 i = 0; i < count; i++) {
         in_out_x[i] += translation.x;
         in_out_y[i] += translation.y;
@@ -109,7 +109,7 @@ void translate_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y,
     }
 }
 
-void transform_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
+void transform_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
     for (int64 i = 0; i < count; i++) {
         vec4 v = {in_out_x[i], in_out_y[i], in_out_z[i], w_comp};
         v = transformation * v;
@@ -119,7 +119,7 @@ void transform_positions_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y,
     }
 }
 
-void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
+void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
     const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
     const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
     const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
@@ -171,8 +171,8 @@ void transform_positions(float* RESTRICT in_out_x, float* RESTRICT in_out_y, flo
 
     for (; i < count; i++) {
         const float x = in_out_x[i];
-        const float y = in_out_x[i];
-        const float z = in_out_x[i];
+        const float y = in_out_y[i];
+        const float z = in_out_z[i];
 
         in_out_x[i] = x * transformation[0][0] + y * transformation[1][0] + z * transformation[2][0] + w_comp * transformation[3][0];
         in_out_y[i] = x * transformation[0][1] + y * transformation[1][1] + z * transformation[2][1] + w_comp * transformation[3][1];
@@ -1308,7 +1308,7 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
         const vec3 delta = com_dp - com;
         const float d2 = math::dot(delta, delta);
         if (d2 > 0.0001f) {
-            translate_positions_ref(seq_x, seq_y, seq_z, range.size(), delta);
+            translate_ref(seq_x, seq_y, seq_z, range.size(), delta);
         }
     }
 }
