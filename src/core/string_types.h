@@ -12,6 +12,33 @@
 struct String;
 struct CString;
 
+constexpr int64 cexpr_strlen(const char* cstr) {
+    int64 len = 0;
+    while (*cstr != '\0') {
+        ++cstr;
+        ++len;
+    }
+    return len;
+}
+
+constexpr int64 cexpr_strnlen(const char* cstr, int64 max_length) {
+    int64 len = 0;
+    while (len < max_length && *cstr != '\0') {
+        ++cstr;
+        ++len;
+    }
+    return len;
+}
+
+template <typename T>
+constexpr void cexpr_copy(T* dst, const T* src, int64 count) {
+    int64 i = 0;
+    while (i < count) {
+        dst[i] = src[i];
+        i++;
+    }
+}
+
 // A buffer string for wrapping a char buffer[N]
 template <int64 Size>
 struct StringBuffer {
@@ -19,65 +46,66 @@ struct StringBuffer {
     STATIC_ASSERT(MaxSize > 1, "Size of StringBuffer must be more than 1");
     char buffer[MaxSize] = {};
 
-    StringBuffer(){};
+    constexpr StringBuffer() noexcept {};
 
     template <int64 N>
-    StringBuffer(const char (&cstr)[N]) {
+    constexpr StringBuffer(const char (&cstr)[N]) noexcept  {
         constexpr auto len = N < MaxSize ? N : MaxSize - 1;
-        memcpy(buffer, cstr, len);
+        cexpr_copy(buffer, cstr, len);
+        //memcpy(buffer, cstr, len);
         buffer[len] = '\0';
     }
 
-    StringBuffer(const char* cstr) {
-        int64 len = (int64)strnlen(cstr, MaxSize - 1);
-        memcpy(buffer, cstr, len);
+    constexpr StringBuffer(const char* cstr) noexcept {
+        int64 len = cexpr_strnlen(cstr, MaxSize - 1);
+        cexpr_copy(buffer, cstr, len);
         buffer[len] = '\0';
     }
 
-    StringBuffer(char c) {
+    constexpr StringBuffer(char c) noexcept {
         buffer[0] = c;
         buffer[1] = '\0';
     }
 
-    StringBuffer(const StringBuffer& other) {
+    constexpr StringBuffer(const StringBuffer& other) noexcept {
         memcpy(buffer, other.buffer, MaxSize);
         buffer[MaxSize - 1] = '\0';
     }
 
     template <int64 N>
-    StringBuffer(const StringBuffer<N>& other) {
+    constexpr StringBuffer(const StringBuffer<N>& other) noexcept {
         constexpr auto len = N < MaxSize ? N : MaxSize;
-        memcpy(buffer, other.buffer, len);
+        cexpr_copy(buffer, other.buffer, len);
         buffer[len - 1] = '\0';
     }
 
-    StringBuffer(StringBuffer&& other) noexcept {
-        memcpy(buffer, other.buffer, MaxSize);
+    constexpr StringBuffer(StringBuffer&& other) noexcept {
+        cexpr_copy(buffer, other.buffer, MaxSize);
         buffer[MaxSize - 1] = '\0';
     }
 
     template <int64 N>
-    StringBuffer(StringBuffer<N>&& other) {
+    constexpr StringBuffer(StringBuffer<N>&& other) noexcept {
         constexpr auto len = N < MaxSize ? N : MaxSize;
-        memcpy(buffer, other.buffer, len);
+        cexpr_copy(buffer, other.buffer, len);
         buffer[len - 1] = '\0';
     }
 
     StringBuffer(const CString& str);
 
-    StringBuffer& operator=(const StringBuffer& other) {
+    constexpr StringBuffer& operator=(const StringBuffer& other) noexcept {
         if (this != &other) {
-            memcpy(buffer, other.buffer, MaxSize);
+            cexpr_copy(buffer, other.buffer, MaxSize);
             buffer[MaxSize - 1] = '\0';
         }
         return *this;
     }
 
     template <int64 N>
-    StringBuffer& operator=(const StringBuffer<N>& other) {
+    constexpr StringBuffer& operator=(const StringBuffer<N>& other) noexcept {
         if (this != &other) {
             constexpr auto len = N < (MaxSize - 1) ? N : (MaxSize - 1);
-            memcpy(buffer, other.buffer, len);
+            cexpr_copy(buffer, other.buffer, len);
             buffer[len] = '\0';
         }
         return *this;
@@ -85,37 +113,37 @@ struct StringBuffer {
 
     StringBuffer& operator=(const CString& cstr);
 
-    StringBuffer& operator=(char c) {
+    constexpr StringBuffer& operator=(char c) noexcept {
         buffer[0] = c;
         buffer[1] = '\0';
         return *this;
     }
 
     template <int64 N>
-    StringBuffer& operator=(const char (&cstr)[N]) {
+    constexpr StringBuffer& operator=(const char (&cstr)[N]) noexcept {
         if (buffer != cstr) {
             constexpr auto len = N < (MaxSize - 1) ? N : (MaxSize - 1);
-            memcpy(buffer, cstr, len);
+            cexpr_copy(buffer, cstr, len);
             buffer[len] = '\0';
         }
         return *this;
     }
 
-    StringBuffer& operator=(const char* cstr) {
+    constexpr StringBuffer& operator=(const char* cstr) noexcept {
         int64 len = (int64)strnlen(cstr, MaxSize);
-        memcpy(buffer, cstr, len);
+        cexpr_copy(buffer, cstr, len);
         buffer[len] = '\0';
         return *this;
     }
 
     StringBuffer& operator+=(CString txt);
 
-    char operator[](int64 i) const {
+    constexpr char operator[](int64 i) const noexcept {
         ASSERT(0 <= i && i < MaxSize);
         return buffer[i];
     }
 
-    char& operator[](int64 i) {
+    constexpr char& operator[](int64 i) noexcept {
         ASSERT(0 <= i && i < MaxSize);
         return buffer[i];
     }
@@ -124,20 +152,20 @@ struct StringBuffer {
     // operator CString() const { return CString(buffer, strnlen((const char*)buffer, MaxSize)); }
     // operator char*() const { return (char*)buffer; }
     // operator const char*() const { return (const char*)buffer; }
-    operator bool() const { return buffer[0] != '\0'; }
+    constexpr operator bool() const noexcept { return buffer[0] != '\0'; }
 
-    int64 capacity() const { return MaxSize; }
-    int64 length() const { return strnlen(buffer, MaxSize); }
+    constexpr int64 capacity() const noexcept { return MaxSize; }
+    constexpr int64 length() const noexcept { return cexpr_strnlen(buffer, MaxSize); }
 
-    char* cstr() const { return (char*)buffer; }
+    constexpr char* cstr() const noexcept { return (char*)buffer; }
 
-    const char* begin() const { return buffer; }
-    const char* beg() const { return buffer; }
-    const char* end() const { return buffer + MaxSize; }
+    constexpr const char* begin() const noexcept { return buffer; }
+    constexpr const char* beg() const noexcept { return buffer; }
+    constexpr const char* end() const noexcept { return buffer + MaxSize; }
 
-    char* begin() { return buffer; }
-    char* beg() { return buffer; }
-    char* end() { return buffer + MaxSize; }
+    constexpr char* begin() noexcept { return buffer; }
+    constexpr char* beg() noexcept { return buffer; }
+    constexpr char* end() noexcept { return buffer + MaxSize; }
 };
 
 struct CString : Array<const char> {
