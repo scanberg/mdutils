@@ -15,7 +15,7 @@ constexpr Element elm2_val[] = {Element::Na, Element::Cl, Element::Fe};
 constexpr int32 elm2_size = sizeof(elm2_val) / sizeof(elm2_val[0]);
 */
 
-Element get_from_string(CString cstr) {
+Element get_from_string(CStringView cstr) {
     if (cstr.count == 0) return Element::Unknown;
 
     // Prune

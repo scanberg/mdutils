@@ -9,33 +9,43 @@
 #pragma warning(disable : 4996)
 #endif
 
-struct String;
-struct CString;
+struct StringView;
+struct CStringView;
 
-constexpr int64 cexpr_strlen(const char* cstr) {
-    int64 len = 0;
-    while (*cstr != '\0') {
-        ++cstr;
-        ++len;
+namespace helper {
+    constexpr int64 cexpr_strlen(const char* cstr) {
+        int64 len = 0;
+        while (*cstr != '\0') {
+            ++cstr;
+            ++len;
+        }
+        return len;
     }
-    return len;
-}
 
-constexpr int64 cexpr_strnlen(const char* cstr, int64 max_length) {
-    int64 len = 0;
-    while (len < max_length && *cstr != '\0') {
-        ++cstr;
-        ++len;
+    constexpr int64 cexpr_strnlen(const char* cstr, int64 max_length) {
+        int64 len = 0;
+        while (len < max_length && *cstr != '\0') {
+            ++cstr;
+            ++len;
+        }
+        return len;
     }
-    return len;
-}
 
-template <typename T>
-constexpr void cexpr_copy(T* dst, const T* src, int64 count) {
-    int64 i = 0;
-    while (i < count) {
-        dst[i] = src[i];
-        i++;
+    constexpr int64 cexpr_strncpy(char* dst, const char* src, int64 max_length) {
+        int64 i = 0;
+        while (i < max_length && src[i] != '\0') {
+            dst[i] = src[i];
+        }
+        return i;
+    }
+
+    template <typename T>
+    constexpr void cexpr_copy(T* dst, const T* src, int64 count) {
+        int64 i = 0;
+        while (i < count) {
+            dst[i] = src[i];
+            i++;
+        }
     }
 }
 
@@ -51,14 +61,14 @@ struct StringBuffer {
     template <int64 N>
     constexpr StringBuffer(const char (&cstr)[N]) noexcept  {
         constexpr auto len = N < MaxSize ? N : MaxSize - 1;
-        cexpr_copy(buffer, cstr, len);
+        helper::cexpr_copy(buffer, cstr, len);
         //memcpy(buffer, cstr, len);
         buffer[len] = '\0';
     }
 
     constexpr StringBuffer(const char* cstr) noexcept {
-        int64 len = cexpr_strnlen(cstr, MaxSize - 1);
-        cexpr_copy(buffer, cstr, len);
+        int64 len = helper::cexpr_strnlen(cstr, MaxSize - 1);
+        helper::cexpr_copy(buffer, cstr, len);
         buffer[len] = '\0';
     }
 
@@ -68,34 +78,35 @@ struct StringBuffer {
     }
 
     constexpr StringBuffer(const StringBuffer& other) noexcept {
-        memcpy(buffer, other.buffer, MaxSize);
+        helper::cexpr_copy(buffer, other.buffer, MaxSize);
+        //memcpy(buffer, other.buffer, MaxSize);
         buffer[MaxSize - 1] = '\0';
     }
 
     template <int64 N>
     constexpr StringBuffer(const StringBuffer<N>& other) noexcept {
         constexpr auto len = N < MaxSize ? N : MaxSize;
-        cexpr_copy(buffer, other.buffer, len);
+        helper::cexpr_copy(buffer, other.buffer, len);
         buffer[len - 1] = '\0';
     }
 
     constexpr StringBuffer(StringBuffer&& other) noexcept {
-        cexpr_copy(buffer, other.buffer, MaxSize);
+        helper::cexpr_copy(buffer, other.buffer, MaxSize);
         buffer[MaxSize - 1] = '\0';
     }
 
     template <int64 N>
     constexpr StringBuffer(StringBuffer<N>&& other) noexcept {
         constexpr auto len = N < MaxSize ? N : MaxSize;
-        cexpr_copy(buffer, other.buffer, len);
+        helper::cexpr_copy(buffer, other.buffer, len);
         buffer[len - 1] = '\0';
     }
 
-    StringBuffer(const CString& str);
+    StringBuffer(const CStringView& str);
 
     constexpr StringBuffer& operator=(const StringBuffer& other) noexcept {
         if (this != &other) {
-            cexpr_copy(buffer, other.buffer, MaxSize);
+            helper::cexpr_copy(buffer, other.buffer, MaxSize);
             buffer[MaxSize - 1] = '\0';
         }
         return *this;
@@ -105,13 +116,13 @@ struct StringBuffer {
     constexpr StringBuffer& operator=(const StringBuffer<N>& other) noexcept {
         if (this != &other) {
             constexpr auto len = N < (MaxSize - 1) ? N : (MaxSize - 1);
-            cexpr_copy(buffer, other.buffer, len);
+            helper::cexpr_copy(buffer, other.buffer, len);
             buffer[len] = '\0';
         }
         return *this;
     }
 
-    StringBuffer& operator=(const CString& cstr);
+    StringBuffer& operator=(const CStringView& cstr);
 
     constexpr StringBuffer& operator=(char c) noexcept {
         buffer[0] = c;
@@ -123,7 +134,7 @@ struct StringBuffer {
     constexpr StringBuffer& operator=(const char (&cstr)[N]) noexcept {
         if (buffer != cstr) {
             constexpr auto len = N < (MaxSize - 1) ? N : (MaxSize - 1);
-            cexpr_copy(buffer, cstr, len);
+            helper::cexpr_copy(buffer, cstr, len);
             buffer[len] = '\0';
         }
         return *this;
@@ -131,12 +142,12 @@ struct StringBuffer {
 
     constexpr StringBuffer& operator=(const char* cstr) noexcept {
         int64 len = (int64)strnlen(cstr, MaxSize);
-        cexpr_copy(buffer, cstr, len);
+        helper::cexpr_copy(buffer, cstr, len);
         buffer[len] = '\0';
         return *this;
     }
 
-    StringBuffer& operator+=(CString txt);
+    StringBuffer& operator+=(CStringView txt);
 
     constexpr char operator[](int64 i) const noexcept {
         ASSERT(0 <= i && i < MaxSize);
@@ -168,35 +179,35 @@ struct StringBuffer {
     constexpr char* end() noexcept { return buffer + MaxSize; }
 };
 
-struct CString : Array<const char> {
-    constexpr CString() = default;
+struct CStringView : ArrayView<const char> {
+    constexpr CStringView() noexcept : ArrayView() {};
 
     template <int64 N>
-    constexpr CString(const StringBuffer<N>& buf) noexcept {
+    constexpr CStringView(const StringBuffer<N>& buf) noexcept {
         ptr = buf.buffer;
-        count = strnlen(buf.cstr(), buf.MaxSize);
+        count = helper::cexpr_strnlen(buf.cstr(), buf.MaxSize);
     }
 
-    constexpr CString(const char* cstr, int64 len) noexcept {
+    constexpr CStringView(const char* cstr, int64 len) noexcept {
         ptr = cstr;
         count = len;
         ASSERT(count >= 0);
     }
 
-    constexpr CString(const char* beg, const char* end) noexcept {
+    constexpr CStringView(const char* beg, const char* end) noexcept {
         ptr = beg;
         count = end - beg;
         ASSERT(count >= 0);
     }
 
     template <int64 Length>
-    constexpr CString(const char (&cstr)[Length]) noexcept {
+    constexpr CStringView(const char (&cstr)[Length]) noexcept {
         ptr = cstr;
         count = Length - 1;
         ASSERT(count >= 0);
     }
 
-    constexpr CString substr(int64 _offset, int64 _count = -1) const noexcept {
+    constexpr CStringView substr(int64 _offset, int64 _count = -1) const noexcept {
         const auto arr = subarray(_offset, _count);
         return {arr.ptr, arr.count};
     }
@@ -204,37 +215,37 @@ struct CString : Array<const char> {
     constexpr const char* cstr() const noexcept { return (const char*)ptr; }
     constexpr int64 length() const noexcept { return count; }
 
-    operator const char*() { return ptr; }
-    constexpr operator bool() noexcept { return (ptr != 0 && count != 0); }
+    //operator const char*() { return ptr; }
+    //constexpr operator bool() noexcept { return (ptr != 0 && count != 0); }
 };
 
-struct String : Array<char> {
-    constexpr String() = default;
+struct StringView : ArrayView<char> {
+    constexpr StringView() = default;
 
     template <int64 N>
-    constexpr String(StringBuffer<N>& buf) noexcept {
+    constexpr StringView(StringBuffer<N>& buf) noexcept {
         ptr = buf.buffer;
         count = buf.MaxSize;
     }
 
-    constexpr String(char* cstr, int64 length) noexcept {
+    constexpr StringView(char* cstr, int64 length) noexcept {
         ptr = cstr;
         count = length;
     }
 
-    constexpr String(char* beg, char* end) noexcept {
+    constexpr StringView(char* beg, char* end) noexcept {
         ptr = beg;
         count = end - beg;
         ASSERT(count >= 0);
     }
 
     template <int64 length>
-    constexpr String(char (&cstr)[length]) noexcept {
+    constexpr StringView(char (&cstr)[length]) noexcept {
         ptr = cstr;
         count = length;
     }
 
-    constexpr String substr(int64 _offset, int64 _count = -1) noexcept {
+    constexpr StringView substr(int64 _offset, int64 _count = -1) noexcept {
         auto arr = subarray(_offset, _count);
         return {arr.ptr, arr.count};
     }
@@ -242,35 +253,47 @@ struct String : Array<char> {
     constexpr char* cstr() const noexcept { return ptr; }
     constexpr int64 length() const noexcept { return count; }
 
-    constexpr operator CString() noexcept { return CString(ptr, count); }
-    operator char*() { return (char*)ptr; }
-    operator const char*() { return (const char*)ptr; }
-    constexpr operator bool() noexcept { return (ptr != 0 && count != 0); }
+    constexpr operator CStringView() noexcept { return CStringView(ptr, count); }
+    //operator char*() { return (char*)ptr; }
+    //operator const char*() { return (const char*)ptr; }
+    //constexpr operator bool() noexcept { return (ptr != 0 && count != 0); }
 };
 
 template <int64 N>
-StringBuffer<N>::StringBuffer(const CString& str) {
+StringBuffer<N>::StringBuffer(const CStringView& str) {
     // @NOTE: MAX_LENGTH - 1 here because we copy from cstring which excludes \0
     auto len = str.length() < (MaxSize - 1) ? str.length() : (MaxSize - 1);
-    memcpy(buffer, str.cstr(), len);
+    helper::cexpr_copy(buffer, str.cstr(), len);
     buffer[len] = '\0';
 }
 
 template <int64 N>
-StringBuffer<N>& StringBuffer<N>::operator=(const CString& str) {
+StringBuffer<N>& StringBuffer<N>::operator=(const CStringView& str) {
     auto len = str.length() < (MaxSize - 1) ? str.length() : (MaxSize - 1);
-    memcpy(buffer, str.cstr(), len);
+    helper::cexpr_copy(buffer, str.cstr(), len);
     buffer[len] = '\0';
     return *this;
 }
 
 template <int64 N>
-StringBuffer<N>& StringBuffer<N>::operator+=(CString txt) {
-    int64 offset = (int64)strnlen((const char*)buffer, MaxSize);
+StringBuffer<N>& StringBuffer<N>::operator+=(CStringView txt) {
+    int64 offset = (int64)helper::cexpr_strnlen((const char*)buffer, MaxSize);
     int64 length = MaxSize - offset;
     if (length > 0) {
-        strncpy((char*)buffer + offset, txt.cstr(), txt.count < length ? txt.count : length);
+        helper::cexpr_strncpy((char*)buffer + offset, txt.cstr(), txt.count < length ? txt.count : length);
     }
     buffer[MaxSize - 1] = '\0';
     return *this;
+}
+
+constexpr bool operator == (CStringView str_a, CStringView str_b) {
+    if (str_a.size() != str_b.size()) return false;
+    const char* ca = str_a.beg();
+    const char* cb = str_b.beg();
+    while (ca != str_a.end()) {
+        if (*ca != *cb) return false;
+        ++ca;
+        ++cb;
+    }
+    return true;
 }

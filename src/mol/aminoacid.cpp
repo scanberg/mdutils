@@ -40,7 +40,7 @@ static constexpr const char* symbols[NUM_AMINO_ACIDS] = {"XAA", "ALA", "ARG", "A
 constexpr const char* name(AminoAcid amino) { return names[(int)amino]; }
 constexpr const char* symbol(AminoAcid amino) { return symbols[(int)amino]; }
 
-AminoAcid get_from_string(CString cstr) {
+AminoAcid get_from_string(CStringView cstr) {
 
     // Skip leading numbers and crap
     while (cstr.count > 0 && !isalpha(*cstr.beg())) {

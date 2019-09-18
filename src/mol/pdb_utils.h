@@ -15,19 +15,19 @@ struct MoleculeInfo {
 };
 
 // Loads molecule data
-bool load_molecule_from_file(MoleculeStructure* mol, CString filename);
-bool load_molecule_from_string(MoleculeStructure* mol, CString string);
+bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename);
+bool load_molecule_from_string(MoleculeStructure* mol, CStringView string);
 
 // Loads entire trajectory
-bool load_trajectory_from_file(MoleculeTrajectory* traj, CString filename);
-bool load_trajectory_from_string(MoleculeTrajectory* traj, CString string);
+bool load_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename);
+bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView string);
 
 // Initializes a trajectory from file, but does not load frames (for async operations)
-bool init_trajectory_from_file(MoleculeTrajectory* traj, CString filename);
+bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename);
 bool read_next_trajectory_frame(MoleculeTrajectory* traj);
 bool close_file_handle(MoleculeTrajectory* traj);
 
 // Extract molecule info from a pdb string
-bool extract_molecule_info(MoleculeInfo* info, CString pdb_string);
+bool extract_molecule_info(MoleculeInfo* info, CStringView pdb_string);
 
 }

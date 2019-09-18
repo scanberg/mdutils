@@ -8,7 +8,7 @@ namespace hydrogen_bond {
 
 // Computes the potential donors given a set of atom labels.
 // OH and NH atoms are assumed to be donors if the concecutive atom is marked with 'H' for Hydrogen.
-int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds) {
+int32 compute_donors(DynamicArray<HydrogenBondDonor>* donors, ArrayView<const Element> elements, ArrayView<const ResIdx> residue_indices, ArrayView<const Residue> residues, ArrayView<const Bond> covalent_bonds) {
     ASSERT(donors);
     int32 pre_count = (int32)donors->size();
     for (int32 i = 0; i < (int32)elements.size(); i++) {
@@ -47,7 +47,7 @@ for (int32 i = 0; i < num_labels; i++) {
     return (int32)donors->size() - pre_count;
 }
 
-DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Array<const ResIdx> residue_indices, Array<const Residue> residues, Array<const Bond> covalent_bonds) {
+DynamicArray<HydrogenBondDonor> compute_donors(ArrayView<const Element> elements, ArrayView<const ResIdx> residue_indices, ArrayView<const Residue> residues, ArrayView<const Bond> covalent_bonds) {
     DynamicArray<HydrogenBondDonor> donors;
     compute_donors(&donors, elements, residue_indices, residues, covalent_bonds);
     return donors;
@@ -55,7 +55,7 @@ DynamicArray<HydrogenBondDonor> compute_donors(Array<const Element> elements, Ar
 
 // Computes the potential acceptors given a set of atom elements.
 // This essentially just a filter on atom element which extracts Oxygen and Nitrogen
-int32 compute_acceptors(DynamicArray<HydrogenBondAcceptor>* acceptors, Array<const Element> elements) {
+int32 compute_acceptors(DynamicArray<HydrogenBondAcceptor>* acceptors, ArrayView<const Element> elements) {
     ASSERT(acceptors);
     const int32 pre_count = (int32)acceptors->size();
     for (int32 i = 0; i < (int32)elements.count; i++) {
@@ -66,7 +66,7 @@ int32 compute_acceptors(DynamicArray<HydrogenBondAcceptor>* acceptors, Array<con
     return (int32)acceptors->size() - pre_count;
 }
 
-DynamicArray<HydrogenBondAcceptor> compute_acceptors(Array<const Element> elements) {
+DynamicArray<HydrogenBondAcceptor> compute_acceptors(ArrayView<const Element> elements) {
     DynamicArray<HydrogenBondAcceptor> acceptors;
     compute_acceptors(&acceptors, elements);
     return acceptors;
@@ -76,7 +76,7 @@ DynamicArray<HydrogenBondAcceptor> compute_acceptors(Array<const Element> elemen
 // The distance cutoff sets the distance from bonds to potential acceptors.
 //
 
-int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y,
+int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, ArrayView<const HydrogenBondDonor> donors, ArrayView<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y,
                     const float* atom_pos_z, float dist_cutoff, float angle_cutoff) {
     const int32 num_acceptors = (int32)acceptors.count;
     if (!num_acceptors) return 0;
@@ -111,7 +111,7 @@ int32 compute_bonds(DynamicArray<HydrogenBond>* bonds, Array<const HydrogenBondD
     return (int32)bonds->size() - pre_count;
 }
 
-DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, Array<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y, const float* atom_pos_z,
+DynamicArray<HydrogenBond> compute_bonds(ArrayView<const HydrogenBondDonor> donors, ArrayView<const HydrogenBondAcceptor> acceptors, const float* atom_pos_x, const float* atom_pos_y, const float* atom_pos_z,
                                          float dist_cutoff, float angle_cutoff) {
     DynamicArray<HydrogenBond> bonds;
     compute_bonds(&bonds, donors, acceptors, atom_pos_x, atom_pos_y, atom_pos_z, dist_cutoff, angle_cutoff);

@@ -4,6 +4,6 @@
 #include <core/string_utils.h>
 
 namespace gro {
-bool load_molecule_from_file(MoleculeStructure* mol, CString filename);
-bool load_molecule_from_string(MoleculeStructure* mol, CString string);
+bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename);
+bool load_molecule_from_string(MoleculeStructure* mol, CStringView string);
 }

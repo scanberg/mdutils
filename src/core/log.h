@@ -10,7 +10,7 @@
 namespace logging {
 enum Severity { Note, Warning, Error, Fatal };
 
-typedef void (*LoggingFunc)(CString str, Severity severity, void* usr_data);
+typedef void (*LoggingFunc)(CStringView str, Severity severity, void* usr_data);
 
 void initialize();
 void shutdown();

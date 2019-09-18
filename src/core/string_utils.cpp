@@ -25,31 +25,31 @@ static inline bool internal_compare_ignore_case(const char* str_a, const char* s
 
 static inline bool internal_compare(const char* str_a, const char* str_b, int64 len) { return memcmp(str_a, str_b, len) == 0; }
 
-bool compare(CString str_a, CString str_b) {
+bool compare(CStringView str_a, CStringView str_b) {
     if (str_a.count != str_b.count) return false;
     if (str_a.count == 0) return false;
     return internal_compare(str_a.ptr, str_b.ptr, str_a.count);
 }
 
-bool compare_ignore_case(CString str_a, CString str_b) {
+bool compare_ignore_case(CStringView str_a, CStringView str_b) {
     if (str_a.count != str_b.count) return false;
     if (str_a.count == 0) return false;
     return internal_compare_ignore_case(str_a.ptr, str_b.ptr, str_a.count);
 }
 
-bool compare_n(CString str_a, CString str_b, int64 num_chars) {
+bool compare_n(CStringView str_a, CStringView str_b, int64 num_chars) {
     const int64 len = MIN(str_a.count, str_b.count);
     //if (MIN(str_a.count, str_b.count) < num_chars) return false;
     return internal_compare(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
-bool compare_n_ignore_case(CString str_a, CString str_b, int64 num_chars) {
+bool compare_n_ignore_case(CStringView str_a, CStringView str_b, int64 num_chars) {
     const int64 len = MIN(str_a.count, str_b.count);
     //if (len < num_chars) return false;
     return internal_compare_ignore_case(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
-void copy(String dst, CString src) {
+void copy(StringView dst, CStringView src) {
     ASSERT(dst.ptr);
     ASSERT(src.ptr);
     const auto len = MIN(dst.count, src.count);
@@ -57,7 +57,7 @@ void copy(String dst, CString src) {
     dst.ptr[src.count] = '\0';
 }
 
-void copy_n(String dst, CString src, int64 num_chars) {
+void copy_n(StringView dst, CStringView src, int64 num_chars) {
     ASSERT(dst.ptr);
     ASSERT(src.ptr);
     const auto len = MIN(dst.count, MIN(src.count, num_chars));
@@ -65,7 +65,7 @@ void copy_n(String dst, CString src, int64 num_chars) {
     dst.ptr[num_chars] = '\0';
 }
 
-String allocate_string(CString str) {
+StringView allocate_string(CStringView str) {
     if (str.count == 0) return {};
     char* ptr = (char*)MALLOC(str.count + 1);
     if (!ptr) {
@@ -76,7 +76,7 @@ String allocate_string(CString str) {
     return {ptr, str.count};
 }
 
-String allocate_string(int32 length) {
+StringView allocate_string(int32 length) {
     if (length == 0) return {};
     char* ptr = (char*)MALLOC(length);
     if (!ptr) {
@@ -86,7 +86,7 @@ String allocate_string(int32 length) {
     return {ptr, length};
 }
 
-void free_string(String* str) {
+void free_string(StringView* str) {
     if (str->ptr) {
         FREE(str->ptr);
         str->ptr = nullptr;
@@ -94,7 +94,7 @@ void free_string(String* str) {
     }
 }
 
-CString peek_line(CString str) {
+CStringView peek_line(CStringView str) {
     if (str.length() == 0) {
         return {};
     }
@@ -108,7 +108,7 @@ CString peek_line(CString str) {
     return {line_beg, line_end};
 }
 
-CString extract_line(CString& str) {
+CStringView extract_line(CStringView& str) {
     const char* str_beg = str.ptr;
     const char* str_end = str.ptr + str.count;
 
@@ -172,7 +172,7 @@ bool copy_line(String& line, CString& str) {
 }
 */
 
-ConversionResult<float32> to_float32(CString str) {
+ConversionResult<float32> to_float32(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
@@ -180,7 +180,7 @@ ConversionResult<float32> to_float32(CString str) {
     return {val, end != buf.cstr()};
 }
 
-ConversionResult<float64> to_float64(CString str) {
+ConversionResult<float64> to_float64(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
@@ -188,7 +188,7 @@ ConversionResult<float64> to_float64(CString str) {
     return {val, end != buf.cstr()};
 }
 
-ConversionResult<int32> to_int32(CString str) {
+ConversionResult<int32> to_int32(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
@@ -196,7 +196,7 @@ ConversionResult<int32> to_int32(CString str) {
     return {val, end != buf.cstr()};
 }
 
-ConversionResult<int64> to_int64(CString str) {
+ConversionResult<int64> to_int64(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
@@ -204,27 +204,27 @@ ConversionResult<int64> to_int64(CString str) {
     return {val, end != buf.cstr()};
 }
 
-CString trim(CString str) {
+CStringView trim(CStringView str) {
     const char* beg = str.ptr;
     const char* end = str.ptr + str.count;
 
     while (beg < end && is_whitespace(*beg)) ++beg;
     while (end > beg && (is_whitespace(*(end - 1)) || *(end - 1) == '\0')) --end;
 
-    return CString(beg, end - beg);
+    return CStringView(beg, end - beg);
 }
 
-String trim(String str) {
+StringView trim(StringView str) {
     char* beg = str.ptr;
     char* end = str.ptr + str.count;
 
     while (beg < end && is_whitespace(*beg)) ++beg;
     while (end > beg && is_whitespace(*(end - 1))) --end;
 
-    return String(beg, end - beg);
+    return StringView(beg, end - beg);
 }
 
-String allocate_and_read_textfile(CString filename) {
+StringView allocate_and_read_textfile(CStringView filename) {
     StringBuffer<512> c_str_path = filename;
     FILE* file = fopen(c_str_path.cstr(), "rb");
     defer {
@@ -250,7 +250,7 @@ String allocate_and_read_textfile(CString filename) {
     return {ptr, file_size + 1};
 }
 
-CString get_directory(CString url) {
+CStringView get_directory(CStringView url) {
     if (url.count == 0) {
         return url;
     }
@@ -264,10 +264,10 @@ CString get_directory(CString url) {
         end--;
     }
 
-    return CString(beg, end - beg);
+    return CStringView(beg, end - beg);
 }
 
-CString get_file(CString url) {
+CStringView get_file(CStringView url) {
     if (url.count == 0) {
         return url;
     }
@@ -282,10 +282,10 @@ CString get_file(CString url) {
     }
     if (*beg == '\\' || *beg == '/') beg++;
 
-    return CString(beg, end - beg);
+    return CStringView(beg, end - beg);
 }
 
-CString get_file_without_extension(CString url) {
+CStringView get_file_without_extension(CStringView url) {
     if (url.count == 0) {
         return url;
     }
@@ -300,10 +300,10 @@ CString get_file_without_extension(CString url) {
 
     while (end != beg && *end != '.') end--;
 
-    return CString(beg, end - beg);
+    return CStringView(beg, end - beg);
 }
 
-CString get_file_extension(CString url) {
+CStringView get_file_extension(CStringView url) {
     if (url.count == 0) {
         return url;
     }
@@ -316,21 +316,21 @@ CString get_file_extension(CString url) {
     while (beg != url.begin() && *beg != '.' && *beg != '\\' && *beg != '/') beg--;
 
     if (beg == url.begin() || *beg == '\\' || *beg == '/') {
-        return CString();
+        return CStringView();
     }
 
     beg++;  // skip '.'
-    return CString(beg, end - beg);
+    return CStringView(beg, end - beg);
 }
 
-inline static bool char_in_string(char c, CString str) {
+inline static bool char_in_string(char c, CStringView str) {
     for (int64 i = 0; i < str.count; i++) {
         if (c == str[i]) return true;
     }
     return false;
 }
 
-StringBuffer<256> get_relative_path(CString from, CString to) {
+StringBuffer<256> get_relative_path(CStringView from, CStringView to) {
     const char* c_from = from.beg();
     const char* c_to = to.beg();
     while (c_from != from.end() && c_to != to.end() && *c_from == *c_to) {
@@ -354,14 +354,14 @@ StringBuffer<256> get_relative_path(CString from, CString to) {
         offset += snprintf(res.cstr() + offset, res.capacity(), "../");
     }
 
-    StringBuffer<256> to_buf = CString(c_to, to.end());
+    StringBuffer<256> to_buf = CStringView(c_to, to.end());
     snprintf(res.cstr() + offset, res.capacity(), "%s", to_buf.beg());
 
     return res;
 }
 
-StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative_file) {
-    CString abs_dir = get_directory(absolute_reference);
+StringBuffer<256> get_absolute_path(CStringView absolute_reference, CStringView relative_file) {
+    CStringView abs_dir = get_directory(absolute_reference);
     if (relative_file.count < 3) return {};
 
     StringBuffer<256> res;
@@ -385,7 +385,7 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
     }
     if (dir_count > 0 || c == abs_dir.beg()) return res;
 
-    CString base_dir(abs_dir.beg(), c + 1);
+    CStringView base_dir(abs_dir.beg(), c + 1);
     res = base_dir;
     StringBuffer<128> file = relative_file;
     snprintf(res.cstr() + base_dir.size(), res.capacity() - base_dir.size(), "/%s", file.beg());
@@ -393,39 +393,13 @@ StringBuffer<256> get_absolute_path(CString absolute_reference, CString relative
     return res;
 }
 
-void convert_backslashes(String str) {
+void convert_backslashes(StringView str) {
     for (char* c = str.beg(); c != str.end(); c++) {
         if (*c == '\\') *c = '/';
     }
 }
 
-bool is_digit(char c) { return isdigit(c); }
-
-bool is_alpha(char c) { return isalpha(c); }
-
-bool is_whitespace(char c) { return isspace(c); }
-
-bool contains_whitespace(CString str) {
-    for (const char* c = str.beg(); c != str.end(); c++) {
-        if (is_whitespace(*c)) return true;
-    }
-    return false;
-}
-
-bool balanced_parentheses(CString str) {
-    int count = 0;
-    const char* ptr = str.beg();
-    while (ptr != str.end()) {
-        if (*ptr == '(')
-            count++;
-        else if (*ptr == ')')
-            count--;
-        ptr++;
-    }
-    return count == 0;
-}
-
-CString extract_parentheses(CString str) {
+CStringView extract_parentheses(CStringView str) {
     const char* beg = str.beg();
 
     while (beg != str.end() && *beg != '(') beg++;
@@ -446,17 +420,13 @@ CString extract_parentheses(CString str) {
     return {beg, end};
 }
 
-CString extract_parentheses_contents(CString str) {
-    CString p = extract_parentheses(str);
+CStringView extract_parentheses_contents(CStringView str) {
+    CStringView p = extract_parentheses(str);
     if (p.count < 2) return p;
     return {p.beg() + 1, p.end() - 1};
 }
 
-const char* find_character(CString str, char c) { return (const char*)memchr(str.ptr, c, str.length()); }
-
-bool contains_character(CString str, char c) { return find_character(str, c) != str.end(); }
-
-CString find_string(CString target, CString pattern) {
+CStringView find_string(CStringView target, CStringView pattern) {
     if (target.count == 0 || pattern.count == 0) return {};
 
     char* ptr = Railgun_Trolldom((char*)target.cstr(), (char*)pattern.cstr(), (uint32)target.size_in_bytes(), (uint32)pattern.size_in_bytes());
@@ -466,15 +436,15 @@ CString find_string(CString target, CString pattern) {
     return {};
 }
 
-DynamicArray<CString> tokenize(CString str, char delimiter) {
-    DynamicArray<CString> tokens;
+DynamicArray<CStringView> tokenize(CStringView str, char delimiter) {
+    DynamicArray<CStringView> tokens;
 
     const char* beg = str.beg();
     const char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
         while (end != str.end() && *end != '\0' && *end != delimiter) end++;
-        tokens.push_back(CString(beg, end));
+        tokens.push_back(CStringView(beg, end));
         beg = end;
         while (beg != str.end() && *beg != '\0' && *beg == delimiter) beg++;
         end = beg;
@@ -483,15 +453,15 @@ DynamicArray<CString> tokenize(CString str, char delimiter) {
     return tokens;
 }
 
-DynamicArray<CString> tokenize(CString str, CString delimiters) {
-    DynamicArray<CString> tokens;
+DynamicArray<CStringView> tokenize(CStringView str, CStringView delimiters) {
+    DynamicArray<CStringView> tokens;
 
     const char* beg = str.beg();
     const char* end = str.beg();
 
     while (end != str.end() && *end != '\0') {
         while (end != str.end() && *end != '\0' && !char_in_string(*end, delimiters)) end++;
-        tokens.push_back(CString(beg, end));
+        tokens.push_back(CStringView(beg, end));
         beg = end;
         while (beg != str.end() && *end != '\0' && char_in_string(*beg, delimiters)) beg++;
         end = beg;
@@ -504,7 +474,7 @@ constexpr char delimiter = ':';
 constexpr char wildcard = '*';
 
 // Range extraction functionality
-bool is_range(CString arg) {
+bool is_range(CStringView arg) {
     for (const char* c = arg.beg(); c != arg.end(); c++) {
         if (is_digit(*c)) continue;
         if (*c == delimiter) return true;
@@ -513,7 +483,7 @@ bool is_range(CString arg) {
     return false;
 }
 
-bool extract_range(Range<int32>* range, CString arg) {
+bool extract_range(Range<int32>* range, CStringView arg) {
     if (arg.count == 0) {
         *range = {-1, -1};
         return false;
@@ -529,8 +499,8 @@ bool extract_range(Range<int32>* range, CString arg) {
     while (mid != arg.end() && *mid != delimiter) mid++;
     if (mid == arg.end()) return false;
 
-    CString str_first(arg.beg(), mid);
-    CString str_last(mid + 1, arg.end());
+    CStringView str_first(arg.beg(), mid);
+    CStringView str_last(mid + 1, arg.end());
 
     if (str_first.count == 1 && str_first[0] == wildcard) {
         range->x = -1;
@@ -551,7 +521,7 @@ bool extract_range(Range<int32>* range, CString arg) {
     return true;
 }
 
-bool extract_ranges(DynamicArray<Range<int32>>* ranges, Array<const CString> args) {
+bool extract_ranges(DynamicArray<Range<int32>>* ranges, ArrayView<const CStringView> args) {
     ASSERT(ranges);
 
     for (auto arg : args) {

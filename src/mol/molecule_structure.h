@@ -97,33 +97,33 @@ struct MoleculeStructure {
 
     } atom;
 
-    Array<Bond> covalent_bonds{};
-    Array<Residue> residues{};
-    Array<Chain> chains{};
-    Array<Sequence> sequences{};
+    ArrayView<Bond> covalent_bonds{};
+    ArrayView<Residue> residues{};
+    ArrayView<Chain> chains{};
+    ArrayView<Sequence> sequences{};
 
     struct {
         // Segments and angles should match in length and if not zero, they should match the number of residues
-        Array<BackboneSegment> segments{};
-        Array<BackboneAngle> angles{};
-        Array<BackboneSequence> sequences{};
+        ArrayView<BackboneSegment> segments{};
+        ArrayView<BackboneAngle> angles{};
+        ArrayView<BackboneSequence> sequences{};
     } backbone;
 
     struct {
-        Array<HydrogenBondDonor> donors{};
-        Array<HydrogenBondAcceptor> acceptors{};
+        ArrayView<HydrogenBondDonor> donors{};
+        ArrayView<HydrogenBondAcceptor> acceptors{};
     } hydrogen_bond;
 
     operator bool() const { return atom.count > 0; }
 };
 
 // General accessors
-inline Array<Residue> get_residues(MoleculeStructure& mol) { return mol.residues; }
-inline Array<const Residue> get_residues(const MoleculeStructure& mol) { return mol.residues; }
-inline Array<Chain> get_chains(MoleculeStructure& mol) { return mol.chains; }
-inline Array<const Chain> get_chains(const MoleculeStructure& mol) { return mol.chains; }
-inline Array<Bond> get_covalent_bonds(MoleculeStructure& mol) { return mol.covalent_bonds; }
-inline Array<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { return mol.covalent_bonds; }
+inline ArrayView<Residue> get_residues(MoleculeStructure& mol) { return mol.residues; }
+inline ArrayView<const Residue> get_residues(const MoleculeStructure& mol) { return mol.residues; }
+inline ArrayView<Chain> get_chains(MoleculeStructure& mol) { return mol.chains; }
+inline ArrayView<const Chain> get_chains(const MoleculeStructure& mol) { return mol.chains; }
+inline ArrayView<Bond> get_covalent_bonds(MoleculeStructure& mol) { return mol.covalent_bonds; }
+inline ArrayView<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { return mol.covalent_bonds; }
 
 inline Float3Stream get_position_stream(MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.position.y, mol.atom.position.z, mol.atom.count}; }
 inline Float3Stream get_velocity_stream(MoleculeStructure& mol) { return {mol.atom.velocity.x, mol.atom.velocity.y, mol.atom.velocity.z, mol.atom.count}; }
@@ -134,36 +134,36 @@ inline vec3 get_position_xyz(const MoleculeStructure& mol, AtomIdx idx) {
     return {mol.atom.position.x[idx], mol.atom.position.y[idx], mol.atom.position.z[idx]};
 }
 
-inline Array<float> get_positions_x(MoleculeStructure& mol) { return Array<float>(mol.atom.position.x, mol.atom.count); }
-inline Array<const float> get_positions_x(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.x, mol.atom.count); }
-inline Array<float> get_positions_y(MoleculeStructure& mol) { return Array<float>(mol.atom.position.y, mol.atom.count); }
-inline Array<const float> get_positions_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.y, mol.atom.count); }
-inline Array<float> get_positions_z(MoleculeStructure& mol) { return Array<float>(mol.atom.position.z, mol.atom.count); }
-inline Array<const float> get_positions_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.z, mol.atom.count); }
+inline ArrayView<float> get_positions_x(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.position.x, mol.atom.count); }
+inline ArrayView<const float> get_positions_x(const MoleculeStructure& mol) { return ArrayView<const float>(mol.atom.position.x, mol.atom.count); }
+inline ArrayView<float> get_positions_y(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.position.y, mol.atom.count); }
+inline ArrayView<const float> get_positions_y(const MoleculeStructure& mol) { return ArrayView<const float>(mol.atom.position.y, mol.atom.count); }
+inline ArrayView<float> get_positions_z(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.position.z, mol.atom.count); }
+inline ArrayView<const float> get_positions_z(const MoleculeStructure& mol) { return ArrayView<const float>(mol.atom.position.z, mol.atom.count); }
 
-inline Array<float> get_velocities_x(MoleculeStructure& mol) { return Array<float>(mol.atom.velocity.x, mol.atom.count); }
-inline Array<const float> get_velocities_x(const MoleculeStructure& mol) { return Array<const float>(mol.atom.velocity.x, mol.atom.count); }
-inline Array<float> get_velocities_y(MoleculeStructure& mol) { return Array<float>(mol.atom.velocity.y, mol.atom.count); }
-inline Array<const float> get_velocities_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.velocity.y, mol.atom.count); }
-inline Array<float> get_velocities_z(MoleculeStructure& mol) { return Array<float>(mol.atom.velocity.z, mol.atom.count); }
-inline Array<const float> get_velocities_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.velocity.z, mol.atom.count); }
+inline ArrayView<float> get_velocities_x(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.velocity.x, mol.atom.count); }
+inline ArrayView<const float> get_velocities_x(const MoleculeStructure& mol) { return ArrayView<const float>(mol.atom.velocity.x, mol.atom.count); }
+inline ArrayView<float> get_velocities_y(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.velocity.y, mol.atom.count); }
+inline ArrayView<const float> get_velocities_y(const MoleculeStructure& mol) { return ArrayView<const float>(mol.atom.velocity.y, mol.atom.count); }
+inline ArrayView<float> get_velocities_z(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.velocity.z, mol.atom.count); }
+inline ArrayView<const float> get_velocities_z(const MoleculeStructure& mol) { return ArrayView<const float>(mol.atom.velocity.z, mol.atom.count); }
 
-inline Array<float> get_radii(MoleculeStructure& mol) { return Array<float>(mol.atom.radius, mol.atom.count); }
+inline ArrayView<float> get_radii(MoleculeStructure& mol) { return ArrayView<float>(mol.atom.radius, mol.atom.count); }
 
-inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.element, mol.atom.count); }
-inline Array<const Element> get_elements(const MoleculeStructure& mol) { return Array<const Element>(mol.atom.element, mol.atom.count); }
-inline Array<Label> get_labels(MoleculeStructure& mol) { return Array<Label>(mol.atom.label, mol.atom.count); }
-inline Array<const Label> get_labels(const MoleculeStructure& mol) { return Array<const Label>(mol.atom.label, mol.atom.count); }
-inline Array<ResIdx> get_residue_indices(MoleculeStructure& mol) { return Array<ResIdx>(mol.atom.res_idx, mol.atom.count); }
-inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return Array<const ResIdx>(mol.atom.res_idx, mol.atom.count); }
+inline ArrayView<Element> get_elements(MoleculeStructure& mol) { return ArrayView<Element>(mol.atom.element, mol.atom.count); }
+inline ArrayView<const Element> get_elements(const MoleculeStructure& mol) { return ArrayView<const Element>(mol.atom.element, mol.atom.count); }
+inline ArrayView<Label> get_labels(MoleculeStructure& mol) { return ArrayView<Label>(mol.atom.label, mol.atom.count); }
+inline ArrayView<const Label> get_labels(const MoleculeStructure& mol) { return ArrayView<const Label>(mol.atom.label, mol.atom.count); }
+inline ArrayView<ResIdx> get_residue_indices(MoleculeStructure& mol) { return ArrayView<ResIdx>(mol.atom.res_idx, mol.atom.count); }
+inline ArrayView<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return ArrayView<const ResIdx>(mol.atom.res_idx, mol.atom.count); }
 
 // Backbone accessors
-inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, BackboneSequence seq) {
+inline ArrayView<BackboneSegment> get_backbone(MoleculeStructure& mol, BackboneSequence seq) {
     ASSERT(0 <= seq.beg && seq.end <= mol.backbone.segments.count);
     return mol.backbone.segments.subarray(seq);
 }
 
-inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, BackboneSequence seq) {
+inline ArrayView<const BackboneSegment> get_backbone(const MoleculeStructure& mol, BackboneSequence seq) {
     ASSERT(0 <= seq.beg && seq.end <= mol.backbone.segments.count);
     return mol.backbone.segments.subarray(seq);
 }
@@ -203,26 +203,26 @@ inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, c
 }
 */
 
-inline Array<Residue> get_residues(MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
-inline Array<const Residue> get_residues(const MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
+inline ArrayView<Residue> get_residues(MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
+inline ArrayView<const Residue> get_residues(const MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
 
-inline Array<Element> get_elements(MoleculeStructure& mol, Chain& chain) { return get_elements(mol).subarray(chain.atom_range); }
+inline ArrayView<Element> get_elements(MoleculeStructure& mol, Chain& chain) { return get_elements(mol).subarray(chain.atom_range); }
 
-inline Array<const Element> get_elements(const MoleculeStructure& mol, const Chain& chain) { return get_elements(mol).subarray(chain.atom_range); }
+inline ArrayView<const Element> get_elements(const MoleculeStructure& mol, const Chain& chain) { return get_elements(mol).subarray(chain.atom_range); }
 
-inline Array<Label> get_labels(MoleculeStructure& mol, Chain& chain) { return get_labels(mol).subarray(chain.atom_range); }
+inline ArrayView<Label> get_labels(MoleculeStructure& mol, Chain& chain) { return get_labels(mol).subarray(chain.atom_range); }
 
-inline Array<const Label> get_labels(const MoleculeStructure& mol, const Chain& chain) { return get_labels(mol).subarray(chain.atom_range); }
+inline ArrayView<const Label> get_labels(const MoleculeStructure& mol, const Chain& chain) { return get_labels(mol).subarray(chain.atom_range); }
 
 // Res func
-inline Array<Element> get_elements(MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_range); }
-inline Array<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_range); }
-inline Array<Label> get_labels(MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_range); }
-inline Array<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_range); }
-inline Array<Bond> get_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
-inline Array<const Bond> get_bonds(const MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
-inline Array<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
-inline Array<const Bond> get_internal_bonds(const MoleculeStructure& mol, const Residue& res) {
+inline ArrayView<Element> get_elements(MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_range); }
+inline ArrayView<const Element> get_elements(const MoleculeStructure& mol, const Residue& res) { return get_elements(mol).subarray(res.atom_range); }
+inline ArrayView<Label> get_labels(MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_range); }
+inline ArrayView<const Label> get_labels(const MoleculeStructure& mol, const Residue& res) { return get_labels(mol).subarray(res.atom_range); }
+inline ArrayView<Bond> get_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
+inline ArrayView<const Bond> get_bonds(const MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
+inline ArrayView<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res) { return mol.covalent_bonds.subarray(res.bond_idx.beg, res.bond_idx.end - res.bond_idx.beg); }
+inline ArrayView<const Bond> get_internal_bonds(const MoleculeStructure& mol, const Residue& res) {
     return mol.covalent_bonds.subarray(res.bond_idx.beg_internal, res.bond_idx.end_internal - res.bond_idx.beg_internal);
 }
 

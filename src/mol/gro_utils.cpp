@@ -11,8 +11,8 @@ struct LineFormat {
     int pos_width = -1;
 };
 
-bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
-    String txt = allocate_and_read_textfile(filename);
+bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
+    StringView txt = allocate_and_read_textfile(filename);
     defer { FREE(txt.cstr()); };
     if (!txt) {
         LOG_ERROR("Could not read file: '%.*s'.", filename.length(), filename);
@@ -21,7 +21,7 @@ bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
     return load_molecule_from_string(mol, txt);
 }
 
-inline LineFormat get_format(CString line) {
+inline LineFormat get_format(CStringView line) {
     LineFormat fmt{};
 
     // First float starts at offset 20, count
@@ -30,33 +30,33 @@ inline LineFormat get_format(CString line) {
         while (c != line.end() && *c != '\n' && *c == ' ') c++;
         while (c != line.end() && *c != '\n' && *c != ' ') c++;
         if (c != line.end()) {
-            fmt.pos_width = c - (&line[20]);
+            fmt.pos_width = (int)(c - (&line[20]));
         }
     }
     return fmt;
 }
 
-inline void extract_residue_data(char* name, int* id, CString line) {
+inline void extract_residue_data(char* name, int* id, CStringView line) {
     const auto trim_name = trim(line.substr(5, 5));
     memcpy(name, trim_name.beg(), trim_name.size_in_bytes());
     *id = to_int(line.substr(0, 5));
 }
 
-inline void extract_atom_data(char* name, int* id, CString line) {
+inline void extract_atom_data(char* name, int* id, CStringView line) {
     const auto trim_name = trim(line.substr(10, 5));
     memcpy(name, trim_name.beg(), trim_name.size_in_bytes());
     *id = to_int(line.substr(15, 5));
 }
 
-inline void extract_position_data(float* x, float* y, float* z, CString line, int width) {
-    *x = fast_str_to_float(line.substr(20 + 0 * width, width));
-    *y = fast_str_to_float(line.substr(20 + 1 * width, width));
-    *z = fast_str_to_float(line.substr(20 + 2 * width, width));
+inline void extract_position_data(float* x, float* y, float* z, CStringView line, int width) {
+    *x = str_to_float(line.substr(20 + 0 * width, width));
+    *y = str_to_float(line.substr(20 + 1 * width, width));
+    *z = str_to_float(line.substr(20 + 2 * width, width));
 }
 
-bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
-    CString header = extract_line(gro_string);
-    CString length = extract_line(gro_string);
+bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
+    CStringView header = extract_line(gro_string);
+    CStringView length = extract_line(gro_string);
     (void)header;
 
     int num_atoms = to_int(length);
@@ -90,7 +90,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
     }
     int res_count = 0;
     int cur_res = -1;
-    CString line;
+    CStringView line;
 
     for (int i = 0; i < num_atoms; ++i) {
         float pos[3] = {0, 0, 0};
@@ -109,7 +109,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
         if (cur_res != res_id) {
             cur_res = res_id;
             res_count = (int)residues.size();
-            CString res_name_trim = trim(CString(res_name));
+            CStringView res_name_trim = trim(CStringView(res_name));
             Residue res{};
             res.name = res_name_trim;
             res.id = res_id;
@@ -119,8 +119,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString gro_string) {
         }
         residues.back().atom_range.end++;
 
-        CString atom_name_trim = trim(CString(atom_name));
-        CString element_str = atom_name_trim;
+        CStringView atom_name_trim = trim(CStringView(atom_name));
+        CStringView element_str = atom_name_trim;
 
         if (is_amino_acid(residues.back())) {
             // If we have an amino acid, we can assume its an organic element with just one letter. C/N/H/O?

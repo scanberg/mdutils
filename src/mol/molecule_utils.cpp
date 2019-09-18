@@ -1293,7 +1293,7 @@ void apply_pbc_chains(Array<vec3> positions, Array<const Chain> chains, Array<co
 }
 */
 
-void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, Array<const Sequence> sequences, const mat3& sim_box) {
+void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, ArrayView<const Sequence> sequences, const mat3& sim_box) {
     const vec3 ext = sim_box * vec3(1.0f);
     const vec3 one_over_ext = 1.0f / ext;
 
@@ -1330,7 +1330,7 @@ bool valid_segment(const BackboneSegment& segment) { return segment.ca_idx != -1
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
 // The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
+DynamicArray<Bond> compute_covalent_bonds(ArrayView<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
     UNUSED(count);
 
     if (residues.count == 0) {
@@ -1424,7 +1424,7 @@ DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y
 
 // @NOTE this method is sub-optimal and can surely be improved...
 // Residues should have no more than 2 potential connections to other residues.
-DynamicArray<Sequence> compute_sequences(Array<const Residue> residues) {
+DynamicArray<Sequence> compute_sequences(ArrayView<const Residue> residues) {
 
     /*
 DynamicArray<Bond> residue_bonds;
@@ -1496,7 +1496,7 @@ return sequences;
     */
 }
 
-DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
+DynamicArray<BackboneSequence> compute_backbone_sequences(ArrayView<const BackboneSegment> segments, ArrayView<const Residue> residues) {
     if (segments.count == 0) return {};
     ASSERT(segments.count == residues.count);
 
@@ -1522,7 +1522,7 @@ bool match(const Label& lbl, const char (&cstr)[N]) {
     return true;
 }
 
-DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels) {
+DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue> residues, ArrayView<const Label> atom_labels) {
     DynamicArray<BackboneSegment> segments;
     int64 invalid_segments = 0;
     constexpr int32 min_atom_count = 4;  // Must contain at least 8 atoms to be considered as an amino acid.
@@ -1671,14 +1671,14 @@ DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<con
 }
 */
 
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone, const float* pos_x, const float* pos_y, const float* pos_z) {
+DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> backbone, const float* pos_x, const float* pos_y, const float* pos_z) {
     if (backbone.count == 0) return {};
     DynamicArray<BackboneAngle> angles(backbone.count);
     compute_backbone_angles(angles, backbone, pos_x, pos_y, pos_z);
     return angles;
 }
 
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z) {
+void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z) {
     ASSERT(dst.count >= backbone_segments.count);
     float phi = 0, psi = 0;
 
@@ -1724,14 +1724,14 @@ void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegme
     dst[N] = {phi, psi};
 }
 
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
+DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
     if (segments.size() == 0) return {};
     DynamicArray<BackboneAngle> angles(segments.count);
     compute_backbone_angles(angles, segments, sequences, pos_x, pos_y, pos_z);
     return angles;
 }
 
-void compute_backbone_angles(Array<BackboneAngle> dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
+void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
     for (const auto& seq : sequences) {
         compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), segments.subarray(seq.beg, seq.end - seq.beg), pos_x, pos_y, pos_z);
     }
@@ -1778,7 +1778,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
         auto pos_y = get_trajectory_position_y(dynamic.trajectory, f_idx);
         auto pos_z = get_trajectory_position_z(dynamic.trajectory, f_idx);
 
-        Array<vec2> frame_angles = get_backbone_angles(*data, f_idx);
+        ArrayView<vec2> frame_angles = get_backbone_angles(*data, f_idx);
         for (const auto& bb_seq : dynamic.molecule.backbone.sequences) {
             auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
             auto bb_angles = frame_angles.subarray(bb_seq);
@@ -1793,7 +1793,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
     data->num_frames = traj_num_frames;  // update current count
 }
 
-DynamicArray<float> compute_atom_radii(Array<const Element> elements) {
+DynamicArray<float> compute_atom_radii(ArrayView<const Element> elements) {
     DynamicArray<float> radii(elements.size(), 0);
     compute_atom_radii(radii.data(), elements.data(), radii.size());
     return radii;
@@ -1805,7 +1805,7 @@ void compute_atom_radii(float* out_radius, const Element* element, int64 count) 
     }
 }
 
-DynamicArray<float> compute_atom_masses(Array<const Element> elements) {
+DynamicArray<float> compute_atom_masses(ArrayView<const Element> elements) {
     DynamicArray<float> mass(elements.size(), 0);
     compute_atom_radii(mass.data(), elements.data(), mass.size());
     return mass;
@@ -1819,7 +1819,7 @@ void compute_atom_masses(float* out_mass, const Element* element, int64 count) {
 
 bool is_amino_acid(const Residue& res) { return aminoacid::get_from_string(res.name) != AminoAcid::Unknown; }
 
-static constexpr CString dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
+static constexpr CStringView dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
 bool is_dna(const Residue& res) {
     for (auto dna_res : dna_residues) {
         if (compare(res.name, dna_res)) return true;

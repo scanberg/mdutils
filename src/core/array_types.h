@@ -12,45 +12,45 @@
 */
 
 template <typename T>
-struct Array {
+struct ArrayView {
     using ElementType = T;
 
-    constexpr Array() : ptr(nullptr), count(0) {}
-    constexpr Array(T* _data, int64 _count) : ptr(_data), count(_count) {}
-    constexpr Array(T* _data_beg, T* _data_end) : ptr(_data_beg), count(_data_end - _data_beg) {}
+    constexpr ArrayView() noexcept : ptr(nullptr), count(0) {}
+    constexpr ArrayView(T* _data, int64 _count) noexcept : ptr(_data), count(_count) {}
+    constexpr ArrayView(T* _data_beg, T* _data_end) noexcept : ptr(_data_beg), count(_data_end - _data_beg) {}
 
     template <size_t N>
-    constexpr Array(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
+    constexpr ArrayView(T (&c_arr)[N]) : ptr(c_arr), count(N) {}
 
-    constexpr Array<T> subarray(Range<int32> range) noexcept {
+    constexpr ArrayView<T> subarray(Range<int32> range) noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    constexpr Array<const T> subarray(Range<int32> range) const noexcept {
+    constexpr ArrayView<const T> subarray(Range<int32> range) const noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    constexpr Array<T> subarray(Range<int64> range) noexcept {
+    constexpr ArrayView<T> subarray(Range<int64> range) noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    constexpr Array<const T> subarray(Range<int64> range) const noexcept {
+    constexpr ArrayView<const T> subarray(Range<int64> range) const noexcept {
         ASSERT(0 <= range.beg);
         ASSERT(range.end <= this->count);
         ASSERT(range.size() >= 0);
         return {ptr + range.beg, range.end - range.beg};
     }
 
-    constexpr Array<T> subarray(int64 _offset, int64 _count = -1) noexcept {
+    constexpr ArrayView<T> subarray(int64 _offset, int64 _count = -1) noexcept {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
@@ -60,7 +60,7 @@ struct Array {
         return {ptr + _offset, _count};
     }
 
-    constexpr Array<const T> subarray(int64 _offset, int64 _count = -1) const noexcept {
+    constexpr ArrayView<const T> subarray(int64 _offset, int64 _count = -1) const noexcept {
         ASSERT(0 <= _offset);
         ASSERT(_count >= -1);
         if (_count == -1) {
@@ -99,6 +99,7 @@ struct Array {
 
     constexpr int64 size() const noexcept { return count; }
     constexpr int64 size_in_bytes() const noexcept { return count * sizeof(T); }
+    constexpr bool empty() const noexcept { return count == 0; }
 
     constexpr operator bool() const noexcept { return ptr != nullptr && count > 0; }
     constexpr const T& operator[](int64 i) const noexcept {
@@ -110,7 +111,7 @@ struct Array {
         return ptr[i];
     }
 
-    constexpr operator Array<const T>() const noexcept { return {ptr, count}; }
+    constexpr operator ArrayView<const T>() const noexcept { return {ptr, count}; }
 
     T* ptr;
     int64 count;
@@ -154,7 +155,7 @@ struct StaticArray : Array<T> {
 // Light-weight std::vector alternative
 // @WARNING: THIS IS NOT A STRAIGHT FORWARD REPLACEMENT TO STD::VECTOR AS CONSTRUCTORS AND DESTRUCTORS ARE NEVER CALLED.
 template <typename T>
-struct DynamicArray : Array<T> {
+struct DynamicArray : ArrayView<T> {
     static_assert(std::is_trivially_destructible<T>::value, "DynamicArray only supports trivially destructable 'POD' data types");
 
     DynamicArray() noexcept { init(0); }
@@ -170,7 +171,7 @@ struct DynamicArray : Array<T> {
 
     DynamicArray(const T* first, const T* last) noexcept { init(last - first, first); }
     DynamicArray(std::initializer_list<T> init_list) noexcept { init(init_list.size(), init_list.begin()); }
-    DynamicArray(const Array<const T>& clone_source) noexcept { init(clone_source.size(), clone_source.data()); }
+    DynamicArray(const ArrayView<const T>& clone_source) noexcept { init(clone_source.size(), clone_source.data()); }
     DynamicArray(const DynamicArray& other) noexcept { init(other.size(), other.data()); }
 
     DynamicArray(DynamicArray&& other) noexcept {
@@ -191,9 +192,9 @@ struct DynamicArray : Array<T> {
         m_capacity = 0;
     }
 
-    DynamicArray& operator=(const Array<const T>& other) noexcept {
+    DynamicArray& operator=(const ArrayView<const T>& other) noexcept {
         // Is this ok? It probably is since we're only comparing memory adresses...
-        if (&other != (const Array<const T>*)this) {
+        if (&other != (const ArrayView<const T>*)this) {
             if (other.count > m_capacity) {
                 reserve(other.count);
             }
@@ -242,7 +243,7 @@ struct DynamicArray : Array<T> {
 
     int64 capacity() const noexcept { return m_capacity; }
 
-    void append(Array<const T> arr) noexcept {
+    void append(ArrayView<const T> arr) noexcept {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
@@ -250,7 +251,7 @@ struct DynamicArray : Array<T> {
         this->count += arr.count;
     }
 
-    void append(Array<T> arr) noexcept {
+    void append(ArrayView<T> arr) noexcept {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
@@ -351,13 +352,13 @@ private:
 };
 
 template <typename T>
-Array<T> allocate_array(int64 num_elements) noexcept {
+ArrayView<T> allocate_array(int64 num_elements) noexcept {
     if (num_elements == 0) return {};
     return {(T*)MALLOC(num_elements * sizeof(T)), num_elements};
 }
 
 template <typename T>
-void free_array(Array<T>* arr) noexcept {
+void free_array(ArrayView<T>* arr) noexcept {
     ASSERT(arr);
     if (arr->data()) {
         FREE(arr->data());
@@ -366,12 +367,12 @@ void free_array(Array<T>* arr) noexcept {
 }
 
 template <typename T>
-void zero_array(Array<T> arr) noexcept {
+void zero_array(ArrayView<T> arr) noexcept {
     memset(arr.data(), 0, arr.size_in_bytes());
 }
 
 template <typename T>
-void memset_array(Array<T> arr, const T& val) noexcept {
+void memset_array(ArrayView<T> arr, const T& val) noexcept {
     ASSERT(arr);
     for (int64 i = 0; i < arr.count; i++) {
         *(arr.data() + i) = val;
@@ -379,7 +380,7 @@ void memset_array(Array<T> arr, const T& val) noexcept {
 }
 
 template <typename T>
-void memset_array(Array<T> arr, const T& val, int64 offset, int64 length) noexcept {
+void memset_array(ArrayView<T> arr, const T& val, int64 offset, int64 length) noexcept {
     ASSERT(arr);
     ASSERT(0 <= offset && offset < arr.count);
     ASSERT(0 < length && offset + length <= arr.count);
@@ -389,7 +390,7 @@ void memset_array(Array<T> arr, const T& val, int64 offset, int64 length) noexce
 }
 
 template <typename T>
-void memset_array(Array<T> arr, const T& val, Range<int32> range) noexcept {
+void memset_array(ArrayView<T> arr, const T& val, Range<int32> range) noexcept {
     ASSERT(arr);
     ASSERT(0 <= range.beg && range.end <= arr.count);
     for (int32 i = range.beg; i < range.end; i++) {
@@ -398,7 +399,7 @@ void memset_array(Array<T> arr, const T& val, Range<int32> range) noexcept {
 }
 
 template <typename T>
-void memset_array(Array<T> arr, const T& val, Range<int64> range) noexcept {
+void memset_array(ArrayView<T> arr, const T& val, Range<int64> range) noexcept {
     ASSERT(arr);
     ASSERT(0 <= range.beg && range.end <= arr.count);
     for (int64 i = range.beg; i < range.end; i++) {
@@ -408,14 +409,14 @@ void memset_array(Array<T> arr, const T& val, Range<int64> range) noexcept {
 
 // https://stackoverflow.com/questions/1493936/faster-approach-to-checking-for-an-all-zero-buffer-in-c
 template <typename T>
-bool is_array_zero(Array<const T> arr) noexcept {
+bool is_array_zero(ArrayView<const T> arr) noexcept {
     const uint8* buf = (uint8*)arr.data();
     const auto size = arr.size_in_bytes();
     return buf[0] == 0 && !memcmp(buf, buf + 1, size - 1);
 }
 
 template <typename T>
-bool is_array_zero(Array<T> arr) noexcept {
+bool is_array_zero(ArrayView<T> arr) noexcept {
     const uint8* buf = (uint8*)arr.data();
     const auto size = arr.size_in_bytes();
     return buf[0] == 0 && !memcmp(buf, buf + 1, size - 1);

@@ -12,11 +12,11 @@
 
 namespace pdb {
 
-inline CString extract_next_model(CString& pdb_string) {
-    CString beg_mdl = find_string(pdb_string, "MODEL ");
+inline CStringView extract_next_model(CStringView& pdb_string) {
+    CStringView beg_mdl = find_string(pdb_string, "MODEL ");
     if (beg_mdl) {
-        CString tmp_mdl = {beg_mdl.end(), pdb_string.end() - beg_mdl.end()};
-        CString end_mdl = find_string(tmp_mdl, "ENDMDL");  // @NOTE: The more characters as a search pattern, the merrier
+        CStringView tmp_mdl = {beg_mdl.end(), pdb_string.end() - beg_mdl.end()};
+        CStringView end_mdl = find_string(tmp_mdl, "ENDMDL");  // @NOTE: The more characters as a search pattern, the merrier
         if (end_mdl) {
             // @NOTE: Only modify pdb_string if we found a complete model block.
             pdb_string = {end_mdl.end(), pdb_string.end() - end_mdl.end()};
@@ -27,7 +27,7 @@ inline CString extract_next_model(CString& pdb_string) {
     return {};
 }
 
-inline void extract_position(float* x, float* y, float* z, CString line) {
+inline void extract_position(float* x, float* y, float* z, CStringView line) {
     // SLOW
     // sscanf(line.substr(30).ptr, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
 
@@ -37,12 +37,12 @@ inline void extract_position(float* x, float* y, float* z, CString line) {
     // pos.z = to_float(line.substr(46, 8));
 
     // FASTEST? 🏎️💨
-    *x = fast_str_to_float(line.substr(30, 8));
-    *y = fast_str_to_float(line.substr(38, 8));
-    *z = fast_str_to_float(line.substr(46, 8));
+    *x = str_to_float(line.substr(30, 8));
+    *y = str_to_float(line.substr(38, 8));
+    *z = str_to_float(line.substr(46, 8));
 }
 
-inline void extract_simulation_box(mat3* box, CString line) {
+inline void extract_simulation_box(mat3* box, CStringView line) {
     vec3 dim(to_float(line.substr(6, 9)), to_float(line.substr(15, 9)), to_float(line.substr(24, 9)));
     vec3 angles(to_float(line.substr(33, 7)), to_float(line.substr(40, 7)), to_float(line.substr(47, 7)));
     // @NOTE: If we are given a zero dim, just use unit length
@@ -52,7 +52,7 @@ inline void extract_simulation_box(mat3* box, CString line) {
     (*box)[2].z = dim.z;
 }
 
-inline void extract_element(Element* element, CString line) {
+inline void extract_element(Element* element, CStringView line) {
     Element elem = Element::Unknown;
     if (line.size() >= 78) {
         // @NOTE: Try optional atom element field
@@ -61,8 +61,8 @@ inline void extract_element(Element* element, CString line) {
 
     if (elem == Element::Unknown) {
         // @NOTE: Try to deduce from atom id
-        const CString atom_id = line.substr(12, 4);
-        const CString res_name = line.substr(17, 3);
+        const CStringView atom_id = line.substr(12, 4);
+        const CStringView res_name = line.substr(17, 3);
         if (compare_n(atom_id, "CA", 2) && aminoacid::get_from_string(res_name) == AminoAcid::Unknown) {
             // @NOTE: Ambigous case where CA is probably calcium if not part of an amino acid
             elem = Element::Ca;
@@ -73,13 +73,13 @@ inline void extract_element(Element* element, CString line) {
     *element = elem;
 }
 
-inline void extract_trajectory_frame_data(TrajectoryFrame* frame, CString mdl_str) {
+inline void extract_trajectory_frame_data(TrajectoryFrame* frame, CStringView mdl_str) {
     ASSERT(frame);
     float* x = frame->atom_position.x;
     float* y = frame->atom_position.y;
     float* z = frame->atom_position.z;
     int32 atom_idx = 0;
-    CString line;
+    CStringView line;
     while (mdl_str && (line = extract_line(mdl_str))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             extract_position(x + atom_idx, y + atom_idx, z + atom_idx, line);
@@ -90,7 +90,7 @@ inline void extract_trajectory_frame_data(TrajectoryFrame* frame, CString mdl_st
     }
 }
 
-bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
+bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
     StringBuffer<256> zstr = filename;  // Zero terminated
     FILE* file = fopen(zstr.cstr(), "rb");
     if (!file) {
@@ -104,12 +104,12 @@ bool load_molecule_from_file(MoleculeStructure* mol, CString filename) {
     defer { TMP_FREE(mem); };
 
     auto bytes_read = fread(mem, 1, mem_size, file);
-    CString pdb_str = {(const char*)mem, (int64)bytes_read};
+    CStringView pdb_str = {(const char*)mem, (int64)bytes_read};
 
     return load_molecule_from_string(mol, pdb_str);
 }
 
-bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
+bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     ASSERT(mol);
     free_molecule_structure(mol);
 
@@ -143,7 +143,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     char current_chain_id = -1;
     int num_atoms = 0;
     mat3 box(1);
-    CString line;
+    CStringView line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             vec3 pos;
@@ -260,8 +260,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CString pdb_string) {
     return true;
 }
 
-bool load_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
-    String pdb_string = allocate_and_read_textfile(filename);
+bool load_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
+    StringView pdb_string = allocate_and_read_textfile(filename);
     defer { free_string(&pdb_string); };
     if (!pdb_string) {
         LOG_ERROR("Could not load pdb file");
@@ -270,11 +270,11 @@ bool load_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
     return load_trajectory_from_string(traj, pdb_string);
 }
 
-bool load_trajectory_from_string(MoleculeTrajectory* traj, CString pdb_string) {
+bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView pdb_string) {
     ASSERT(traj);
     free_trajectory(traj);
 
-    CString mdl_str = extract_next_model(pdb_string);
+    CStringView mdl_str = extract_next_model(pdb_string);
     if (!mdl_str) {
         LOG_NOTE("Supplied string does not contain MODEL entry and is therefore not a trajectory");
         return false;
@@ -290,8 +290,8 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CString pdb_string) {
 
     // @NOTE: Search space for CRYST1 containing global simulation box parameters
     mat3 sim_box(0);
-    CString box_str = {pdb_string.beg(), mdl_str.beg() - pdb_string.beg()};
-    CString line;
+    CStringView box_str = {pdb_string.beg(), mdl_str.beg() - pdb_string.beg()};
+    CStringView line;
     while ((line = extract_line(box_str))) {
         if (compare_n(line, "CRYST1", 6)) {
             extract_simulation_box(&sim_box, line);
@@ -299,7 +299,7 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CString pdb_string) {
         }
     }
 
-    DynamicArray<CString> model_entries;
+    DynamicArray<CStringView> model_entries;
     model_entries.reserve(1024);
 
     do {
@@ -319,7 +319,7 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CString pdb_string) {
     return true;
 }
 
-bool init_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
+bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
     ASSERT(traj);
     free_trajectory(traj);
 
@@ -338,8 +338,8 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
 
     auto bytes_read = fread(page[0], 1, 2 * page_size, file);
     int64 global_offset = 0;
-    CString pdb_str = {page[0], (int64)bytes_read};
-    CString mdl_str = extract_next_model(pdb_str);
+    CStringView pdb_str = {page[0], (int64)bytes_read};
+    CStringView mdl_str = extract_next_model(pdb_str);
 
     if (!mdl_str) {
         LOG_NOTE("File does not contain MODEL entry and is therefore not a trajectory");
@@ -358,8 +358,8 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CString filename) {
 
     // @NOTE: Search space for CRYST1 containing global simulation box parameters
     mat3 sim_box(0);
-    CString box_str = {page[0], mdl_str.beg() - page[0]};
-    CString line;
+    CStringView box_str = {page[0], mdl_str.beg() - page[0]};
+    CStringView line;
     while ((line = extract_line(box_str))) {
         if (compare_n(line, "CRYST1", 6)) {
             extract_simulation_box(&sim_box, line);
@@ -442,7 +442,7 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
     FSEEK((FILE*)traj->file.handle, traj->frame_offsets[i], SEEK_SET);
     const auto bytes_read = fread(mem, 1, num_bytes, (FILE*)traj->file.handle);
 
-    CString mdl_str = {(const char*)mem, (int64)bytes_read};
+    CStringView mdl_str = {(const char*)mem, (int64)bytes_read};
     TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
     extract_trajectory_frame_data(frame, mdl_str);
 
@@ -465,7 +465,7 @@ bool close_file_handle(MoleculeTrajectory* traj) {
     return false;
 }
 
-bool extract_molecule_info(MoleculeInfo* info, CString pdb_string) {
+bool extract_molecule_info(MoleculeInfo* info, CStringView pdb_string) {
     ASSERT(info);
 
     int32 num_atoms = 0;
@@ -475,7 +475,7 @@ bool extract_molecule_info(MoleculeInfo* info, CString pdb_string) {
     uint32 curr_res_pattern = 0;
     char curr_chain_pattern = 0;
 
-    CString line;
+    CStringView line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
             const uint32 res_pattern = *(uint32*)(&line[22]);

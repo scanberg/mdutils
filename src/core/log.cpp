@@ -24,7 +24,7 @@ void record(Severity severity, const char* format, ...) {
     va_start(ap, format);
     int count = vsnprintf(buf, BUF_SIZE, format, ap);
     va_end(ap);
-    CString str(buf, count);
+    CStringView str(buf, count);
 
     for (const auto& e : entries) {
         e.func(str, severity, e.usr_data);

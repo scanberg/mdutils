@@ -5,7 +5,7 @@
 #include <core/array_types.h>
 
 struct Bitfield {
-    typedef uint32 ElementType;
+    typedef uint64 ElementType;
 
     ElementType* ptr = nullptr;
     int64 count = 0;
@@ -14,12 +14,16 @@ struct Bitfield {
     constexpr int64 size_in_bytes() const { return (count + 8 - 1) / 8; }  // @NOTE: round up integer div.
 
     constexpr ElementType* data() { return ptr; }
+    constexpr ElementType* begin() { return ptr; }
     constexpr ElementType* beg() { return ptr; }
     constexpr ElementType* end() { return ptr + count; }
 
     constexpr const ElementType* data() const { return ptr; }
+    constexpr const ElementType* begin() const { return ptr; }
     constexpr const ElementType* beg() const { return ptr; }
     constexpr const ElementType* end() const { return ptr + count; }
+
+    constexpr bool empty() const { return count > 0; }
 
     operator bool() const { return ptr != nullptr; }
 };
@@ -27,23 +31,24 @@ struct Bitfield {
 namespace bitfield {
 
 namespace detail {
-constexpr auto block_bits = sizeof(Bitfield::ElementType) * 8;
+constexpr auto bits_per_block = sizeof(Bitfield::ElementType) * 8;
 
-inline Bitfield::ElementType block_idx(int64 idx) { return (Bitfield::ElementType)(idx / block_bits); }
+constexpr Bitfield::ElementType block_idx(int64 idx) { return (Bitfield::ElementType)(idx / bits_per_block); }
+constexpr Bitfield::ElementType bit_pattern(int64 idx) { return (Bitfield::ElementType)1 << (idx % bits_per_block); }
 
-inline Bitfield::ElementType bit_pattern(int64 idx) { return (Bitfield::ElementType)1 << (idx % block_bits); }
-
-inline int64 number_of_set_bits(uint32 i) {
-    i = i - ((i >> 1) & 0x55555555);
-    i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
-    return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+// from https://yesteapea.wordpress.com/2013/03/03/counting-the-number-of-set-bits-in-an-integer/
+constexpr int64 number_of_set_bits(uint64 i) {
+    i = i - ((i >> 1) & 0x5555555555555555);
+    i = (i & 0x3333333333333333) + ((i >> 2) & 0x3333333333333333);
+    i = ((i + (i >> 4)) & 0x0F0F0F0F0F0F0F0F);
+    return (i * (0x0101010101010101)) >> 56;
 }
 
-inline int64 num_blocks(Bitfield field) {
+constexpr int64 num_blocks(Bitfield field) {
     return (field.size_in_bytes() + sizeof(Bitfield::ElementType) - 1) / sizeof(Bitfield::ElementType);  // @NOTE: round up integer div.
 }
 
-inline int64 bit_scan_forward(Bitfield::ElementType mask) {
+constexpr int64 bit_scan_forward(Bitfield::ElementType mask) {
     if (mask == 0) return -1;
     int64 idx = 0;
     while ((mask & 1) == 0) {
@@ -89,14 +94,14 @@ inline void set_all(Bitfield field) { memset(field.ptr, 0xFF, field.size_in_byte
 
 inline void clear_all(Bitfield field) { memset(field.ptr, 0, field.size_in_bytes()); }
 
-inline void invert_all(Bitfield field) {
+constexpr void invert_all(Bitfield field) {
     // @TODO: Vectorize
     for (int64 i = 0; i < detail::num_blocks(field); i++) {
         field.ptr[i] = ~field.ptr[i];
     }
 }
 
-inline int64 number_of_bits_set(const Bitfield field) {
+constexpr int64 number_of_bits_set(const Bitfield field) {
     const uint32* ptr = (uint32*)field.data();
     const int64 stride = sizeof(uint32) * 8;
     const int64 size = field.size() / stride;
@@ -114,7 +119,7 @@ inline int64 number_of_bits_set(const Bitfield field) {
 }
 
 template <typename Int>
-inline void set_range(Bitfield field, Range<Int> range) {
+constexpr void set_range(Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
 
@@ -136,7 +141,7 @@ inline void set_range(Bitfield field, Range<Int> range) {
 }
 
 template <typename Int>
-inline bool any_bit_set_in_range(const Bitfield field, Range<Int> range) {
+constexpr bool any_bit_set_in_range(const Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
 
@@ -171,21 +176,21 @@ inline bool any_bit_set(const Bitfield field) {
         return (field.ptr[beg_blk_idx] & bit_mask) != 0;
     }
 
-    for (int64 i = 0; i < end_blk_idx - 1; i++) {
+    for (uint64 i = 0; i < end_blk_idx - 1; i++) {
         if (field.ptr[i] != 0) return true;
     }
     if ((field.ptr[end_blk_idx] & (detail::bit_pattern(field.count) - 1)) != 0) return true;
     return false;
 }
 
-inline bool all_bits_set(const Bitfield field) {
+constexpr bool all_bits_set(const Bitfield field) {
     const uint8* p = (const uint8*)field.ptr;
     const int64 s = field.size_in_bytes();
     return (p[0] == 0xFF && !memcmp(p, p + 1, s - 1));
 }
 
 template <typename Int>
-inline bool all_bits_set_in_range(const Bitfield field, Range<Int> range) {
+constexpr bool all_bits_set_in_range(const Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
 
@@ -210,11 +215,11 @@ inline bool all_bits_set_in_range(const Bitfield field, Range<Int> range) {
 }
 
 // Finds the next bit set in the field, beggining with a supplied offset which is included in search
-inline int64 find_next_bit_set(const Bitfield field, int64 offset = 0) {
+constexpr int64 find_next_bit_set(const Bitfield field, int64 offset = 0) {
     if (offset >= field.size()) return -1;
 
-    Bitfield::ElementType blk_idx = (offset / detail::block_bits);
-    const auto num_blocks = detail::num_blocks(field);
+    Bitfield::ElementType blk_idx = (offset / detail::bits_per_block);
+    const Bitfield::ElementType num_blocks = detail::num_blocks(field);
 
     // Check first block explicitly with proper mask
     auto mask = field.ptr[blk_idx] & (~(detail::bit_pattern(offset) - 1));
@@ -222,13 +227,13 @@ inline int64 find_next_bit_set(const Bitfield field, int64 offset = 0) {
         return detail::bit_scan_forward(mask);
     }
 
-    offset += detail::block_bits;
+    offset += detail::bits_per_block;
     for (++blk_idx; blk_idx < num_blocks - 1; blk_idx++) {
         mask = field.ptr[blk_idx];
         if (mask != 0) {
             return offset + detail::bit_scan_forward(mask);
         }
-        offset += detail::block_bits;
+        offset += detail::bits_per_block;
     }
 
     mask = field.ptr[blk_idx] & (detail::bit_pattern(field.count) - 1);
@@ -273,11 +278,9 @@ inline void xor_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) 
 
 template <typename T>
 int64 extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bitfield mask) {
-    constexpr uint32 bits_per_block = 32;
-    STATIC_ASSERT(bits_per_block == (sizeof(Bitfield::ElementType) * 8), "Bits per block does not match ElementType");
     int64 out_count = 0;
-    for (int64 i = 0; i < mask.size(); i += bits_per_block) {
-        const auto block = mask.ptr[i / bits_per_block];
+    for (int64 i = 0; i < mask.size(); i += detail::bits_per_block) {
+        const auto block = mask.ptr[i / detail::bits_per_block];
         if (block != 0U) {
             for (; i < mask.size(); i++) {
                 if (bitfield::get_bit(mask, i)) {

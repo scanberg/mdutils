@@ -46,7 +46,7 @@ inline Cell get_cell(const Frame& frame, ivec3 cell_coord) {
     return frame.cells[idx];
 }
 
-inline Array<const Entry> get_cell_entries(const Frame& frame, ivec3 cell_coord) {
+inline ArrayView<const Entry> get_cell_entries(const Frame& frame, ivec3 cell_coord) {
     Cell cell = get_cell(frame, cell_coord);
     return {frame.entries.beg() + cell.offset, cell.count};
 }

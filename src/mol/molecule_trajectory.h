@@ -33,7 +33,7 @@ struct MoleculeTrajectory {
 
     // @NOTE: The frame_buffer may not contain all frames in trajectory.
     // If the trajectory is large, frame_buffer will be used as a cache towards the trajectory streamed from disk.
-    Array<TrajectoryFrame> frame_buffer{};
+    ArrayView<TrajectoryFrame> frame_buffer{};
 
     // This is the position data of the full trajectory
     struct {
@@ -43,7 +43,7 @@ struct MoleculeTrajectory {
     } position_data;
 
     // These are the offsets for each frame inside the file on disk.
-    Array<int64> frame_offsets{};
+    ArrayView<int64> frame_offsets{};
 
     operator bool() const { return num_atoms > 0 && frame_buffer.count > 0; }
 };

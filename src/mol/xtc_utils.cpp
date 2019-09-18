@@ -6,12 +6,12 @@
 #include <xdrfile_xtc.h>
 
 namespace xtc {
-bool init_trajectory_from_file(MoleculeTrajectory* traj, int32 mol_atom_count, CString filename) {
+bool init_trajectory_from_file(MoleculeTrajectory* traj, int32 mol_atom_count, CStringView filename) {
     ASSERT(traj);
     free_trajectory(traj);
 
-    CString directory = get_directory(filename);
-    CString file = get_file_without_extension(filename);
+    CStringView directory = get_directory(filename);
+    CStringView file = get_file_without_extension(filename);
     StringBuffer<512> cache_file = directory;
     cache_file += "/";
     cache_file += file;
