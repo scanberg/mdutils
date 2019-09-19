@@ -188,6 +188,11 @@ struct CStringView : ArrayView<const char> {
         count = helper::cexpr_strnlen(buf.cstr(), buf.MaxSize);
     }
 
+    constexpr CStringView(const char* cstr) noexcept {
+        ptr = cstr;
+        count = helper::cexpr_strlen(cstr);
+    }
+
     constexpr CStringView(const char* cstr, int64 len) noexcept {
         ptr = cstr;
         count = len;

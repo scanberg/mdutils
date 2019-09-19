@@ -96,6 +96,42 @@ constexpr float vdw_radius(Element symbol) { return detail::vdw_radii[(int)symbo
 constexpr float covalent_radius(Element symbol) { return detail::covalent_radii[(int)symbol]; }
 constexpr float atomic_mass(Element symbol) { return detail::atomic_mass[(int)symbol]; }
 
-Element get_from_string(CStringView cstr);
+constexpr Element get_from_string(CStringView cstr) {
+    if (cstr.count == 0) return Element::Unknown;
+
+    // Prune
+    const auto* c = cstr.beg();
+    while (c != cstr.end() && !is_alpha(*c)) c++;
+    if (c == cstr.end()) {
+        return Element::Unknown;
+    }
+    cstr.ptr = c;
+    while (c != cstr.end() && is_alpha(*c)) c++;
+    cstr.count = c - cstr.beg();
+
+    // Two or more (Try to match first two)
+    if (cstr.length() > 1) {
+        for (int32 i = 0; i < num_elements; i++) {
+            CStringView elem = symbol((Element)i);
+            if (elem.size() == 2 && cstr[0] == elem[0] && cstr[1] == elem[1]) return (Element)i;
+        }
+    }
+
+    // Try to match against first character
+    for (int32 i = 0; i < num_elements; i++) {
+        CStringView elem = symbol((Element)i);
+        if (elem.size() == 1 && cstr[0] == elem[0]) return (Element)i;
+    }
+
+    // Try to match against two characters again with the latter in lower case
+    if (cstr.length() > 1) {
+        for (int32 i = 0; i < num_elements; i++) {
+            CStringView elem = symbol((Element)i);
+            if (elem.size()== 2 && cstr[0] == elem[0] && to_lower(cstr[1]) == elem[1]) return (Element)i;
+        }
+    }
+
+    return Element::Unknown;
+}
 
 }  // namespace element
