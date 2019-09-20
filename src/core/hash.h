@@ -93,38 +93,38 @@ constexpr uint64_t crc64impl(uint64_t prevCrc, const uint8_t* str, size_t size) 
 
 // --- CRC (constexpr) ---
 
-constexpr uint32 crc32(const void* ptr, size_t size) { return crc::crc32impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
-constexpr uint64 crc64(const void* ptr, size_t size) { return crc::crc64impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
+constexpr uint32_t crc32(const void* ptr, size_t size) { return crc::crc32impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
+constexpr uint64_t crc64(const void* ptr, size_t size) { return crc::crc64impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
 
 // Array template
 template <typename T>
-constexpr uint32 crc32(ArrayView<T> arr) {
+constexpr uint32_t crc32(ArrayView<T> arr) {
     return crc32(arr.data(), arr.size_in_bytes());
 }
 
-inline uint32 crc32(CStringView str) { return crc32(str.ptr, str.count); }
+constexpr uint32_t crc32(CStringView str) { return crc32(str.ptr, str.count); }
 
 template <size_t N>
-constexpr uint32 crc32(const char (&cstr)[N]) {
+constexpr uint32_t crc32(const char (&cstr)[N]) {
 	STATIC_ASSERT(N > 0, "crc32: length of cstr was zero!");
     return crc32(cstr, N);
 }
 
 template <typename T>
-constexpr uint32 crc32(const T& data) {
+constexpr uint32_t crc32(const T& data) {
     static_assert(std::is_pointer<T>::value == false, "Pointers are not supported");
     return crc32(&data, sizeof(T));
 }
 
 template <typename T>
-constexpr uint64 crc64(ArrayView<T> arr) {
+constexpr uint64_t crc64(ArrayView<T> arr) {
     return crc64(arr.data(), arr.size_in_bytes());
 }
 
-inline uint64 crc64(CStringView str) { return crc64(str.ptr, str.count); }
+constexpr uint64_t crc64(CStringView str) { return crc64(str.ptr, str.count); }
 
 template <size_t N>
-constexpr uint64 crc64(const char (&cstr)[N]) {
+constexpr uint64_t crc64(const char (&cstr)[N]) {
     STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
     return crc64(cstr, N - 1);
 }
