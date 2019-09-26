@@ -99,8 +99,8 @@ constexpr inline float str_to_float(CStringView str) {
 
 // Finds a character inside a string
 constexpr const char* find_character(CStringView str, char character) {
-    for (const char* c = str.beg(); c != str.end(); ++c) {
-        if (*c == character) return c;
+    for (const char& c : str) {
+        if (c == character) return &c;
     }
     // @FUTURE: Enable this if not evaluated at compile time
     // return (const char*)memchr(str.ptr, c, str.length());
@@ -109,8 +109,8 @@ constexpr const char* find_character(CStringView str, char character) {
 
 // Finds a character inside a string
 constexpr char* find_character(StringView str, char character) {
-    for (char* c = str.beg(); c != str.end(); ++c) {
-        if (*c == character) return c;
+    for (char& c : str) {
+        if (c == character) return &c;
     }
     // @FUTURE: Enable this if not evaluated at compile time
     // return (const char*)memchr(str.ptr, c, str.length());
