@@ -35,6 +35,7 @@ namespace helper {
         int64 i = 0;
         while (i < max_length && src[i] != '\0') {
             dst[i] = src[i];
+            ++i;
         }
         return i;
     }
@@ -166,7 +167,7 @@ struct StringBuffer {
     constexpr operator bool() const noexcept { return buffer[0] != '\0'; }
 
     constexpr int64 capacity() const noexcept { return MaxSize; }
-    constexpr int64 length() const noexcept { return cexpr_strnlen(buffer, MaxSize); }
+    constexpr int64 length() const noexcept { return helper::cexpr_strnlen(buffer, MaxSize); }
 
     constexpr char* cstr() const noexcept { return (char*)buffer; }
 
