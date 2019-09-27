@@ -79,19 +79,19 @@ void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRI
         SIMD_TYPE_F t_y = SIMD_SET_F(translation.y);
         SIMD_TYPE_F t_z = SIMD_SET_F(translation.z);
 
-		for (; i < simd_count; i += SIMD_WIDTH) {
-			SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out_x + i);
-			SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out_y + i);
-			SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out_z + i);
+        for (; i < simd_count; i += SIMD_WIDTH) {
+            SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out_x + i);
+            SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out_y + i);
+            SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out_z + i);
 
-			p_x = simd::add(p_x, t_x);
-			p_y = simd::add(p_y, t_y);
-			p_z = simd::add(p_z, t_z);
+            p_x = simd::add(p_x, t_x);
+            p_y = simd::add(p_y, t_y);
+            p_z = simd::add(p_z, t_z);
 
-			SIMD_STORE(in_out_x + i, p_x);
-			SIMD_STORE(in_out_y + i, p_y);
-			SIMD_STORE(in_out_z + i, p_z);
-		}
+            SIMD_STORE(in_out_x + i, p_x);
+            SIMD_STORE(in_out_y + i, p_y);
+            SIMD_STORE(in_out_z + i, p_z);
+        }
     }
 
     for (; i < count; i++) {
@@ -369,19 +369,23 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
     const vec3 full_ext = box * vec3(1.0f);
     const vec3 half_ext = box * vec3(0.5f);
 
-    vec3 vec_sum{0, 0, 0};
-    float mass_sum = 0.0f;
-    vec3 p = {in_x[0], in_y[0], in_z[0]};
+    float mass_sum = in_m[0];
+    vec3 vec_sum = {in_x[0], in_y[0], in_z[0]};
 
-    for (int64 i = 0; i < count; i++) {
+    for (int64 i = 1; i < count; i++) {
         const float mass = in_m[i];
-        const vec3 next_p = {in_x[i], in_y[i], in_z[i]};
-        p = de_periodize(p, next_p, full_ext, half_ext);
-        vec_sum += p * mass;
+        const vec3 p = {in_x[i], in_y[i], in_z[i]};
+        const vec3 com = vec_sum / mass_sum;
+        const vec3 dp = de_periodize(com, p, full_ext, half_ext);
+        vec_sum += dp * mass;
         mass_sum += mass;
     }
     return vec_sum / mass_sum;
 }
+
+/*
+
+*/
 
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT in_element, int64 count) {
     if (count == 0) return {0, 0, 0};
@@ -1297,8 +1301,8 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
     const vec3 ext = sim_box * vec3(1.0f);
     const vec3 one_over_ext = 1.0f / ext;
 
-    for (int64 i = 0; i < sequences.size(); i++) {
-        const auto& range = sequences[i].atom_range;
+    for (const auto& seq : sequences) {
+        const auto& range = seq.atom_range;
         float* seq_x = x + range.beg;
         float* seq_y = y + range.beg;
         float* seq_z = z + range.beg;
@@ -1306,8 +1310,7 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
         const vec3 com = compute_com_periodic(seq_x, seq_y, seq_z, seq_mass, range.size(), sim_box);
         const vec3 com_dp = apply_pbc(com, sim_box);
         const vec3 delta = com_dp - com;
-        const float d2 = math::dot(delta, delta);
-        if (d2 > 0.0001f) {
+        if (math::dot(delta, delta) > 0.0001f) {
             translate_ref(seq_x, seq_y, seq_z, range.size(), delta);
         }
     }
@@ -1724,14 +1727,16 @@ void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const Backb
     dst[N] = {phi, psi};
 }
 
-DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
+DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y,
+                                                    const float* pos_z) {
     if (segments.size() == 0) return {};
     DynamicArray<BackboneAngle> angles(segments.count);
     compute_backbone_angles(angles, segments, sequences, pos_x, pos_y, pos_z);
     return angles;
 }
 
-void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z) {
+void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y,
+                             const float* pos_z) {
     for (const auto& seq : sequences) {
         compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), segments.subarray(seq.beg, seq.end - seq.beg), pos_x, pos_y, pos_z);
     }
