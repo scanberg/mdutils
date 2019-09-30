@@ -383,9 +383,18 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
     return vec_sum / mass_sum;
 }
 
-/*
+// @TODO: Finalize implementation
+vec3 compute_com_periodic_vectorized(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m, int64 count, const mat3& box) {
+    if (count == 0) return vec3(0);
+    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
-*/
+    const vec3 full_ext = box * vec3(1.0f);
+    const vec3 half_ext = box * vec3(0.5f);
+
+    
+
+    return {0, 0, 0};
+}
 
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT in_element, int64 count) {
     if (count == 0) return {0, 0, 0};
@@ -1308,7 +1317,7 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
         float* seq_z = z + range.beg;
         const float* seq_mass = mass + range.beg;
         const vec3 com = compute_com_periodic(seq_x, seq_y, seq_z, seq_mass, range.size(), sim_box);
-        const vec3 com_dp = apply_pbc(com, sim_box);
+        const vec3 com_dp = math::fract(com * one_over_ext) * ext;
         const vec3 delta = com_dp - com;
         if (math::dot(delta, delta) > 0.0001f) {
             translate_ref(seq_x, seq_y, seq_z, range.size(), delta);
