@@ -46,14 +46,17 @@
 namespace simd {
 
 typedef __m128 float128;
-typedef __m256 float256;
-typedef __m512 float512;
-
 typedef __m128i int128;
-typedef __m256i int256;
-typedef __m512i int512;
 
+#ifdef __AVX__
+typedef __m256 float256;
+typedef __m256i int256;
+#endif
+#if 0
+typedef __m512 float512;
+typedef __m512i int512;
 typedef __mmask16 mask512;
+#endif
 
 INLINE float128 set_f128(float v) { return _mm_set1_ps(v); }
 INLINE float128 set_f128(float x, float y, float z, float w) { return _mm_set_ps(w, z, y, x); }
