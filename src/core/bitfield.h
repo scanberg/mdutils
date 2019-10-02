@@ -260,11 +260,27 @@ inline void and_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) 
     }
 }
 
+inline void and_not_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) {
+    ASSERT(dst.size() == src_a.size() && dst.size() == src_b.size());
+    // @TODO: Vectorize
+    for (int64 i = 0; i < detail::num_blocks(dst); i++) {
+        dst.ptr[i] = src_a.ptr[i] & ~src_b.ptr[i];
+    }
+}
+
 inline void or_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) {
     ASSERT(dst.size() == src_a.size() && dst.size() == src_b.size());
     // @TODO: Vectorize
     for (int64 i = 0; i < detail::num_blocks(dst); i++) {
         dst.ptr[i] = src_a.ptr[i] | src_b.ptr[i];
+    }
+}
+
+inline void or_not_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) {
+    ASSERT(dst.size() == src_a.size() && dst.size() == src_b.size());
+    // @TODO: Vectorize
+    for (int64 i = 0; i < detail::num_blocks(dst); i++) {
+        dst.ptr[i] = src_a.ptr[i] | ~src_b.ptr[i];
     }
 }
 

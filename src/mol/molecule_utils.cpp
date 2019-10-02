@@ -384,6 +384,7 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
 }
 
 // @TODO: Finalize implementation
+/*
 vec3 compute_com_periodic_vectorized(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m, int64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
@@ -395,6 +396,7 @@ vec3 compute_com_periodic_vectorized(const float* RESTRICT in_x, const float* RE
 
     return {0, 0, 0};
 }
+*/
 
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT in_element, int64 count) {
     if (count == 0) return {0, 0, 0};
