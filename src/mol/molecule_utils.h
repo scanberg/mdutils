@@ -14,6 +14,11 @@ struct BackboneAnglesTrajectory {
     ArrayView<vec2> angle_data{};
 };
 
+struct AABB {
+    vec3 min = {};
+    vec3 max = {};
+};
+
 inline ArrayView<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index) {
     if (backbone_angle_traj.angle_data.count == 0 || backbone_angle_traj.num_segments == 0) return {};
     ASSERT(frame_index < backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments);
@@ -68,12 +73,12 @@ void transform_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RE
 void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
 
 // Transforms points as homogeneous vectors[x,y,z,1] with supplied transformation matrix and applies 'perspective' division
-void projective_transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation);
+void homogeneous_transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation);
 
 // Computes the minimun spanning Axis aligned bounding box which contains all supplied points [x,y,z,(r)adius)]
 // Writes the results to out variables as float[3] = {x,y,z}
-void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
-void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count);
+AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
+AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count);
 
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, int64 count);
 vec3 compute_com(const float* RESTRICT pos_x, const float* RESTRICT pos_y, const float* RESTRICT pos_z, const float* RESTRICT mass, int64 count);
@@ -146,3 +151,6 @@ void compute_atom_masses(float* out_mass, const Element* element, int64 count);
 
 bool is_amino_acid(const Residue& res);
 bool is_dna(const Residue& res);
+
+DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol);
+DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name);

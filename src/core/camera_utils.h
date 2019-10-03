@@ -43,7 +43,7 @@ struct TrackballControllerState {
         float max_distance = 1000.f;
     } params;
 
-    // Distance to the point in focus
+    // Distance to the rotational focus point
     float distance = 14.f;
 };
 

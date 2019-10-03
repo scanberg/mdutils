@@ -180,7 +180,7 @@ void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRI
     }
 }
 
-void projective_transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
+void homogeneous_transform(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
         const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
         pos_x[i] = p.x / p.w;
@@ -189,14 +189,12 @@ void projective_transform_positions(float* RESTRICT pos_x, float* RESTRICT pos_y
     }
 }
 
-void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
+AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
     if (count == 0) {
-        out_min = out_max = vec3(0);
-        return;
+        return {};
     }
 
-    vec3 res_min, res_max;
-    res_min = res_max = {in_x[0], in_y[0], in_z[0]};
+    AABB aabb;
 
     int64 i = 0;
     if (count > SIMD_WIDTH) {  // @NOTE: There is probably some number where this makes most sense
@@ -224,28 +222,25 @@ void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in
             max_z = simd::max(max_z, z);
         }
 
-        res_min = {simd::horizontal_min(min_x), simd::horizontal_min(min_y), simd::horizontal_min(min_z)};
-        res_max = {simd::horizontal_max(max_x), simd::horizontal_max(max_y), simd::horizontal_max(max_z)};
+        aabb.min = {simd::horizontal_min(min_x), simd::horizontal_min(min_y), simd::horizontal_min(min_z)};
+        aabb.max = {simd::horizontal_max(max_x), simd::horizontal_max(max_y), simd::horizontal_max(max_z)};
     }
 
     for (; i < count; i++) {
         const vec3 p = {in_x[i], in_y[i], in_z[i]};
-        res_min = math::min(res_min, p);
-        res_max = math::max(res_max, p);
+        aabb.min = math::min(aabb.min, p);
+        aabb.max = math::max(aabb.max, p);
     }
 
-    out_min = res_min;
-    out_max = res_max;
+    return aabb;
 }
 
-void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count) {
+AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count) {
     if (count == 0) {
-        out_min = out_max = vec3(0);
-        return;
+        return {};
     }
 
-    vec3 res_min, res_max;
-    res_min = res_max = {in_x[0], in_y[0], in_z[0]};
+    AABB aabb;
 
     int64 i = 0;
     if (count > SIMD_WIDTH) {  // @NOTE: There is probably some number where this makes most sense
@@ -279,18 +274,17 @@ void compute_bounding_box(vec3& out_min, vec3& out_max, const float* RESTRICT in
             max_z = simd::max(max_z, simd::add(z, r));
         }
 
-        res_min = {simd::horizontal_min(min_x), simd::horizontal_min(min_y), simd::horizontal_min(min_z)};
-        res_max = {simd::horizontal_max(max_x), simd::horizontal_max(max_y), simd::horizontal_max(max_z)};
+        aabb.min = {simd::horizontal_min(min_x), simd::horizontal_min(min_y), simd::horizontal_min(min_z)};
+        aabb.max = {simd::horizontal_max(max_x), simd::horizontal_max(max_y), simd::horizontal_max(max_z)};
     }
 
     for (; i < count; i++) {
         const vec3 p = {in_x[i], in_y[i], in_z[i]};
-        res_min = math::min(res_min, p);
-        res_max = math::max(res_max, p);
+        aabb.min = math::min(aabb.min, p);
+        aabb.max = math::max(aabb.max, p);
     }
 
-    out_min = res_min;
-    out_max = res_max;
+    return aabb;
 }
 
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
@@ -392,7 +386,7 @@ vec3 compute_com_periodic_vectorized(const float* RESTRICT in_x, const float* RE
     const vec3 full_ext = box * vec3(1.0f);
     const vec3 half_ext = box * vec3(0.5f);
 
-    
+    
 
     return {0, 0, 0};
 }
@@ -1841,4 +1835,25 @@ bool is_dna(const Residue& res) {
         if (compare(res.name, dna_res)) return true;
     }
     return false;
+}
+
+DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol) {
+    DynamicArray<Label> types = {};
+    Label cur_lbl = {};
+    for (const auto& res : mol.residues) {
+        if (res.name != cur_lbl) {
+            types.push_back(res.name);
+        }
+    }
+    return types;
+}
+
+DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name) {
+    DynamicArray<ResIdx> residues;
+    for (ResIdx i = 0; i < (ResIdx)mol.residues.size(); i++) {
+        if (mol.residues[i].name == name) {
+            residues.push_back(i);
+        }
+    }
+    return residues;
 }
