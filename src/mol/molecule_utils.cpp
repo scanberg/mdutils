@@ -1533,7 +1533,7 @@ bool match(const Label& lbl, const char (&cstr)[N]) {
 DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue> residues, ArrayView<const Label> atom_labels) {
     DynamicArray<BackboneSegment> segments;
     int64 invalid_segments = 0;
-    constexpr int32 min_atom_count = 4;  // Must contain at least 8 atoms to be considered as an amino acid.
+    constexpr int32 min_atom_count = 4;  // Must contain at least 4 atoms to be considered as an amino acid.
     for (auto& res : residues) {
         const int32 atom_count = res.atom_range.end - res.atom_range.beg;
         if (atom_count < min_atom_count) {
