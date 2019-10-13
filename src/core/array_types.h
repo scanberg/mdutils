@@ -132,7 +132,7 @@ struct StaticArray : Array<T> {
         // memcpy(buffer, arr, N * sizeof(T));
         for (int64 i = 0; i < N; i++) {
             buffer[i] = arr[i];
-		}
+                }
     }
 
     StaticArray(const T* first, const T* last) noexcept {
@@ -231,12 +231,12 @@ struct DynamicArray : ArrayView<T> {
         return *this;
     }
 
-	T& operator[](int64 i) noexcept {
+    T& operator[](int64 i) noexcept {
         ASSERT(0 <= i && i < this->count);
         return this->ptr[i];
-	}
+    }
 
-	const T& operator[](int64 i) const noexcept {
+    const T& operator[](int64 i) const noexcept {
         ASSERT(0 <= i && i < this->count);
         return this->ptr[i];
     }
@@ -263,7 +263,7 @@ struct DynamicArray : ArrayView<T> {
         if (this->count == m_capacity) {
             reserve(grow_capacity(this->count + 1));
         }
-        this->ptr[this->count] = item;
+        memcpy(this->ptr + this->count, &item, sizeof(T));
         this->count++;
         return this->back();
     }
@@ -330,7 +330,12 @@ private:
     void init(int64 size, const T* src_data = nullptr) {
         ASSERT(size >= 0);
         m_capacity = init_capacity(size);
-        this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
+        if (src_data) {
+            this->ptr = (T*)MALLOC(m_capacity * sizeof(T));
+        } else {
+            this->ptr = (T*)CALLOC(m_capacity, sizeof(T));
+        }
+
         ASSERT(this->ptr);
         this->count = size;
         if (size > 0 && src_data) {

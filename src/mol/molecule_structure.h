@@ -29,7 +29,12 @@ struct BackboneSegment {
     AtomIdx o_idx = -1;
 };
 
-using BackboneAngle = vec2;
+struct BackboneAngle {
+    float phi = 0;
+    float psi = 0;
+    operator vec2() const { return {phi, psi}; };
+};
+
 using BackboneSequence = ResRange;
 
 struct HydrogenBondDonor {
@@ -42,8 +47,8 @@ using HydrogenBondAcceptor = AtomIdx;
 struct Residue {
     Label name{};
     ResIdx id = -1;
-    //ChainIdx chain_idx = -1;
-    //SeqIdx sequence_idx = -1;
+    // ChainIdx chain_idx = -1;
+    // SeqIdx sequence_idx = -1;
 
     AtomRange atom_range;
 
@@ -61,13 +66,12 @@ struct Residue {
 };
 
 struct Sequence {
-    ResRange res_range{};
-    AtomRange atom_range{};
+    Label id = {};
+    ResRange res_range = {};
+    AtomRange atom_range = {};
 };
 
-struct Chain : Sequence {
-    Label id{};
-};
+using Chain = Sequence;
 
 // Interface to access molecular data
 struct MoleculeStructure {
@@ -226,6 +230,6 @@ inline ArrayView<const Bond> get_internal_bonds(const MoleculeStructure& mol, co
     return mol.covalent_bonds.subarray(res.bond_idx.beg_internal, res.bond_idx.end_internal - res.bond_idx.beg_internal);
 }
 
-bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_sequences, int32 num_backbone_segments = 0, int32 num_backbone_sequences = 0,
-                             int32 num_hydrogen_bond_donors = 0, int32 num_hydrogen_bond_acceptors = 0);
+bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_sequences, int32 num_backbone_segments = 0,
+                             int32 num_backbone_sequences = 0, int32 num_hydrogen_bond_donors = 0, int32 num_hydrogen_bond_acceptors = 0);
 void free_molecule_structure(MoleculeStructure* mol);

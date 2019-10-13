@@ -11,7 +11,7 @@
 struct BackboneAnglesTrajectory {
     int num_segments = 0;
     int num_frames = 0;
-    ArrayView<vec2> angle_data{};
+    ArrayView<BackboneAngle> angle_data{};
 };
 
 struct AABB {
@@ -19,13 +19,13 @@ struct AABB {
     vec3 max = {};
 };
 
-inline ArrayView<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index) {
+inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index) {
     if (backbone_angle_traj.angle_data.count == 0 || backbone_angle_traj.num_segments == 0) return {};
     ASSERT(frame_index < backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments);
-    return ArrayView<vec2>(&backbone_angle_traj.angle_data[frame_index * backbone_angle_traj.num_segments], backbone_angle_traj.num_segments);
+    return ArrayView<BackboneAngle>(&backbone_angle_traj.angle_data[frame_index * backbone_angle_traj.num_segments], backbone_angle_traj.num_segments);
 }
 
-inline ArrayView<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_offset, int frame_count) {
+inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_offset, int frame_count) {
     if (backbone_angle_traj.angle_data.count == 0 || backbone_angle_traj.num_segments == 0) return {};
 #ifdef DEBUG
     int32 num_frames = (int32)backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments;
@@ -40,7 +40,7 @@ inline int32 get_backbone_angles_trajectory_current_frame_count(const BackboneAn
     return (int32)backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments;
 }
 
-inline ArrayView<vec2> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index, Chain chain) {
+inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index, Chain chain) {
     return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_range);
 }
 
@@ -154,3 +154,5 @@ bool is_dna(const Residue& res);
 
 DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol);
 DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name);
+
+DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol, AtomRange ref);

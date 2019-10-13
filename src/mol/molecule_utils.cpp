@@ -17,23 +17,6 @@ inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
     return res;
 }
 
-inline vec3 apply_pbc(const vec3& v, const vec3& box_ext) {
-    vec3 res = v;
-    if (res.x < 0.0f)
-        res.x += box_ext.x;
-    else if (res.x > box_ext.x)
-        res.x -= box_ext.x;
-    if (res.y < 0.0f)
-        res.y += box_ext.y;
-    else if (res.y > box_ext.y)
-        res.y -= box_ext.y;
-    if (res.z < 0.0f)
-        res.z += box_ext.z;
-    else if (res.z > box_ext.z)
-        res.z -= box_ext.z;
-    return res;
-}
-
 template <typename T>
 inline T de_periodize(T a, T b, T full_ext, T half_ext) {
     const T delta = b - a;
@@ -364,11 +347,11 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
     const vec3 half_ext = box * vec3(0.5f);
 
     float mass_sum = in_m[0];
-    vec3 vec_sum = {in_x[0], in_y[0], in_z[0]};
+    vec3 vec_sum = vec3(in_x[0], in_y[0], in_z[0]) * in_m[0];
 
     for (int64 i = 1; i < count; i++) {
-        const float mass = in_m[i];
         const vec3 p = {in_x[i], in_y[i], in_z[i]};
+        const float mass = in_m[i];
         const vec3 com = vec_sum / mass_sum;
         const vec3 dp = de_periodize(com, p, full_ext, half_ext);
         vec_sum += dp * mass;
@@ -386,7 +369,7 @@ vec3 compute_com_periodic_vectorized(const float* RESTRICT in_x, const float* RE
     const vec3 full_ext = box * vec3(1.0f);
     const vec3 half_ext = box * vec3(0.5f);
 
-    
+    
 
     return {0, 0, 0};
 }
@@ -1314,10 +1297,19 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
         const float* seq_mass = mass + range.beg;
         const vec3 com = compute_com_periodic(seq_x, seq_y, seq_z, seq_mass, range.size(), sim_box);
         const vec3 com_dp = math::fract(com * one_over_ext) * ext;
+
+        for (int i = 0; i < range.size(); i++) {
+            seq_x[i] = de_periodize(com_dp.x, seq_x[i], ext.x, ext.x * 0.5f);
+            seq_y[i] = de_periodize(com_dp.y, seq_y[i], ext.y, ext.y * 0.5f);
+            seq_z[i] = de_periodize(com_dp.z, seq_z[i], ext.z, ext.z * 0.5f);
+        }
+
+        /*
         const vec3 delta = com_dp - com;
         if (math::dot(delta, delta) > 0.0001f) {
             translate_ref(seq_x, seq_y, seq_z, range.size(), delta);
         }
+        */
     }
 }
 
@@ -1470,13 +1462,13 @@ if (residue_bonds.size() > 0) {
     */
 
     DynamicArray<Sequence> seq;
-    seq.push_back({{0, 1}, residues[0].atom_range});
+    seq.push_back({"", {0, 1}, residues[0].atom_range});
     for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
         if (has_covalent_bond(residues[i], residues[i + 1])) {
             seq.back().res_range.end++;
             seq.back().atom_range.end = residues[i + 1].atom_range.end;
         } else {
-            seq.push_back({{i + 1, i + 2}, residues[i + 1].atom_range});
+            seq.push_back({"", {i + 1, i + 2}, residues[i + 1].atom_range});
         }
     }
 
@@ -1758,7 +1750,7 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
     int32 alloc_count = (int32)dynamic.molecule.backbone.segments.count * (int32)dynamic.trajectory.frame_buffer.count;
     data->num_segments = (int32)dynamic.molecule.backbone.segments.count;
     data->num_frames = 0;
-    data->angle_data = {(vec2*)CALLOC(alloc_count, sizeof(vec2)), alloc_count};
+    data->angle_data = {(BackboneAngle*)CALLOC(alloc_count, sizeof(BackboneAngle)), alloc_count};
 }
 
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data) {
@@ -1788,7 +1780,7 @@ void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Mo
         auto pos_y = get_trajectory_position_y(dynamic.trajectory, f_idx);
         auto pos_z = get_trajectory_position_z(dynamic.trajectory, f_idx);
 
-        ArrayView<vec2> frame_angles = get_backbone_angles(*data, f_idx);
+        ArrayView<BackboneAngle> frame_angles = get_backbone_angles(*data, f_idx);
         for (const auto& bb_seq : dynamic.molecule.backbone.sequences) {
             auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
             auto bb_angles = frame_angles.subarray(bb_seq);
@@ -1856,4 +1848,48 @@ DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringV
         }
     }
     return residues;
+}
+
+bool atom_ranges_match(const MoleculeStructure& mol, AtomRange range_a, AtomRange range_b) {
+    if (range_a.size() == 0 || range_b.size() == 0) return false;
+    if (range_a.size() != range_b.size()) return false;
+
+    const auto ele_a = get_elements(mol).subarray(range_a);
+    const auto ele_b = get_elements(mol).subarray(range_b);
+    const auto lbl_a = get_labels(mol).subarray(range_a);
+    const auto lbl_b = get_labels(mol).subarray(range_b);
+    int a_i = range_a.beg;
+    int b_i = range_b.beg;
+    while (a_i != range_a.end && b_i != range_b.end) {
+        if (ele_a[a_i] != ele_b[b_i]) return false;
+        if (lbl_a[a_i] != lbl_b[b_i]) return false;
+    }
+    return true;
+}
+
+DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol, AtomRange ref) {
+    DynamicArray<AtomRange> matches = {};
+
+    const auto ele = get_elements(mol);
+    const auto lbl = get_labels(mol);
+
+    const auto ele_ref = ele.subarray(ref);
+    const auto lbl_ref = lbl.subarray(ref);
+
+    int j = 0;
+    for (int i = 0; i < mol.atom.count; i++) {
+        if (ref.beg <= i && i < ref.end) {
+            j = 0;
+            i = ref.end;
+        }
+        if (ele[i] == ele_ref[j] && (compare(lbl[i], lbl_ref[j]))) {
+            j++;
+        }
+        if (j == ref.size()) {
+            matches.push_back({i - j + 1, i + 1});
+            j = 0;
+        }
+    }
+
+    return matches;
 }

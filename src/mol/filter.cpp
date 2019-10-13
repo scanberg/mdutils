@@ -114,7 +114,7 @@ FilterCommand* find_filter_command(CStringView command) {
 bool internal_filter_mask(Bitfield mask, CStringView filter, const FilterContext& ctx) {
     DynamicArray<CStringView> chunks = extract_chunks(filter);
     Bitfield chunk_mask;
-    bitfield::init(&chunk_mask, mask.count);
+    bitfield::init(&chunk_mask, mask.bit_count);
     defer { bitfield::free(&chunk_mask); };
 
     bool state_and = false;
@@ -187,7 +187,7 @@ bool internal_filter_mask(Bitfield mask, CStringView filter, const FilterContext
 
 bool compute_filter_mask(Bitfield mask, const CStringView filter, const MoleculeStructure& molecule, ArrayView<const StoredSelection> stored_selections) {
     ASSERT(molecule);
-    ASSERT(molecule.atom.count == mask.count);
+    ASSERT(molecule.atom.count == mask.bit_count);
 
     if (count_parentheses(filter) != 0) {
         LOG_ERROR("Unmatched parentheses\n");
