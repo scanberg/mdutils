@@ -142,7 +142,7 @@ struct StringBuffer {
     }
 
     constexpr StringBuffer& operator=(const char* cstr) noexcept {
-        int64 len = (int64)strnlen(cstr, MaxSize);
+        const int64 len = helper::cexpr_strnlen(cstr, MaxSize - 1);
         helper::cexpr_copy(buffer, cstr, len);
         buffer[len] = '\0';
         return *this;

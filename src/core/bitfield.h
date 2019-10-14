@@ -261,7 +261,7 @@ constexpr int64 find_next_bit_set(const Bitfield field, int64 offset = 0) {
 }
 
 constexpr int64 find_first_bit_set(const Bitfield field) {
-    for (uint64_t blk_idx = 0; blk_idx < detail::num_blocks(field) - 1; blk_idx++) {
+    for (int64 blk_idx = 0; blk_idx < detail::num_blocks(field) - 1; blk_idx++) {
         const auto blk = field.block_ptr[blk_idx];
         if (blk != 0) {
             return blk_idx * detail::bits_per_block + detail::bit_scan_forward(blk);
