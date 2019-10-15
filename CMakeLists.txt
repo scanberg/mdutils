@@ -21,6 +21,7 @@ target_include_directories(mdutils
 		$<BUILD_INTERFACE:
 			${CMAKE_CURRENT_SOURCE_DIR}/src;
 			${CMAKE_CURRENT_SOURCE_DIR}/ext/glm;
+			${CMAKE_CURRENT_SOURCE_DIR}/ext/svd3
 		>
 	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/src

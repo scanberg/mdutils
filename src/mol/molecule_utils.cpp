@@ -8,6 +8,7 @@
 
 #include <mol/trajectory_utils.h>
 
+#include <svd3/svd3.h>
 #include <ctype.h>
 
 inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
@@ -388,45 +389,94 @@ vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const f
     return v_sum / m_sum;
 }
 
-/*
-void recenter_trajectory(MoleculeDynamic* dynamic, ResIdx center_res_idx) {
+mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass, int64 count, const vec3& com) {
+    mat3 A{0};
+    float mass_sum = 0.0f;
+    for (int64 i = 0; i < count; i++) {
+        // @TODO: Vectorize...
+        const float qx = x[i] - com.x;
+        const float qy = y[i] - com.y;
+        const float qz = z[i] - com.z;
+        const float m = mass[i];
+        mass_sum += m;
+
+        A[0][0] += m * qx * qx;
+        A[0][1] += m * qy * qx;
+        A[0][2] += m * qz * qx;
+        A[1][0] += m * qx * qy;
+        A[1][1] += m * qy * qy;
+        A[1][2] += m * qz * qy;
+        A[2][0] += m * qx * qz;
+        A[2][1] += m * qy * qz;
+        A[2][2] += m * qz * qz;
+    }
+
+    return A / mass_sum;
+}
+
+#define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
+EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const vec3& com) {
+    const mat3 M = compute_covariance_matrix(in_x, in_y, in_z, in_mass, count, com);
+    mat3 U, S, V;
+    svd(ARGS(M), ARGS(U), ARGS(S), ARGS(V));
+    const mat3 Ut = glm::transpose(U);
+
+    const float e_val[] = {math::sqrt(S[0][0]), math::sqrt(S[1][1]), math::sqrt(S[2][2])};
+    const vec3 e_vec[] = {Ut[0], Ut[1], Ut[2]};
+    int l[3] = {0, 1, 2};
+
+    const auto swap = [](int& x, int& y) {
+        int tmp = x;
+        x = y;
+        y = tmp;
+    };
+
+    if (e_val[l[0]] < e_val[l[1]]) swap(l[0], l[1]);
+    if (e_val[l[1]] < e_val[l[2]]) swap(l[1], l[2]);
+    if (e_val[l[0]] < e_val[l[1]]) swap(l[0], l[1]);
+
+    EigenFrame ef;
+    ef.value[0] = e_val[l[0]];
+    ef.value[1] = e_val[l[1]];
+    ef.value[2] = e_val[l[2]];
+
+    ef.vector[0] = e_vec[l[0]];
+    ef.vector[1] = e_vec[l[1]];
+    ef.vector[2] = e_vec[l[2]];
+
+    return ef;
+}
+#undef ARGS
+
+void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
     ASSERT(dynamic);
     if (!dynamic->operator bool()) {
         LOG_ERROR("Dynamic is not valid.");
         return;
     }
 
-    auto& mol = dynamic->molecule;
-    const auto elements = get_elements(mol);
-    const auto residues = get_residues(mol);
-    const auto chains = get_chains(mol);
+    const auto& mol = dynamic->molecule;
+    auto& traj = dynamic->trajectory;
 
-    const int32 res_beg = residues[center_res_idx].atom_idx.beg;
-    const int32 res_end = residues[center_res_idx].atom_idx.end;
-    const auto res_ele = elements.subarray(res_beg, res_end - res_beg);
+    int32 count = bitfield::number_of_bits_set(atom_mask);
+    void* mem = TMP_MALLOC(count * sizeof(float) * 4);
+    defer { TMP_FREE(mem); };
+    float* x = (float*)mem + 0 * count;
+    float* y = (float*)mem + 1 * count;
+    float* z = (float*)mem + 2 * count;
+    float* m = (float*)mem + 3 * count;
 
-    for (int32 f_idx = 0; f_idx < dynamic->trajectory.num_frames; f_idx++) {
-        auto frame = get_trajectory_frame(dynamic->trajectory, f_idx);
-        auto positions = frame.atom_positions;
-        const auto box_ext = frame.box * vec3(1);
-        const auto box_center = frame.box * vec3(0.5f);
+    bitfield::extract_data_from_mask(m, mol.atom.mass, atom_mask);
 
-        const auto res_pos = positions.subarray(res_beg, res_end - res_beg);
-        const vec3 target_center = compute_periodic_com(res_pos, res_ele, box_ext);
-
-        const vec3 delta = box_center - target_center;
-
-        for (int64 i = 0; i < chains.size(); i++) {
-            const auto p = positions.subarray(chains[i].atom_idx.beg, chains[i].atom_idx.end - chains[i].atom_idx.beg);
-            const auto e = elements.subarray(chains[i].atom_idx.beg, chains[i].atom_idx.end - chains[i].atom_idx.beg);
-            const vec3 com_chain = compute_periodic_com(p, e, box_ext);
-            const vec3 new_com = de_periodize(box_center, com_chain + delta, box_ext);
-            const vec3 diff = new_com - com_chain;
-            translate_positions(p, diff);
-        }
+    for (auto& frame : traj.frame_buffer) {
+        bitfield::extract_data_from_mask(x, frame.atom_position.x, atom_mask);
+        bitfield::extract_data_from_mask(y, frame.atom_position.y, atom_mask);
+        bitfield::extract_data_from_mask(z, frame.atom_position.z, atom_mask);
+        const vec3 com = compute_com_periodic(x, y, z, m, count, frame.box);
+        translate(frame.atom_position.x, frame.atom_position.y, frame.atom_position.z, mol.atom.count, -com);
+        apply_pbc(frame.atom_position.x, frame.atom_position.y, frame.atom_position.z, mol.atom.mass, mol.sequences, frame.box);
     }
 }
-*/
 
 // clang-format off
 void linear_interpolation_scalar(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
@@ -1895,12 +1945,21 @@ DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol,
 bool structure_match(const MoleculeStructure& mol, Bitfield mask, int mask_offset, int mask_count, int structure_offset) {
 
     const auto ele = get_elements(mol);
-    const auto lbl = get_labels(mol);
+    //const auto lbl = get_labels(mol);
+    // const auto res_idx = get_residue_indices(mol);
 
     for (int i = 0; i < mask_count; ++i) {
         if (mask[mask_offset + i]) {
-            if (ele[mask_offset + i] != ele[structure_offset + i]) return false;
-            if (compare(lbl[mask_offset + i], lbl[structure_offset + i]) == false) return false;
+            const auto ref_element = ele[mask_offset + i];
+            const auto element = ele[structure_offset + i];
+            if (element != ref_element) return false;
+
+            //const auto& ref_label = lbl[mask_offset + i];
+            //const auto& label = lbl[structure_offset + i];
+            //if (compare(label, ref_label) == false) return false;
+
+            // if (compare(mol.residues[res_idx[mask_offset + i]].name, mol.residues[res_idx[mask_offset + i]].name) == false) return false;
+            // if (mol.residues[res_idx[mask_offset + i]].id != mol.residues[res_idx[mask_offset + i]].id) return false;
         }
     }
 
@@ -1921,27 +1980,53 @@ DynamicArray<Bitfield> find_equivalent_structures(const MoleculeStructure& mol, 
         return matches;
     }
 
+    int32 count = bitfield::number_of_bits_set(ref_mask);
+    void* mem = TMP_MALLOC(count * sizeof(float) * 4);
+    defer { TMP_FREE(mem); };
+    float* x = (float*)mem + 0 * count;
+    float* y = (float*)mem + 1 * count;
+    float* z = (float*)mem + 2 * count;
+    float* m = (float*)mem + 3 * count;
+
+    bitfield::extract_data_from_mask(x, mol.atom.position.x, ref_mask);
+    bitfield::extract_data_from_mask(y, mol.atom.position.y, ref_mask);
+    bitfield::extract_data_from_mask(z, mol.atom.position.z, ref_mask);
+    bitfield::extract_data_from_mask(m, mol.atom.mass, ref_mask);
+
+    const EigenFrame ref_eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
+
     const int32 mask_offset = first_bit;
-    const int32 mask_count = last_bit - first_bit;
+    const int32 mask_count = last_bit - first_bit + 1;
     for (int i = 0; i < mol.atom.count - mask_count; ++i) {
-        if (i != first_bit) {
-            if (structure_match(mol, ref_mask, mask_offset, mask_count, i)) {
-                Bitfield mask;
-                bitfield::init(&mask, mol.atom.count);
-                bitfield::clear_all(mask);
-                for (int j = 0; j < mask_count; ++j) {
-                    if (ref_mask[mask_offset + j]) bitfield::set_bit(mask, i + j);
-                }
-                matches.push_back(mask);
+        if (structure_match(mol, ref_mask, mask_offset, mask_count, i)) {
+            Bitfield mask;
+            bitfield::init(&mask, mol.atom.count);
+            bitfield::clear_all(mask);
+            for (int j = 0; j < mask_count; ++j) {
+                if (ref_mask[mask_offset + j]) bitfield::set_bit(mask, i + j);
             }
+
+            bitfield::extract_data_from_mask(x, mol.atom.position.x, mask);
+            bitfield::extract_data_from_mask(y, mol.atom.position.y, mask);
+            bitfield::extract_data_from_mask(z, mol.atom.position.z, mask);
+            bitfield::extract_data_from_mask(m, mol.atom.mass, mask);
+
+            const EigenFrame eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
+
+            const float ratio_x = ref_eigen.value[0] / eigen.value[0];
+            const float ratio_y = ref_eigen.value[1] / eigen.value[1];
+            const float ratio_z = ref_eigen.value[2] / eigen.value[2];
+
+            matches.push_back(mask);
+            i += count;
         }
     }
 
-    #ifdef DEBUG
+#ifdef DEBUG
     for (const auto& match : matches) {
         ASSERT(bitfield::number_of_bits_set(match) == bitfield::number_of_bits_set(ref_mask));
     }
-    #endif
+#endif
 
     return matches;
 }
