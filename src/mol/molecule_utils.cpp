@@ -368,9 +368,6 @@ vec3 compute_com_periodic_vectorized(const float* RESTRICT in_x, const float* RE
 
     const vec3 full_ext = box * vec3(1.0f);
     const vec3 half_ext = box * vec3(0.5f);
-
-    
-
     return {0, 0, 0};
 }
 */
@@ -1890,6 +1887,61 @@ DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol,
             j = 0;
         }
     }
+
+    return matches;
+}
+
+// @NOTE: THIS IS STUPID
+bool structure_match(const MoleculeStructure& mol, Bitfield mask, int mask_offset, int mask_count, int structure_offset) {
+
+    const auto ele = get_elements(mol);
+    const auto lbl = get_labels(mol);
+
+    for (int i = 0; i < mask_count; ++i) {
+        if (mask[mask_offset + i]) {
+            if (ele[mask_offset + i] != ele[structure_offset + i]) return false;
+            if (compare(lbl[mask_offset + i], lbl[structure_offset + i]) == false) return false;
+        }
+    }
+
+    return true;
+};
+
+DynamicArray<Bitfield> find_equivalent_structures(const MoleculeStructure& mol, Bitfield ref_mask) {
+    DynamicArray<Bitfield> matches = {};
+
+    const auto ele = get_elements(mol);
+    const auto lbl = get_labels(mol);
+
+    const int32 first_bit = bitfield::find_first_bit_set(ref_mask);
+    const int32 last_bit = bitfield::find_last_bit_set(ref_mask);
+
+    if (first_bit == -1 || last_bit == -1) {
+        LOG_WARNING("find_equivalent_structures: Reference bitfield was empty");
+        return matches;
+    }
+
+    const int32 mask_offset = first_bit;
+    const int32 mask_count = last_bit - first_bit;
+    for (int i = 0; i < mol.atom.count - mask_count; ++i) {
+        if (i != first_bit) {
+            if (structure_match(mol, ref_mask, mask_offset, mask_count, i)) {
+                Bitfield mask;
+                bitfield::init(&mask, mol.atom.count);
+                bitfield::clear_all(mask);
+                for (int j = 0; j < mask_count; ++j) {
+                    if (ref_mask[mask_offset + j]) bitfield::set_bit(mask, i + j);
+                }
+                matches.push_back(mask);
+            }
+        }
+    }
+
+    #ifdef DEBUG
+    for (const auto& match : matches) {
+        ASSERT(bitfield::number_of_bits_set(match) == bitfield::number_of_bits_set(ref_mask));
+    }
+    #endif
 
     return matches;
 }
