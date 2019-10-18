@@ -1942,21 +1942,21 @@ DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol,
 }
 
 // @NOTE: THIS IS STUPID
-bool structure_match(const MoleculeStructure& mol, Bitfield mask, int mask_offset, int mask_count, int structure_offset) {
+bool structure_match(const MoleculeStructure& mol, Bitfield ref_mask, int ref_offset, int test_offset, Bitfield used_mask) {
 
     const auto ele = get_elements(mol);
-    //const auto lbl = get_labels(mol);
+    // const auto lbl = get_labels(mol);
     // const auto res_idx = get_residue_indices(mol);
 
-    for (int i = 0; i < mask_count; ++i) {
-        if (mask[mask_offset + i]) {
-            const auto ref_element = ele[mask_offset + i];
-            const auto element = ele[structure_offset + i];
+    for (int i = 0; i < ref_mask.size(); ++i) {
+        if (ref_mask[i] && !used_mask[test_offset + i]) {
+            const auto ref_element = ele[ref_offset + i];
+            const auto element = ele[test_offset + i];
             if (element != ref_element) return false;
 
-            //const auto& ref_label = lbl[mask_offset + i];
-            //const auto& label = lbl[structure_offset + i];
-            //if (compare(label, ref_label) == false) return false;
+            // const auto& ref_label = lbl[mask_offset + i];
+            // const auto& label = lbl[structure_offset + i];
+            // if (compare(label, ref_label) == false) return false;
 
             // if (compare(mol.residues[res_idx[mask_offset + i]].name, mol.residues[res_idx[mask_offset + i]].name) == false) return false;
             // if (mol.residues[res_idx[mask_offset + i]].id != mol.residues[res_idx[mask_offset + i]].id) return false;
@@ -1966,21 +1966,26 @@ bool structure_match(const MoleculeStructure& mol, Bitfield mask, int mask_offse
     return true;
 };
 
-DynamicArray<Bitfield> find_equivalent_structures(const MoleculeStructure& mol, Bitfield ref_mask) {
-    DynamicArray<Bitfield> matches = {};
-
+DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfield mask, int offset) {
     const auto ele = get_elements(mol);
     const auto lbl = get_labels(mol);
 
-    const int32 first_bit = bitfield::find_first_bit_set(ref_mask);
-    const int32 last_bit = bitfield::find_last_bit_set(ref_mask);
+    Bitfield used_atoms;
+    bitfield::init(&used_atoms, mol.atom.count);
+    defer { bitfield::free(&used_atoms); };
+    bitfield::clear_all(used_atoms);
 
-    if (first_bit == -1 || last_bit == -1) {
-        LOG_WARNING("find_equivalent_structures: Reference bitfield was empty");
-        return matches;
+    for (int i = 0; i < mask.size(); i++) {
+        if (mask[i]) bitfield::set_bit(used_atoms, offset + i);
     }
 
-    int32 count = bitfield::number_of_bits_set(ref_mask);
+    int32 count = bitfield::number_of_bits_set(mask);
+    if (count == 0) {
+        LOG_WARNING("Supplied mask was empty");
+        return {};
+    }
+
+#if 0
     void* mem = TMP_MALLOC(count * sizeof(float) * 4);
     defer { TMP_FREE(mem); };
     float* x = (float*)mem + 0 * count;
@@ -1988,27 +1993,23 @@ DynamicArray<Bitfield> find_equivalent_structures(const MoleculeStructure& mol, 
     float* z = (float*)mem + 2 * count;
     float* m = (float*)mem + 3 * count;
 
-    bitfield::extract_data_from_mask(x, mol.atom.position.x, ref_mask);
-    bitfield::extract_data_from_mask(y, mol.atom.position.y, ref_mask);
-    bitfield::extract_data_from_mask(z, mol.atom.position.z, ref_mask);
-    bitfield::extract_data_from_mask(m, mol.atom.mass, ref_mask);
+    bitfield::extract_data_from_mask(x, mol.atom.position.x, mask, offset);
+    bitfield::extract_data_from_mask(y, mol.atom.position.y, mask, offset);
+    bitfield::extract_data_from_mask(z, mol.atom.position.z, mask, offset);
+    bitfield::extract_data_from_mask(m, mol.atom.mass, mask, offset);
 
     const EigenFrame ref_eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
+#endif
 
-    const int32 mask_offset = first_bit;
-    const int32 mask_count = last_bit - first_bit + 1;
-    for (int i = 0; i < mol.atom.count - mask_count; ++i) {
-        if (structure_match(mol, ref_mask, mask_offset, mask_count, i)) {
-            Bitfield mask;
-            bitfield::init(&mask, mol.atom.count);
-            bitfield::clear_all(mask);
-            for (int j = 0; j < mask_count; ++j) {
-                if (ref_mask[mask_offset + j]) bitfield::set_bit(mask, i + j);
-            }
+    DynamicArray<int> offsets = {};
+    for (int i = 0; i < mol.atom.count - mask.size(); ++i) {
+        if (used_atoms[i]) continue;
 
-            bitfield::extract_data_from_mask(x, mol.atom.position.x, mask);
-            bitfield::extract_data_from_mask(y, mol.atom.position.y, mask);
-            bitfield::extract_data_from_mask(z, mol.atom.position.z, mask);
+        if (structure_match(mol, mask, offset, i, used_atoms)) {
+#if 0
+            bitfield::extract_data_from_mask(x, mol.atom.position.x, mask, i);
+            bitfield::extract_data_from_mask(y, mol.atom.position.y, mask, i);
+            bitfield::extract_data_from_mask(z, mol.atom.position.z, mask, i);
             bitfield::extract_data_from_mask(m, mol.atom.mass, mask);
 
             const EigenFrame eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
@@ -2016,17 +2017,15 @@ DynamicArray<Bitfield> find_equivalent_structures(const MoleculeStructure& mol, 
             const float ratio_x = ref_eigen.value[0] / eigen.value[0];
             const float ratio_y = ref_eigen.value[1] / eigen.value[1];
             const float ratio_z = ref_eigen.value[2] / eigen.value[2];
+#endif
+            for (int j = 0; j < mask.size(); j++) {
+                if (mask[j]) bitfield::set_bit(used_atoms, i + j);
+            }
 
-            matches.push_back(mask);
-            i += count;
+            offsets.push_back(i);
+            //i += count - 1;
         }
     }
 
-#ifdef DEBUG
-    for (const auto& match : matches) {
-        ASSERT(bitfield::number_of_bits_set(match) == bitfield::number_of_bits_set(ref_mask));
-    }
-#endif
-
-    return matches;
+    return offsets;
 }

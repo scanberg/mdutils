@@ -343,7 +343,7 @@ inline void xor_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) 
 }
 
 template <typename T>
-int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bitfield mask) {
+int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bitfield mask, int64_t offset = 0) {
     int64_t out_count = 0;
     const int64_t last_blk = detail::num_blocks(mask) - 1;
     for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
@@ -352,7 +352,7 @@ int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, 
 
         for (uint64_t i = 0; i < detail::bits_per_block; ++i) {
             if (blk & ((Bitfield::BlockType)1 << i)) {
-                out_data[out_count] = in_data[blk_idx * detail::bits_per_block + i];
+                out_data[out_count] = in_data[offset + blk_idx * detail::bits_per_block + i];
                 ++out_count;
             }
         }
@@ -365,7 +365,7 @@ int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, 
     if (blk) {
         for (uint64_t i = 0; i < remainder; ++i) {
             if (blk & ((Bitfield::BlockType)1 << i)) {
-                out_data[out_count] = in_data[blk_idx * detail::bits_per_block + i];
+                out_data[out_count] = in_data[offset + blk_idx * detail::bits_per_block + i];
                 ++out_count;
             }
         }

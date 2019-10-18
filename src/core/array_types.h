@@ -322,6 +322,7 @@ struct DynamicArray : ArrayView<T> {
         ASSERT(this->beg() <= it && it < this->end());
         *it = this->back();
         this->pop_back();
+        this->count--;
     }
 
     void clear() noexcept { this->count = 0; }

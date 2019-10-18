@@ -165,4 +165,4 @@ DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol);
 DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name);
 
 DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol, AtomRange ref);
-DynamicArray<Bitfield> find_equivalent_structures(const MoleculeStructure& mol, Bitfield ref_mask);
+DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfield ref_mask, int ref_offset);
