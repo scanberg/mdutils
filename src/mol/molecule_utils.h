@@ -20,8 +20,8 @@ struct AABB {
 };
 
 struct EigenFrame {
-    mat3 vector;
-    vec3 value;
+    mat3 vectors;
+    vec3 values;
 };
 
 inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index) {
@@ -93,7 +93,7 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
 
 mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass, int64 count, const vec3& com);
 
-EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const vec3& com);
+EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count);
 
 // clang-format off
 void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,

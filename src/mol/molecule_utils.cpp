@@ -415,7 +415,8 @@ mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y,
 }
 
 #define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
-EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const vec3& com) {
+EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count) {
+    const vec3 com = compute_com(in_x, in_y, in_z, count);
     const mat3 M = compute_covariance_matrix(in_x, in_y, in_z, in_mass, count, com);
     mat3 U, S, V;
     svd(ARGS(M), ARGS(U), ARGS(S), ARGS(V));
@@ -436,13 +437,13 @@ EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT
     if (e_val[l[0]] < e_val[l[1]]) swap(l[0], l[1]);
 
     EigenFrame ef;
-    ef.value[0] = e_val[l[0]];
-    ef.value[1] = e_val[l[1]];
-    ef.value[2] = e_val[l[2]];
+    ef.values[0] = e_val[l[0]];
+    ef.values[1] = e_val[l[1]];
+    ef.values[2] = e_val[l[2]];
 
-    ef.vector[0] = e_vec[l[0]];
-    ef.vector[1] = e_vec[l[1]];
-    ef.vector[2] = e_vec[l[2]];
+    ef.vectors[0] = e_vec[l[0]];
+    ef.vectors[1] = e_vec[l[1]];
+    ef.vectors[2] = e_vec[l[2]];
 
     return ef;
 }

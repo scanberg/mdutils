@@ -203,7 +203,17 @@ T cubic_spline_tangent(const T& p0, const T& p1, const T& p2, const T& p3, V s, 
 }
 
 // Quaternion
-inline quat angle_axis(float angle, const vec3& axis) { return glm::angleAxis(angle, axis); }
+inline quat angle_axis(float angle, const vec3& axis) {
+    const float half_sin = sin(0.5f * angle);
+    const float half_cos = cos(0.5f * angle);
+    return quat(half_cos, half_sin * axis.x, half_sin * axis.y, half_sin * axis.z);
+}
+
+inline quat two_direction_vectors(const vec3& src, const vec3& dst) {
+    const float m = sqrt(2.f + 2.f * dot(src, dst));
+    const vec3 w = (1.f / m) * math::cross(src, dst);
+    return quat(0.5f * m, w.x, w.y, w.z);
+}
 
 // Projection
 inline vec3 unproject(const vec3& window_coords, const mat4& inv_view_proj_mat, const vec4& viewport) {
