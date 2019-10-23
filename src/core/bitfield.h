@@ -359,12 +359,13 @@ int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, 
     }
 
     // @NOTE: Remainder
-    const auto blk_idx = (uint64_t)detail::num_blocks(mask) - 1;
-    const auto remainder = (uint64_t)mask.size() - blk_idx * detail::bits_per_block;
-    const auto blk = mask.block_ptr[blk_idx];
+    const uint64_t blk_idx = last_blk;
+    const uint64_t remainder = (uint64_t)mask.size() - blk_idx * detail::bits_per_block;
+    const uint64_t blk = mask.block_ptr[blk_idx];
     if (blk) {
         for (uint64_t i = 0; i < remainder; ++i) {
-            if (blk & ((Bitfield::BlockType)1 << i)) {
+            const uint64_t bit = (Bitfield::BlockType)1 << i;
+            if (blk & bit) {
                 out_data[out_count] = in_data[offset + blk_idx * detail::bits_per_block + i];
                 ++out_count;
             }
