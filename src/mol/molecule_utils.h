@@ -90,6 +90,7 @@ vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const f
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT element, int64 count);
 
 vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const mat3& box);
+vec3 compute_com_periodic_ref(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const mat3& box);
 
 mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass, int64 count, const vec3& com);
 
@@ -139,6 +140,8 @@ inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
 void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, ArrayView<const Sequence> sequences, const mat3& sim_box);
 
 //void recenter_trajectory_on_residue(MoleculeDynamic* dynamic, ResIdx target_residue);
+
+void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask);
 
 // This computes heuristical covalent bonds in a hierarchical way (first internal, then external per residue) and stores the indices to the bonds
 // within the residues. Only adjacent residues can form external covalent bonds in this function.
