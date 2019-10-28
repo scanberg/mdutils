@@ -31,7 +31,6 @@ constexpr T deg_to_rad(const T& deg) {
 }
 
 // Core
-using glm::abs;
 using glm::ceil;
 using glm::clamp;
 using glm::exp;
@@ -44,9 +43,7 @@ using glm::mod;
 using glm::modf;
 using glm::pow;
 using glm::round;
-using glm::sign;
 using glm::sqrt;
-using glm::step;
 
 // Trigonometry
 using glm::acos;
@@ -74,9 +71,9 @@ using glm::normalize;
 using glm::angle;
 using glm::axis;
 using glm::conjugate;
+using glm::intermediate;
 using glm::slerp;
 using glm::squad;
-using glm::intermediate;
 
 // Matrix
 using glm::determinant;
@@ -87,6 +84,30 @@ using glm::transpose;
 using glm::mat3_cast;
 using glm::mat4_cast;
 using glm::quat_cast;
+
+template <typename T>
+auto step(const T& edge, const T& x) {
+    return glm::step(edge, x);
+}
+
+template <typename T>
+auto abs(const T& x) {
+    return glm::abs(x);
+}
+
+template <typename T>
+auto sign(const T& x) {
+    return glm::sign(x);
+}
+
+inline float abs(float x) {
+    const int i = (*(int*)(&x)) & 0x7FFFFFFF;
+    return *((float*)(&i));
+}
+
+inline float sign(float x) { return (x > 0) - (x < 0); }
+
+inline float step(float edge, float x) { return (x - edge > 0); }
 
 template <typename T>
 auto angle(const T& a, const T& b) {
