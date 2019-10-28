@@ -120,16 +120,6 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
                              const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
 							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
 							 int64 count, float t, const mat3& sim_box);
-
-void compute_velocities(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-						const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-						int64 count, float dt);
-
-void compute_velocities_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-							const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-                            int64 count, float dt, const mat3& sim_box);
 // clang-format on
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
