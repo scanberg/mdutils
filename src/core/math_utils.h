@@ -11,6 +11,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/spline.hpp>
 #include <glm/gtx/quaternion.hpp>
+
 #include <stdlib.h>
 
 namespace math {
@@ -91,6 +92,24 @@ auto step(const T& edge, const T& x) {
 }
 
 template <typename T>
+auto smoothstep(const T& edge0, const T& edge1, const T& x) {
+    const T t = math::clamp<T>((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+inline float smoothstep(float edge0, float edge1, float x) {
+    const float t = math::clamp<float>((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
+
+inline float smoothstep2(float edge0, float edge1, float x) {
+    float t = math::clamp<float>((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+    t = t * t * (3.0f - 2.0f * t);
+    t = t * t * (3.0f - 2.0f * t);
+    return t;
+}
+
+template <typename T>
 auto abs(const T& x) {
     return glm::abs(x);
 }
@@ -107,11 +126,16 @@ inline float abs(float x) {
 
 inline float sign(float x) { return (x > 0) - (x < 0); }
 
-inline float step(float edge, float x) { return (x - edge > 0); }
+inline float step(float edge, float x) { return ((x - edge) > 0); }
 
 template <typename T>
 auto angle(const T& a, const T& b) {
     return acos(dot(normalize(a), normalize(b)));
+}
+
+template <>
+inline auto angle<quat>(const quat& a, const quat& b) {
+    return 2.0f * acos(math::abs(dot(normalize(a), normalize(b))));
 }
 
 template <typename T>
@@ -234,6 +258,11 @@ inline quat two_direction_vectors(const vec3& src, const vec3& dst) {
     const float m = sqrt(2.f + 2.f * dot(src, dst));
     const vec3 w = (1.f / m) * math::cross(src, dst);
     return quat(0.5f * m, w.x, w.y, w.z);
+}
+
+inline float geodesic_distance(const quat& a, const quat& b) {
+    const float dp = math::dot(a,b);
+    return math::acos(2.0f * dp * dp - 1.0f);
 }
 
 // Projection
