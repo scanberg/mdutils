@@ -305,7 +305,7 @@ CStringView get_file_without_extension(CStringView url) {
 
 CStringView get_file_extension(CStringView url) {
     if (url.count == 0) {
-        return url;
+        return {};
     }
 
     url = trim(url);
@@ -316,11 +316,31 @@ CStringView get_file_extension(CStringView url) {
     while (beg != url.begin() && *beg != '.' && *beg != '\\' && *beg != '/') beg--;
 
     if (beg == url.begin() || *beg == '\\' || *beg == '/') {
-        return CStringView();
+        return {};
     }
 
     beg++;  // skip '.'
-    return CStringView(beg, end - beg);
+    return {beg, end - beg};
+}
+
+StringView get_file_extension(StringView url) {
+    if (url.count == 0) {
+        return {};
+    }
+
+    url = trim(url);
+
+    char* beg = url.end() - 1;
+    char* end = url.end();
+
+    while (beg != url.begin() && *beg != '.' && *beg != '\\' && *beg != '/') beg--;
+
+    if (beg == url.begin() || *beg == '\\' || *beg == '/') {
+        return {};
+    }
+
+    beg++;  // skip '.'
+    return {beg, end - beg};
 }
 
 inline static bool char_in_string(char c, CStringView str) {
