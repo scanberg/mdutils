@@ -1,5 +1,6 @@
 ﻿#include "string_utils.h"
 #include <core/common.h>
+#include <core/file.h>
 #include <core/log.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -225,8 +226,7 @@ StringView trim(StringView str) {
 }
 
 StringView allocate_and_read_textfile(CStringView filename) {
-    StringBuffer<512> c_str_path = filename;
-    FILE* file = fopen(c_str_path.cstr(), "rb");
+    FILE* file = fopen(filename, "rb");
     defer {
         if (file) fclose(file);
     };

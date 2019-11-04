@@ -163,19 +163,48 @@ static void xdrstdio_create (XDR *xdrs, FILE *fp, enum xdr_op xop);
  *  This structure is used to provide an XDR file interface that is
  *  virtual identical to the standard UNIX fopen/fread/fwrite/fclose.
  */
-struct XDRFILE
-{
-    FILE *   fp;       /**< pointer to standard C library file handle */
-    XDR *    xdr;      /**< pointer to corresponding XDR handle       */
-    char     mode;     /**< r=read, w=write, a=append                 */
-    int *    buf1;     /**< Buffer for internal use                   */
-    int      buf1size; /**< Current allocated length of buf1          */
-    int *    buf2;     /**< Buffer for internal use                   */
-    int      buf2size; /**< Current allocated length of buf2          */
+struct XDRFILE {
+    FILE *fp;     /**< pointer to standard C library file handle */
+    XDR *xdr;     /**< pointer to corresponding XDR handle       */
+    char mode;    /**< r=read, w=write, a=append                 */
+    int *buf1;    /**< Buffer for internal use                   */
+    int buf1size; /**< Current allocated length of buf1          */
+    int *buf2;    /**< Buffer for internal use                   */
+    int buf2size; /**< Current allocated length of buf2          */
 };
 
+#if defined(_WIN32) && !defined(__CYGWIN__) && !defined(__GNUC__)
+#include <windows.h>
+FILE* xdr_fopen(const char *file, const char *mode) {
 
+    const int file_len = strlen(file);
+    const int mode_len = strlen(mode);
 
+    if (file_len == 0) return NULL;
+    if (mode_len == 0) return NULL;
+
+    wchar_t w_file[MAX_PATH];
+    wchar_t w_mode[MAX_PATH];
+
+    const int w_file_len = MultiByteToWideChar(CP_UTF8, 0, file, file_len, w_file, MAX_PATH);
+    if (w_file_len >= MAX_PATH) return NULL;
+    w_file[w_file_len] = L'\0';
+
+    const int w_mode_len = MultiByteToWideChar(CP_UTF8, 0, mode, mode_len, w_mode, MAX_PATH);
+    if (w_mode_len >= MAX_PATH) return NULL;
+    w_mode[w_mode_len] = L'\0';
+
+    return _wfopen(w_file, w_mode);
+}
+#else
+FILE* xdr_fopen(const char *file, const char *mode) {
+    return fopen(file, mode);
+}
+#endif
+
+int xdr_fclose(FILE* file) {
+    fclose(file);
+}
 
 /*************************************************************
  * Implementation of higher-level routines to read/write     *
@@ -183,318 +212,236 @@ struct XDRFILE
  * called from C - see further down for Fortran77 wrappers.  *
  *************************************************************/
 
-XDRFILE *
-xdrfile_open(const char *path, const char *mode)
-{
-	char newmode[5];
-	enum xdr_op xdrmode;
-	XDRFILE *xfp;
+XDRFILE *xdrfile_open(const char *path, const char *mode) {
+    char newmode[5];
+    enum xdr_op xdrmode;
+    XDRFILE *xfp;
 
-	/* make sure XDR files are opened in binary mode... */
-	if(*mode=='w' || *mode=='W')
-    {
-		sprintf(newmode,"wb+");
-		xdrmode=XDR_ENCODE;
-	} else if(*mode == 'a' || *mode == 'A')
-    {
-		sprintf(newmode,"ab+");
-		xdrmode = XDR_ENCODE;
-	} else if(*mode == 'r' || *mode == 'R')
-    {
-		sprintf(newmode,"rb");
-		xdrmode = XDR_DECODE;
-	} else /* cannot determine mode */
-		return NULL;
+    /* make sure XDR files are opened in binary mode... */
+    if (*mode == 'w' || *mode == 'W') {
+        sprintf(newmode, "wb+");
+        xdrmode = XDR_ENCODE;
+    } else if (*mode == 'a' || *mode == 'A') {
+        sprintf(newmode, "ab+");
+        xdrmode = XDR_ENCODE;
+    } else if (*mode == 'r' || *mode == 'R') {
+        sprintf(newmode, "rb");
+        xdrmode = XDR_DECODE;
+    } else /* cannot determine mode */
+        return NULL;
 
-	if((xfp=(XDRFILE *)malloc(sizeof(XDRFILE)))==NULL)
-		return NULL;
-	if((xfp->fp=fopen(path,newmode))==NULL)
-    {
-		free(xfp);
-		return NULL;
-	}
-	if((xfp->xdr=(XDR *)malloc(sizeof(XDR)))==NULL)
-    {
-		fclose(xfp->fp);
-		free(xfp);
-		return NULL;
-	}
-	xfp->mode=*mode;
-	xdrstdio_create((XDR *)(xfp->xdr),xfp->fp,xdrmode);
-	xfp->buf1 = xfp->buf2 = NULL;
-	xfp->buf1size = xfp->buf2size = 0;
-	return xfp;
+    if ((xfp = (XDRFILE *)malloc(sizeof(XDRFILE))) == NULL) return NULL;
+    if ((xfp->fp = xdr_fopen(path, newmode)) == NULL) {
+        free(xfp);
+        return NULL;
+    }
+    if ((xfp->xdr = (XDR *)malloc(sizeof(XDR))) == NULL) {
+        xdr_fclose(xfp->fp);
+        free(xfp);
+        return NULL;
+    }
+    xfp->mode = *mode;
+    xdrstdio_create((XDR *)(xfp->xdr), xfp->fp, xdrmode);
+    xfp->buf1 = xfp->buf2 = NULL;
+    xfp->buf1size = xfp->buf2size = 0;
+    return xfp;
 }
 
-int
-xdrfile_close(XDRFILE *xfp)
-{
-	int ret=exdrCLOSE;
-	if(xfp)
-    {
-		/* flush and destroy XDR stream */
-		if(xfp->xdr)
-			xdr_destroy((XDR *)(xfp->xdr));
-		free(xfp->xdr);
-		/* close the file */
-		ret=fclose(xfp->fp);
-		if(xfp->buf1size)
-			free(xfp->buf1);
-		if(xfp->buf2size)
-			free(xfp->buf2);
-		free(xfp);
-	}
-	return ret; /* return 0 if ok */
+int xdrfile_close(XDRFILE *xfp) {
+    int ret = exdrCLOSE;
+    if (xfp) {
+        /* flush and destroy XDR stream */
+        if (xfp->xdr) xdr_destroy((XDR *)(xfp->xdr));
+        free(xfp->xdr);
+        /* close the file */
+        ret = fclose(xfp->fp);
+        if (xfp->buf1size) free(xfp->buf1);
+        if (xfp->buf2size) free(xfp->buf2);
+        free(xfp);
+    }
+    return ret; /* return 0 if ok */
 }
 
+int xdrfile_read_int(int *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_int((XDR *)(xfp->xdr), ptr + i)) i++;
 
-int
-xdrfile_read_int(int *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
-
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_int((XDR *)(xfp->xdr),ptr+i))
-		i++;
-
-	return i;
+    return i;
 }
 
-int
-xdrfile_write_int(int *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_write_int(int *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_int((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_int((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
+int xdrfile_read_uint(unsigned int *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-int
-xdrfile_read_uint(unsigned int *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_u_int((XDR *)(xfp->xdr), ptr + i)) i++;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_u_int((XDR *)(xfp->xdr),ptr+i))
-		i++;
-
-	return i;
+    return i;
 }
 
-int
-xdrfile_write_uint(unsigned int *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_write_uint(unsigned int *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_u_int((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_u_int((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_read_char(char *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_read_char(char *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_char((XDR *)(xfp->xdr),ptr+i))
-		i++;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_char((XDR *)(xfp->xdr), ptr + i)) i++;
 
-	return i;
+    return i;
 }
 
-int
-xdrfile_write_char(char *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_write_char(char *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_char((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_char((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
+int xdrfile_read_uchar(unsigned char *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-int
-xdrfile_read_uchar(unsigned char *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_u_char((XDR *)(xfp->xdr), ptr + i)) i++;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_u_char((XDR *)(xfp->xdr),ptr+i))
-		i++;
-
-	return i;
+    return i;
 }
 
-int
-xdrfile_write_uchar(unsigned char *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_write_uchar(unsigned char *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_u_char((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_u_char((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_read_short(short *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_read_short(short *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_short((XDR *)(xfp->xdr),ptr+i))
-		i++;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_short((XDR *)(xfp->xdr), ptr + i)) i++;
 
-	return i;
+    return i;
 }
 
-int
-xdrfile_write_short(short *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_write_short(short *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_short((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_short((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
+int xdrfile_read_ushort(unsigned short *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-int
-xdrfile_read_ushort(unsigned short *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_u_short((XDR *)(xfp->xdr), ptr + i)) i++;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_u_short((XDR *)(xfp->xdr),ptr+i))
-		i++;
-
-	return i;
+    return i;
 }
 
-int
-xdrfile_write_ushort(unsigned short *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
+int xdrfile_write_ushort(unsigned short *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
 
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_u_short((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_u_short((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_read_float(float *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_float((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+int xdrfile_read_float(float *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_float((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_write_float(float *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_float((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+int xdrfile_write_float(float *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_float((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_read_double(double *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_double((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+int xdrfile_read_double(double *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_double((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_write_double(double *ptr, int ndata, XDRFILE* xfp)
-{
-	int i=0;
-	/* read write is encoded in the XDR struct */
-	while(i<ndata && xdr_double((XDR *)(xfp->xdr),ptr+i))
-		i++;
-	return i;
+int xdrfile_write_double(double *ptr, int ndata, XDRFILE *xfp) {
+    int i = 0;
+    /* read write is encoded in the XDR struct */
+    while (i < ndata && xdr_double((XDR *)(xfp->xdr), ptr + i)) i++;
+    return i;
 }
 
-int
-xdrfile_read_string(char *ptr, int maxlen, XDRFILE* xfp)
-{
-	int i;
-	if(xdr_string((XDR *)(xfp->xdr),&ptr,maxlen)) {
-		i=0;
-		while(i<maxlen && ptr[i]!=0)
-			i++;
-		if(i==maxlen)
-			return maxlen;
-		else
-			return i+1;
-	} else
-		return 0;
+int xdrfile_read_string(char *ptr, int maxlen, XDRFILE *xfp) {
+    int i;
+    if (xdr_string((XDR *)(xfp->xdr), &ptr, maxlen)) {
+        i = 0;
+        while (i < maxlen && ptr[i] != 0) i++;
+        if (i == maxlen)
+            return maxlen;
+        else
+            return i + 1;
+    } else
+        return 0;
 }
 
-int
-xdrfile_write_string(char *ptr, XDRFILE* xfp)
-{
-	int len=strlen(ptr)+1;
+int xdrfile_write_string(char *ptr, XDRFILE *xfp) {
+    int len = strlen(ptr) + 1;
 
-	if(xdr_string((XDR *)(xfp->xdr),&ptr,len))
-		return len;
-	else
-		return 0;
+    if (xdr_string((XDR *)(xfp->xdr), &ptr, len))
+        return len;
+    else
+        return 0;
 }
 
-
-int
-xdrfile_read_opaque(char *ptr, int cnt, XDRFILE* xfp)
-{
-	if(xdr_opaque((XDR *)(xfp->xdr),ptr,cnt))
-		return cnt;
-	else
-		return 0;
+int xdrfile_read_opaque(char *ptr, int cnt, XDRFILE *xfp) {
+    if (xdr_opaque((XDR *)(xfp->xdr), ptr, cnt))
+        return cnt;
+    else
+        return 0;
 }
 
-
-int
-xdrfile_write_opaque(char *ptr, int cnt, XDRFILE* xfp)
-{
-	if(xdr_opaque((XDR *)(xfp->xdr),ptr,cnt))
-		return cnt;
-	else
-		return 0;
+int xdrfile_write_opaque(char *ptr, int cnt, XDRFILE *xfp) {
+    if (xdr_opaque((XDR *)(xfp->xdr), ptr, cnt))
+        return cnt;
+    else
+        return 0;
 }
-
 
 /* Internal support routines for reading/writing compressed coordinates
  * sizeofint - calculate smallest number of bits necessary
  * to represent a certain integer.
  */
-static int
-sizeofint(int size) {
+static int sizeofint(int size) {
     unsigned int num = 1;
     int num_of_bits = 0;
 
-    while (size >= num && num_of_bits < 32)
-    {
-		num_of_bits++;
-		num <<= 1;
+    while (size >= num && num_of_bits < 32) {
+        num_of_bits++;
+        num <<= 1;
     }
     return num_of_bits;
 }
-
 
 /*
  * sizeofints - calculate 'bitsize' of compressed ints

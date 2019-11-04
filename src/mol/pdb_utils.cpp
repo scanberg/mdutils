@@ -6,6 +6,7 @@
 #include <mol/trajectory_utils.h>
 #include <core/string_utils.h>
 #include <core/log.h>
+#include <core/file.h>
 
 #include <ctype.h>
 #include <stdio.h>
@@ -91,10 +92,9 @@ inline void extract_trajectory_frame_data(TrajectoryFrame* frame, CStringView md
 }
 
 bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
-    StringBuffer<256> zstr = filename;  // Zero terminated
-    FILE* file = fopen(zstr.cstr(), "rb");
+    FILE* file = fopen(filename, "rb");
     if (!file) {
-        LOG_ERROR("Could not open file: %s", zstr.cstr());
+        LOG_ERROR("Could not open file: %.*s", filename.length(), filename.cstr());
         return false;
     }
 
@@ -323,11 +323,10 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
     ASSERT(traj);
     free_trajectory(traj);
 
-    StringBuffer<256> zstr = filename;  // @NOTE: Zero terminate
-    LOG_NOTE("Loading pdb trajectory from file: %s", zstr.cstr());
-    FILE* file = fopen(zstr.cstr(), "rb");
+    LOG_NOTE("Loading pdb trajectory from file: %.*s", filename.length(), filename.cstr());
+    FILE* file = fopen(filename, "rb");
     if (!file) {
-        LOG_ERROR("Could not open file: %s", zstr.cstr());
+        LOG_ERROR("Could not open file: %.*s", filename.length(), filename.cstr());
         return false;
     }
 
