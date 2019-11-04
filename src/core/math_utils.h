@@ -261,7 +261,7 @@ inline quat two_direction_vectors(const vec3& src, const vec3& dst) {
 }
 
 inline float geodesic_distance(const quat& a, const quat& b) {
-    const float dp = math::dot(a,b);
+    const float dp = math::clamp(math::dot(a,b), -1.0f, 1.0f);
     return math::acos(2.0f * dp * dp - 1.0f);
 }
 
