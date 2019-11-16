@@ -343,8 +343,8 @@ inline void xor_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) 
 }
 
 template <typename T>
-int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, Bitfield mask, int64_t offset = 0) {
-    int64_t out_count = 0;
+int64_t gather_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, Bitfield mask, int64_t offset = 0) {
+    int64_t dst_count = 0;
     const int64_t last_blk = detail::num_blocks(mask) - 1;
     for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
         const auto blk = mask.block_ptr[blk_idx];
@@ -352,8 +352,8 @@ int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, 
 
         for (uint64_t i = 0; i < detail::bits_per_block; ++i) {
             if (blk & ((Bitfield::BlockType)1 << i)) {
-                out_data[out_count] = in_data[offset + blk_idx * detail::bits_per_block + i];
-                ++out_count;
+                dst_data[dst_count] = src_data[offset + blk_idx * detail::bits_per_block + i];
+                ++dst_count;
             }
         }
     }
@@ -366,13 +366,47 @@ int64_t extract_data_from_mask(T* RESTRICT out_data, const T* RESTRICT in_data, 
         for (uint64_t i = 0; i < remainder; ++i) {
             const uint64_t bit = (Bitfield::BlockType)1 << i;
             if (blk & bit) {
-                out_data[out_count] = in_data[offset + blk_idx * detail::bits_per_block + i];
-                ++out_count;
+                dst_data[dst_count] = src_data[offset + blk_idx * detail::bits_per_block + i];
+                ++dst_count;
             }
         }
     }
 
-    return out_count;
+    return dst_count;
+}
+
+// @TODO: Implement scatter version of 'extract' mask
+template <typename T>
+int64_t scatter_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, Bitfield mask, int64_t offset = 0) {
+    int64_t src_count = 0;
+    const int64_t last_blk = detail::num_blocks(mask) - 1;
+    for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
+        const auto blk = mask.block_ptr[blk_idx];
+        if (blk == 0) continue;
+
+        for (uint64_t i = 0; i < detail::bits_per_block; ++i) {
+            if (blk & ((Bitfield::BlockType)1 << i)) {
+                dst_data[offset + blk_idx * detail::bits_per_block + i] = src_data[src_count];
+                ++src_count;
+            }
+        }
+    }
+
+    // @NOTE: Remainder
+    const uint64_t blk_idx = last_blk;
+    const uint64_t remainder = (uint64_t)mask.size() - blk_idx * detail::bits_per_block;
+    const uint64_t blk = mask.block_ptr[blk_idx];
+    if (blk) {
+        for (uint64_t i = 0; i < remainder; ++i) {
+            const uint64_t bit = (Bitfield::BlockType)1 << i;
+            if (blk & bit) {
+                dst_data[offset + blk_idx * detail::bits_per_block + i] = src_data[src_count];
+                ++src_count;
+            }
+        }
+    }
+
+    return src_count;
 }
 
 void print(const Bitfield field);
