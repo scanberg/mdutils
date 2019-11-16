@@ -124,9 +124,9 @@ inline float abs(float x) {
     return *((float*)(&i));
 }
 
-inline float sign(float x) { return (x > 0) - (x < 0); }
+inline float sign(float x) { return (float)((x > 0.0f) - (x < 0.0f)); }
 
-inline float step(float edge, float x) { return ((x - edge) > 0); }
+inline float step(float edge, float x) { return (float)((x - edge) > 0.0f); }
 
 template <typename T>
 auto angle(const T& a, const T& b) {
