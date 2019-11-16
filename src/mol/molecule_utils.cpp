@@ -164,6 +164,68 @@ void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRI
     }
 }
 
+void transform(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z, float* RESTRICT in_x, float* RESTRICT in_y, float* RESTRICT in_z, int64 count, const mat4& transformation,
+               float w_comp) {
+    const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
+    const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
+    const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
+
+    const SIMD_TYPE_F m21 = SIMD_SET_F(transformation[1][0]);
+    const SIMD_TYPE_F m22 = SIMD_SET_F(transformation[1][1]);
+    const SIMD_TYPE_F m23 = SIMD_SET_F(transformation[1][2]);
+
+    const SIMD_TYPE_F m31 = SIMD_SET_F(transformation[2][0]);
+    const SIMD_TYPE_F m32 = SIMD_SET_F(transformation[2][1]);
+    const SIMD_TYPE_F m33 = SIMD_SET_F(transformation[2][2]);
+
+    const SIMD_TYPE_F m41 = SIMD_SET_F(transformation[3][0]);
+    const SIMD_TYPE_F m42 = SIMD_SET_F(transformation[3][1]);
+    const SIMD_TYPE_F m43 = SIMD_SET_F(transformation[3][2]);
+
+    const SIMD_TYPE_F w = SIMD_SET_F(w_comp);
+
+    int64 i = 0;
+    const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    for (; i < simd_count; i += SIMD_WIDTH) {
+        const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
+        const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
+        const SIMD_TYPE_F z = SIMD_LOAD_F(in_z + i);
+
+        const SIMD_TYPE_F m11x = simd::mul(m11, x);
+        const SIMD_TYPE_F m21y = simd::mul(m21, y);
+        const SIMD_TYPE_F m31z = simd::mul(m31, z);
+        const SIMD_TYPE_F m41w = simd::mul(m41, w);
+
+        const SIMD_TYPE_F m12x = simd::mul(m12, x);
+        const SIMD_TYPE_F m22y = simd::mul(m22, y);
+        const SIMD_TYPE_F m32z = simd::mul(m32, z);
+        const SIMD_TYPE_F m42w = simd::mul(m42, w);
+
+        const SIMD_TYPE_F m13x = simd::mul(m13, x);
+        const SIMD_TYPE_F m23y = simd::mul(m23, y);
+        const SIMD_TYPE_F m33z = simd::mul(m33, z);
+        const SIMD_TYPE_F m43w = simd::mul(m43, w);
+
+        const SIMD_TYPE_F res_x = simd::add(simd::add(m11x, m21y), simd::add(m31z, m41w));
+        const SIMD_TYPE_F res_y = simd::add(simd::add(m12x, m22y), simd::add(m32z, m42w));
+        const SIMD_TYPE_F res_z = simd::add(simd::add(m13x, m23y), simd::add(m33z, m43w));
+
+        SIMD_STORE(out_x + i, res_x);
+        SIMD_STORE(out_y + i, res_y);
+        SIMD_STORE(out_z + i, res_z);
+    }
+
+    for (; i < count; i++) {
+        const float x = in_x[i];
+        const float y = in_y[i];
+        const float z = in_z[i];
+
+        out_x[i] = x * transformation[0][0] + y * transformation[1][0] + z * transformation[2][0] + w_comp * transformation[3][0];
+        out_y[i] = x * transformation[0][1] + y * transformation[1][1] + z * transformation[2][1] + w_comp * transformation[3][1];
+        out_z[i] = x * transformation[0][2] + y * transformation[1][2] + z * transformation[2][2] + w_comp * transformation[3][2];
+    }
+}
+
 void homogeneous_transform(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
         const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
@@ -533,12 +595,12 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
     float* z = (float*)mem + 2 * count;
     float* m = (float*)mem + 3 * count;
 
-    bitfield::extract_data_from_mask(m, mol.atom.mass, atom_mask);
+    bitfield::gather_data_from_mask(m, mol.atom.mass, atom_mask);
 
     for (auto& frame : traj.frame_buffer) {
-        bitfield::extract_data_from_mask(x, frame.atom_position.x, atom_mask);
-        bitfield::extract_data_from_mask(y, frame.atom_position.y, atom_mask);
-        bitfield::extract_data_from_mask(z, frame.atom_position.z, atom_mask);
+        bitfield::gather_data_from_mask(x, frame.atom_position.x, atom_mask);
+        bitfield::gather_data_from_mask(y, frame.atom_position.y, atom_mask);
+        bitfield::gather_data_from_mask(z, frame.atom_position.z, atom_mask);
         const vec3 com = compute_com_periodic(x, y, z, m, count, frame.box);
         const vec3 translation = frame.box * vec3(0.5f) - com;
         translate(frame.atom_position.x, frame.atom_position.y, frame.atom_position.z, mol.atom.count, translation);
@@ -1596,10 +1658,10 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
     float* z = (float*)mem + 2 * count;
     float* m = (float*)mem + 3 * count;
 
-    bitfield::extract_data_from_mask(x, mol.atom.position.x, mask, offset);
-    bitfield::extract_data_from_mask(y, mol.atom.position.y, mask, offset);
-    bitfield::extract_data_from_mask(z, mol.atom.position.z, mask, offset);
-    bitfield::extract_data_from_mask(m, mol.atom.mass, mask, offset);
+    bitfield::gather_data_from_mask(x, mol.atom.position.x, mask, offset);
+    bitfield::gather_data_from_mask(y, mol.atom.position.y, mask, offset);
+    bitfield::gather_data_from_mask(z, mol.atom.position.z, mask, offset);
+    bitfield::gather_data_from_mask(m, mol.atom.mass, mask, offset);
 
     const EigenFrame ref_eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
 #endif
@@ -1610,10 +1672,10 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
 
         if (structure_match(mol, mask, offset, i, used_atoms)) {
 #if 0
-            bitfield::extract_data_from_mask(x, mol.atom.position.x, mask, i);
-            bitfield::extract_data_from_mask(y, mol.atom.position.y, mask, i);
-            bitfield::extract_data_from_mask(z, mol.atom.position.z, mask, i);
-            bitfield::extract_data_from_mask(m, mol.atom.mass, mask);
+            bitfield::gather_data_from_mask(x, mol.atom.position.x, mask, i);
+            bitfield::gather_data_from_mask(y, mol.atom.position.y, mask, i);
+            bitfield::gather_data_from_mask(z, mol.atom.position.z, mask, i);
+            bitfield::gather_data_from_mask(m, mol.atom.mass, mask);
 
             const EigenFrame eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
 

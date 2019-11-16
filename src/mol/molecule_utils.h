@@ -76,6 +76,8 @@ void transform_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RE
 // Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)
 // W-component is supplied by user
 void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
+void transform(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z, float* RESTRICT in_x, float* RESTRICT in_y, float* RESTRICT in_z, int64 count, const mat4& transformation,
+               float w_comp = 1.0f);
 
 // Transforms points as homogeneous vectors[x,y,z,1] with supplied transformation matrix and applies 'perspective' division
 void homogeneous_transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation);
