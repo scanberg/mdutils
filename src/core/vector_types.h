@@ -87,3 +87,16 @@ using mat3x4 = glm::tmat3x4<float>;
 using mat4x2 = glm::tmat4x2<float>;
 using mat4x3 = glm::tmat4x3<float>;
 using mat4x4 = glm::tmat4x4<float>;
+
+using dmat2 = glm::tmat2x2<double>;
+using dmat3 = glm::tmat3x3<double>;
+using dmat4 = glm::tmat4x4<double>;
+using dmat2x2 = glm::tmat2x2<double>;
+using dmat2x3 = glm::tmat2x3<double>;
+using dmat2x4 = glm::tmat2x4<double>;
+using dmat3x2 = glm::tmat3x2<double>;
+using dmat3x3 = glm::tmat3x3<double>;
+using dmat3x4 = glm::tmat3x4<double>;
+using dmat4x2 = glm::tmat4x2<double>;
+using dmat4x3 = glm::tmat4x3<double>;
+using dmat4x4 = glm::tmat4x4<double>;
