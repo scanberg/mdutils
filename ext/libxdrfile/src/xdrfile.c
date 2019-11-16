@@ -203,7 +203,7 @@ FILE* xdr_fopen(const char *file, const char *mode) {
 #endif
 
 int xdr_fclose(FILE* file) {
-    fclose(file);
+    return fclose(file);
 }
 
 /*************************************************************
