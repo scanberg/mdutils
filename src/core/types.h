@@ -15,28 +15,6 @@ typedef uint64_t uint64;
 typedef float float32;
 typedef double float64;
 
-// SOA Containers for vector types, not used in practice so far...
-struct Float2Stream {
-	float* x = nullptr;
-	float* y = nullptr;
-	int64  count = 0;
-};
-
-struct Float3Stream {
-	float* x = nullptr;
-	float* y = nullptr;
-	float* z = nullptr;
-	int64  count = 0;
-};
-
-struct Float4Stream {
-	float* x = nullptr;
-	float* y = nullptr;
-	float* z = nullptr;
-	float* w = nullptr;
-	int64  count = 0;
-};
-
 template <typename T>
 struct Range {
     union {

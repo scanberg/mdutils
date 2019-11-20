@@ -129,9 +129,6 @@ inline ArrayView<const Chain> get_chains(const MoleculeStructure& mol) { return 
 inline ArrayView<Bond> get_covalent_bonds(MoleculeStructure& mol) { return mol.covalent_bonds; }
 inline ArrayView<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { return mol.covalent_bonds; }
 
-inline Float3Stream get_position_stream(MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.position.y, mol.atom.position.z, mol.atom.count}; }
-inline Float3Stream get_velocity_stream(MoleculeStructure& mol) { return {mol.atom.velocity.x, mol.atom.velocity.y, mol.atom.velocity.z, mol.atom.count}; }
-
 // Single atom access
 inline vec3 get_position_xyz(const MoleculeStructure& mol, AtomIdx idx) {
     ASSERT(0 <= idx && idx < mol.atom.count);

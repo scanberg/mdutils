@@ -4,19 +4,19 @@
 //#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_SILENT_WARNINGS // silence warnings induced by glm
 
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/mat2x2.hpp>
-#include <glm/mat2x3.hpp>
-#include <glm/mat2x4.hpp>
-#include <glm/mat3x2.hpp>
-#include <glm/mat3x3.hpp>
-#include <glm/mat3x4.hpp>
-#include <glm/mat4x2.hpp>
-#include <glm/mat4x3.hpp>
-#include <glm/mat4x4.hpp>
+#include <glm/detail/type_vec2.hpp>
+#include <glm/detail/type_vec3.hpp>
+#include <glm/detail/type_vec4.hpp>
+#include <glm/detail/type_quat.hpp>
+#include <glm/detail/type_mat2x2.hpp>
+#include <glm/detail/type_mat2x3.hpp>
+#include <glm/detail/type_mat2x4.hpp>
+#include <glm/detail/type_mat3x2.hpp>
+#include <glm/detail/type_mat3x3.hpp>
+#include <glm/detail/type_mat3x4.hpp>
+#include <glm/detail/type_mat4x2.hpp>
+#include <glm/detail/type_mat4x3.hpp>
+#include <glm/detail/type_mat4x4.hpp>
 
 using quat = glm::tquat<float>;
 using vec2 = glm::tvec2<float>;
