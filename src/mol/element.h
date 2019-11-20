@@ -117,18 +117,18 @@ constexpr Element get_from_string(CStringView cstr) {
         }
     }
 
-    // Try to match against first character
-    for (int32 i = 0; i < num_elements; i++) {
-        CStringView elem = symbol((Element)i);
-        if (elem.size() == 1 && cstr[0] == elem[0]) return (Element)i;
-    }
-
     // Try to match against two characters again with the latter in lower case
     if (cstr.length() > 1) {
         for (int32 i = 0; i < num_elements; i++) {
             CStringView elem = symbol((Element)i);
-            if (elem.size()== 2 && cstr[0] == elem[0] && to_lower(cstr[1]) == elem[1]) return (Element)i;
+            if (elem.size() == 2 && cstr[0] == elem[0] && to_lower(cstr[1]) == elem[1]) return (Element)i;
         }
+    }
+
+    // Try to match against first character
+    for (int32 i = 0; i < num_elements; i++) {
+        CStringView elem = symbol((Element)i);
+        if (elem.size() == 1 && cstr[0] == elem[0]) return (Element)i;
     }
 
     return Element::Unknown;
