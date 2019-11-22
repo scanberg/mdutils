@@ -11,7 +11,7 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
     traj->num_atoms = num_atoms;
     traj->num_frames = num_frames;
     traj->total_simulation_time = 0;
-    traj->simulation_type = MoleculeTrajectory::NVT;
+    traj->simulation_type = SimulationType::Undefined;
 	traj->file = {};
 
     const int64 pos_mem_size = (num_frames * num_atoms * sizeof(float) + ALIGNMENT) * 3;

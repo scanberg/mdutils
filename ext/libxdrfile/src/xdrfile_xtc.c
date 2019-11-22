@@ -101,12 +101,6 @@ int read_xtc_header(XDRFILE *xd, int* natoms, int* step, float* time)
 
 /* Seek through trajectory counting and indexing frames  */
 int read_xtc_frame_offsets(const char *fn, int *numframes, int64_t **offsets) {
-	return read_xtc_frame_offsets_callback(fn, numframes, offsets, NULL, NULL, 0);
-}
-
-int read_xtc_frame_offsets_callback(const char *fn, int *numframes, int64_t **offsets,
-                       void (*callback)(int64_t*, int, void*), void* usr_data,
-                       int callback_frequency) {
     XDRFILE *xd;
     int framebytes, natoms, step;
     float time;
@@ -172,11 +166,6 @@ int read_xtc_frame_offsets_callback(const char *fn, int *numframes, int64_t **of
             }
             if (xdrfile_read_int(&framebytes, 1, xd) == 0) break;
 
-			// Do an additional callback on the first frame to give the user some data fairly quick
-			if (callback && (*numframes == 1 || *numframes % callback_frequency == 0)) {
-				callback(*offsets, *numframes, usr_data);
-			}
-
             /* Read was successful; this is another frame */
             /* Check if we need to enlarge array */
             if (*numframes == est_nframes) {
@@ -203,10 +192,7 @@ int write_xtc(XDRFILE *xd, int natoms, int step, float time, matrix box, rvec *x
 /* Write a frame to xtc file */
 {
     int result;
-
     if ((result = xtc_header(xd, &natoms, &step, &time, FALSE)) != exdrOK) return result;
-
     if ((result = xtc_coord(xd, &natoms, box, x, &prec, 0)) != exdrOK) return result;
-
     return exdrOK;
 }

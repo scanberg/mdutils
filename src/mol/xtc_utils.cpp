@@ -69,7 +69,7 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, int32 mol_atom_count, C
     traj->num_atoms = num_atoms;
     traj->num_frames = 0;
     traj->total_simulation_time = 0;
-    traj->simulation_type = MoleculeTrajectory::NVT;
+    traj->simulation_type = SimulationType::NVT;
     traj->file.path = filename;
     traj->file.handle = file_handle;
 	traj->file.tag = XTC_FILE_TAG;

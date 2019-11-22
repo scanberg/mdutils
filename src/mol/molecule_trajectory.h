@@ -6,10 +6,16 @@
 #include <core/string_types.h>
 #include <core/common.h>
 
+enum class SimulationType {
+    Undefined,
+    NVT,
+    NPT
+};
+
 struct TrajectoryFrame {
     int32 index = 0;
     float32 time = 0;
-    mat3 box = {0,0,0,0,0,0,0,0,0};
+    mat3 box = {0, 0, 0, 0, 0, 0, 0, 0, 0};
     struct {
         float* x = nullptr;
         float* y = nullptr;
@@ -18,18 +24,16 @@ struct TrajectoryFrame {
 };
 
 struct MoleculeTrajectory {
-    enum Type { NVT, NPT };
-
     int32 num_atoms = 0;
     int32 num_frames = 0;
     float32 total_simulation_time = 0;
-    Type simulation_type = NVT;
+    SimulationType simulation_type = SimulationType::Undefined;
 
-	struct {
-		StringBuffer<512> path{};
-		void* handle = nullptr;
-		uint32 tag = 0;
-	} file;
+    struct {
+        StringBuffer<512> path{};
+        void* handle = nullptr;
+        uint32 tag = 0;
+    } file;
 
     // @NOTE: The frame_buffer may not contain all frames in trajectory.
     // If the trajectory is large, frame_buffer will be used as a cache towards the trajectory streamed from disk.
