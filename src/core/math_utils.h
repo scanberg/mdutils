@@ -5,7 +5,7 @@
 #include <core/types.h>
 #include <core/vector_types.h>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+//#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/random.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -109,22 +109,44 @@ inline float smoothstep2(float edge0, float edge1, float x) {
     return t;
 }
 
-template <typename T>
-auto abs(const T& x) {
-    return glm::abs(x);
-}
+// clang-format off
+inline int32_t sign(int32_t x) { return (x > 0) | -(x < 0); }
+inline ivec2   sign(ivec2 v)   { return { sign(v.x), sign(v.y) }; }
+inline ivec3   sign(ivec3 v)   { return { sign(v.x), sign(v.y), sign(v.z) }; }
+inline ivec4   sign(ivec4 v)   { return { sign(v.x), sign(v.y), sign(v.z), sign(v.w) }; }
+inline int64_t sign(int64_t x) { return (x > 0) | -(x < 0); }
+inline float   sign(float x)   { return (float)(x > 0.0f) - (float)(x < 0.0f); }
+inline vec2    sign(vec2 v)    { return { sign(v.x), sign(v.y) }; }
+inline vec3    sign(vec3 v)    { return { sign(v.x), sign(v.y), sign(v.z) }; }
+inline vec4    sign(vec4 v)    { return { sign(v.x), sign(v.y), sign(v.z), sign(v.w) }; }
+inline double  sign(double x)  { return (double)(x > 0.0) - (double)(x < 0.0); }
+inline dvec2   sign(dvec2 v)   { return { sign(v.x), sign(v.y) }; }
+inline dvec3   sign(dvec3 v)   { return { sign(v.x), sign(v.y), sign(v.z) }; }
+inline dvec4   sign(dvec4 v)   { return { sign(v.x), sign(v.y), sign(v.z), sign(v.w) }; }
 
-template <typename T>
-auto sign(const T& x) {
-    return glm::sign(x);
-}
+inline int32_t abs(int32_t x) { return x & 0x7FFFFFFF; }
+inline ivec2   abs(ivec2 v)   { return { abs(v.x), abs(v.y)}; }
+inline ivec3   abs(ivec3 v)   { return { abs(v.x), abs(v.y), abs(v.z)}; }
+inline ivec4   abs(ivec4 v)   { return { abs(v.x), abs(v.y), abs(v.z), abs(v.w)}; }
+inline int64_t abs(int64_t x) { return x & 0x7FFFFFFFFFFFFFFF; }
+inline float   abs(float x)   { int32_t y = abs(*(int32_t*)(&x)); return *(float*)(&y); }
+inline vec2    abs(vec2 v)    { return { abs(v.x), abs(v.y)}; }
+inline vec3    abs(vec3 v)    { return { abs(v.x), abs(v.y), abs(v.z)}; }
+inline vec4    abs(vec4 v)    { return { abs(v.x), abs(v.y), abs(v.z), abs(v.w)}; }
+inline double  abs(double x)  { int64_t y = abs(*(int64_t*)(&x)); return *(double*)(&y); }
+inline dvec2   abs(dvec2 v)   { return { abs(v.x), abs(v.y)}; }
+inline dvec3   abs(dvec3 v)   { return { abs(v.x), abs(v.y), abs(v.z)}; }
+inline dvec4   abs(dvec4 v)   { return { abs(v.x), abs(v.y), abs(v.z), abs(v.w)}; }
 
-inline float abs(float x) {
-    const int i = (*(int*)(&x)) & 0x7FFFFFFF;
-    return *((float*)(&i));
-}
-
-inline float sign(float x) { return (float)((x > 0.0f) - (x < 0.0f)); }
+inline float  fract(float x)  { return x - (int32_t)x; }
+inline vec2   fract(vec2 v)   { return { fract(v.x), fract(v.y) }; }
+inline vec3   fract(vec3 v)   { return { fract(v.x), fract(v.y), fract(v.z) }; }
+inline vec4   fract(vec4 v)   { return { fract(v.x), fract(v.y), fract(v.z), fract(v.w) }; }
+inline double fract(double x) { return x - (int64_t)x; }
+inline dvec2  fract(dvec2 v)  { return { fract(v.x), fract(v.y) }; }
+inline dvec3  fract(dvec3 v)  { return { fract(v.x), fract(v.y), fract(v.z) }; }
+inline dvec4  fract(dvec4 v)  { return { fract(v.x), fract(v.y), fract(v.z), fract(v.w) }; }
+// clang-format on
 
 inline float step(float edge, float x) { return (float)((x - edge) > 0.0f); }
 
