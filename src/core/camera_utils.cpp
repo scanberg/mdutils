@@ -2,6 +2,31 @@
 #include <core/common.h>
 #include <core/math_utils.h>
 
+static mat4 frustum(float left, float right, float bottom, float top, float near, float far) {
+    mat4 M{0};
+    M[0][0] = (2.0f * near) / (right - left);
+    M[1][1] = (2.0f * near) / (top - bottom);
+    M[2][0] = (right + left) / (right - left);
+    M[2][1] = (top + bottom) / (top - bottom);
+    M[2][2] = -(far + near) / (far - near);
+    M[2][3] = -1.0f;
+    M[3][2] = -(2.0f * far * near) / (far - near);
+    return M;
+}
+
+mat4 perspective(float fovy, float aspect, float near, float far) {
+    ASSERT(math::abs(aspect - FLT_EPSILON) > 0.0f);
+    const float tan_half_fovy = math::tan(fovy * 0.5f);
+
+    mat4 M{0}; 
+    M[0][0] = 1.0f / (aspect * tan_half_fovy);
+    M[1][1] = 1.0f / (tan_half_fovy);
+    M[2][2] = -(far + near) / (far - near);
+    M[2][3] = -1.0f;
+    M[3][2] = -(2.0f * far * near) / (far - near);
+    return M;
+}
+
 static vec4 projection_extents(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
     const float aspect_ratio = (float)width / (float)height;
     const float half_h = math::tan(camera.fov_y * 0.5f);
@@ -31,7 +56,7 @@ mat4 compute_world_to_view_matrix(const Camera& camera) {
 
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height) {
     const float aspect_ratio = (float)width / (float)height;
-    return glm::perspective(camera.fov_y, aspect_ratio, camera.near_plane, camera.far_plane);
+    return perspective(camera.fov_y, aspect_ratio, camera.near_plane, camera.far_plane);
 }
 
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
@@ -44,14 +69,33 @@ mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int 
     const float ym = ext.w - ext.y;
     const float yp = ext.w + ext.y;
 
-    return glm::frustum(xm * cn, xp * cn, ym * cn, yp * cn, cn, cf);
+    return frustum(xm * cn, xp * cn, ym * cn, yp * cn, cn, cf);
 }
 
 // @TODO: This is messed up... what values should one use to control the zoomlevel?
 mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height) {
-    float h_w = width * 0.05f;
-    float h_h = height * 0.05f;
-    return glm::ortho(-h_w, h_w, -h_h, h_h, camera.near_plane, camera.far_plane);
+
+    const float z_n = camera.near_plane;
+    const float z_f = camera.far_plane;
+
+    mat4 M{1};
+    M[0][0] = 1.0f / width;
+    M[1][1] = 1.0f / height;
+    M[2][2] = -2.0f / (z_n - z_f);
+    M[3][2] = -(z_f + z_n) / (z_f - z_n);
+    return M;
+}
+
+mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
+    const float z_n = camera.near_plane;
+    const float z_f = camera.far_plane;
+
+    mat4 M{1};
+    M[0][0] = (1.0f + texel_offset_x) / width;
+    M[1][1] = (1.0f + texel_offset_y) / height;
+    M[2][2] = -2.0f / (z_n - z_f);
+    M[3][2] = -(z_f + z_n) / (z_f - z_n);
+    return M;
 }
 
 mat3 look_at(const vec3& look_from, const vec3& look_at, const vec3& look_up) {

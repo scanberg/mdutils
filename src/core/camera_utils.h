@@ -47,8 +47,8 @@ struct TrackballControllerState {
     float distance = 14.f;
 };
 
-enum TrackballFlags_ { TrackballFlags_RotateReturnsTrue = 1, TrackballFlags_PanReturnsTrue = 2, TrackballFlags_DollyReturnsTrue = 4 };
-typedef int TrackballFlags;
+enum TrackballFlags_ { TrackballFlags_RotateReturnsTrue = 0x1, TrackballFlags_PanReturnsTrue = 0x2, TrackballFlags_DollyReturnsTrue = 0x4, TrackballFlags_AnyInteractionReturnsTrue = 0xFFFFFFFF };
+typedef uint32_t TrackballFlags;
 
 mat3 look_at(const vec3& look_from, const vec3& look_at, const vec3& look_up = {0, 1, 0});
 
@@ -60,6 +60,8 @@ mat4 compute_view_to_world_matrix(const Camera& camera);
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height);
 mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
 mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height);
+mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
+
 
 bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* trackball_state, TrackballFlags flags = 0xFFFFFFFF);
 
