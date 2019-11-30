@@ -43,12 +43,6 @@ extern int read_xtc_frame_offsets(const char *filename, int *num_frames, int64_t
 
 extern int read_xtc_header(XDRFILE *xd, int* num_atoms, int* step, float* time);
 
-/* Seek through trajectory counting and indexing frames with a periodic callback for every N'th
- * frame */
-extern int read_xtc_frame_offsets_callback(const char *filename, int *num_frames, int64_t **offsets,
-                              void (*callback)(int64_t* offsets, int size, void* usr_data), void* usr_data,
-                              int callback_frequency);
-
 /* Read one frame of an open xtc file */
 extern int read_xtc(XDRFILE *xd, int num_atoms, int *step, float *time, matrix box, rvec *x,
                     float *prec);
