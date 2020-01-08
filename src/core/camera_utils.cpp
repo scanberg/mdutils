@@ -54,12 +54,12 @@ mat4 compute_world_to_view_matrix(const Camera& camera) {
     return R * T;
 }
 
-mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height) {
+mat4 perspective_projection_matrix(const Camera& camera, int width, int height) {
     const float aspect_ratio = (float)width / (float)height;
     return perspective(camera.fov_y, aspect_ratio, camera.near_plane, camera.far_plane);
 }
 
-mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
+mat4 perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
     const vec4 ext = projection_extents(camera, width, height, texel_offset_x, texel_offset_y);
 
     const float cn = camera.near_plane;
@@ -73,28 +73,20 @@ mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int 
 }
 
 // @TODO: This is messed up... what values should one use to control the zoomlevel?
-mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height) {
-
-    const float z_n = camera.near_plane;
-    const float z_f = camera.far_plane;
-
+mat4 orthographic_projection_matrix(float left, float right, float bottom, float top) {
     mat4 M{1};
-    M[0][0] = 1.0f / width;
-    M[1][1] = 1.0f / height;
-    M[2][2] = -2.0f / (z_n - z_f);
-    M[3][2] = -(z_f + z_n) / (z_f - z_n);
     return M;
 }
 
-mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y) {
-    const float z_n = camera.near_plane;
-    const float z_f = camera.far_plane;
-
+mat4 orthographic_projection_matrix(float l, float r, float b, float t, float n, float f) {
     mat4 M{1};
-    M[0][0] = (1.0f + texel_offset_x) / width;
-    M[1][1] = (1.0f + texel_offset_y) / height;
-    M[2][2] = -2.0f / (z_n - z_f);
-    M[3][2] = -(z_f + z_n) / (z_f - z_n);
+    M[0][0] = 2.0f / (r - l);
+    M[1][1] = 2.0f / (t - b);
+    M[2][2] = -2.0f / (f - n);
+    M[3][0] = -(r + l) / (r - l);
+    M[3][1] = -(t + b) / (t - b);
+    M[3][2] = -(f + n) / (f - n);
+    M[3][3] = 1.0f;
     return M;
 }
 
@@ -106,35 +98,6 @@ mat3 look_at(const vec3& look_from, const vec3& look_at, const vec3& look_up) {
 	const mat4 M = {{s.x, u.x, -f.x, 0.0f}, {s.y, u.y, -f.y, 0.0f}, {s.z, u.z, -f.z, 0.0f}, {-math::dot(s, look_from), -math::dot(u, look_from), math::dot(f, look_from), 1.0f}};
     return M;
 }
-
-/*
-void camera_controller_fps(Camera* camera, const FpsControllerState& state) {
-    (void)camera;
-    (void)state;
-    
-
-    ASSERT(camera);
-
-    mouse_vel *= 0.01f;
-    quat pitch = quat(vec3(-mouse_vel.y, 0, 0));
-    quat yaw = quat(vec3(0, mouse_vel.x, 0));
-    // glm::clamp(euler.x, -math::PI * 0.5f, math::PI * 0.5f);
-    camera->orientation = yaw * camera->orientation * pitch;
-    camera->orientation = math::normalize(camera->orientation);
-    // camera->orientation = quat(mouse_vel.x, vec3(0, 1, 0)) * camera->orientation * quat(mouse_vel.y, vec3(1, 0, 0));
-
-    vec3 move_vec(0);
-    move_speed *= 10.f * delta_time;
-
-    if (key_fwd) move_vec.z -= move_speed;
-    if (key_bwd) move_vec.z += move_speed;
-    if (key_lft) move_vec.x -= move_speed;
-    if (key_rht) move_vec.x += move_speed;
-
-    mat3 mat = math::mat3_cast(camera->orientation);
-    camera->position += mat * move_vec;
-}
-*/
 
 static inline float project_to_sphere(float r, vec2 v) {
     float d = math::length(v);

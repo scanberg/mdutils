@@ -57,10 +57,10 @@ void camera_move(Camera* camera, vec3 vec);
 
 mat4 compute_world_to_view_matrix(const Camera& camera);
 mat4 compute_view_to_world_matrix(const Camera& camera);
-mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height);
-mat4 compute_perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
-mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height);
-mat4 compute_orthographic_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
+mat4 perspective_projection_matrix(const Camera& camera, int width, int height);
+mat4 perspective_projection_matrix(const Camera& camera, int width, int height, float texel_offset_x, float texel_offset_y);
+mat4 orthographic_projection_matrix(float left, float right, float bottom, float top);
+mat4 orthographic_projection_matrix(float left, float right, float bottom, float top, float near, float far);
 
 
 bool camera_controller_trackball(vec3* position, quat* orientation, TrackballControllerState* trackball_state, TrackballFlags flags = 0xFFFFFFFF);
