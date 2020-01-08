@@ -6,10 +6,9 @@
 #include <core/vector_types.h>
 #include <glm/glm.hpp>
 //#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtc/random.hpp>
+//#include <glm/gtc/quaternion.hpp>
+//#include <glm/gtc/random.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/spline.hpp>
 #include <glm/gtx/quaternion.hpp>
 
 #include <stdlib.h>
@@ -87,11 +86,6 @@ using glm::mat4_cast;
 using glm::quat_cast;
 
 template <typename T>
-auto step(const T& edge, const T& x) {
-    return glm::step(edge, x);
-}
-
-template <typename T>
 auto smoothstep(const T& edge0, const T& edge1, const T& x) {
     const T t = math::clamp<T>((x - edge0) / (edge1 - edge0), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
@@ -146,9 +140,17 @@ inline double fract(double x) { return x - (int64_t)x; }
 inline dvec2  fract(dvec2 v)  { return { fract(v.x), fract(v.y) }; }
 inline dvec3  fract(dvec3 v)  { return { fract(v.x), fract(v.y), fract(v.z) }; }
 inline dvec4  fract(dvec4 v)  { return { fract(v.x), fract(v.y), fract(v.z), fract(v.w) }; }
-// clang-format on
 
 inline float step(float edge, float x) { return (float)((x - edge) > 0.0f); }
+inline vec2  step(vec2  edge, vec2  v) { return {step(edge.x, v.x), step(edge.y, v.y)}; }
+inline vec3  step(vec3  edge, vec3  v) { return {step(edge.x, v.x), step(edge.y, v.y), step(edge.z, v.z)}; }
+inline vec4  step(vec4  edge, vec4  v) { return {step(edge.x, v.x), step(edge.y, v.y), step(edge.z, v.z), step(edge.w, v.w)}; }
+inline double step(double edge, double x) { return (double)((x - edge) > 0.0); }
+inline dvec2  step(dvec2  edge, dvec2  v) { return {step(edge.x, v.x), step(edge.y, v.y)}; }
+inline dvec3  step(dvec3  edge, dvec3  v) { return {step(edge.x, v.x), step(edge.y, v.y), step(edge.z, v.z)}; }
+inline dvec4  step(dvec4  edge, dvec4  v) { return {step(edge.x, v.x), step(edge.y, v.y), step(edge.z, v.z), step(edge.w, v.w)}; }
+
+// clang-format on
 
 template <typename T>
 auto angle(const T& a, const T& b) {
@@ -242,11 +244,6 @@ inline quat cubic_slerp(const quat& q0, const quat& q1, const quat& q2, const qu
     const auto i2 = normalize(intermediate(q1, sq2, sq3));
 
     return squad(q1, sq2, i1, i2, s);
-}
-
-template <typename T, typename V>
-V catmull_rom(const T& v1, const T& v2, const T& v3, const T& v4, V s) {
-    return glm::catmullRom(v1, v2, v3, v4, s);
 }
 
 template <typename T, typename V>
