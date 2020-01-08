@@ -54,6 +54,14 @@ inline __m512 de_periodize(const __m512 pos, const __m512 ref_pos, const __m512 
 }
 #endif
 
+void translate_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+    for (int64 i = 0; i < count; i++) {
+        in_out_x[i] += translation.x;
+        in_out_y[i] += translation.y;
+        in_out_z[i] += translation.z;
+    }
+}
+
 void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
     int64 i = 0;
 
@@ -79,14 +87,6 @@ void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRI
     }
 
     for (; i < count; i++) {
-        in_out_x[i] += translation.x;
-        in_out_y[i] += translation.y;
-        in_out_z[i] += translation.z;
-    }
-}
-
-void translate_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
-    for (int64 i = 0; i < count; i++) {
         in_out_x[i] += translation.x;
         in_out_y[i] += translation.y;
         in_out_z[i] += translation.z;
@@ -281,7 +281,7 @@ AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const 
     return aabb;
 }
 
-AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count) {
+AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_r, int64 count) {
     if (count == 0) {
         return {};
     }

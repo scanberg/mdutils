@@ -83,9 +83,8 @@ void transform(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out
 void homogeneous_transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation);
 
 // Computes the minimun spanning Axis aligned bounding box which contains all supplied points [x,y,z,(r)adius)]
-// Writes the results to out variables as float[3] = {x,y,z}
 AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
-AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* in_r, int64 count);
+AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_r, int64 count);
 
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
 vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count);
