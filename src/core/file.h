@@ -8,4 +8,4 @@
 FILE* fopen_utf8(const char* filename, const char* mode);
 FILE* fopen(CStringView filename, CStringView mode);
 
-FILE* fmemopen(void* buf, size_t len, const char* mode);
+//FILE* fmemopen(void* buf, size_t len, const char* mode);

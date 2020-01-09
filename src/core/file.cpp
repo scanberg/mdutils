@@ -56,6 +56,7 @@ FILE* fopen(CStringView file, CStringView mode) {
 #endif
 }
 
+#if 0
 // Blatantly stolen from libconfuse
 // https://github.com/martinh/libconfuse/blob/master/src/fmemopen.c
 
@@ -103,3 +104,4 @@ FILE* fmemopen(void* buf, size_t len, const char* type) {
 
     return fp;
 }
+#endif
