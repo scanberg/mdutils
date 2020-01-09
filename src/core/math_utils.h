@@ -37,6 +37,7 @@ using glm::exp;
 using glm::floor;
 using glm::fract;
 using glm::inversesqrt;
+using glm::log;
 using glm::max;
 using glm::min;
 using glm::mod;
@@ -280,7 +281,7 @@ inline quat two_direction_vectors(const vec3& src, const vec3& dst) {
 }
 
 inline float geodesic_distance(const quat& a, const quat& b) {
-    const float dp = math::clamp(math::dot(a,b), -1.0f, 1.0f);
+    const float dp = math::clamp(math::dot(a, b), -1.0f, 1.0f);
     return math::acos(2.0f * dp * dp - 1.0f);
 }
 
@@ -431,28 +432,37 @@ inline vec3 rgb_to_hcl(vec3 rgb) {
     return HCL;
 }
 
+// clang-format off
 inline vec3 rgb_to_XYZ(vec3 rgb) {
-    const mat3 RGB_2_XYZ = {0.4124564, 0.3575761, 0.1804375, 0.2126729, 0.7151522, 0.0721750, 0.0193339, 0.1191920, 0.9503041};
+    constexpr mat3 RGB_2_XYZ = {0.4124564, 0.3575761, 0.1804375,
+                                0.2126729, 0.7151522, 0.0721750,
+                                0.0193339, 0.1191920, 0.9503041};
     return RGB_2_XYZ * rgb;
 }
 
 inline vec3 XYZ_to_rgb(vec3 XYZ) {
-    const mat3 XYZ_2_RGB = {3.2404542, -1.5371385, -0.4985314, -0.9692660, 1.8760108, 0.0415560, 0.0556434, -0.2040259, 1.0572252};
+    const mat3 XYZ_2_RGB = { 3.2404542, -1.5371385, -0.4985314,
+                            -0.9692660,  1.8760108,  0.0415560,
+                             0.0556434, -0.2040259,  1.0572252};
     return XYZ_2_RGB * XYZ;
 }
+// clang-format on
 
 inline vec3 XYZ_to_Lab(vec3 XYZ) {
     const auto f = [](float t) {
         const float d = 6.f / 29.f;
-        return t > d * d * d ? powf(t, 0.33333333f) : (t / (3.f * d * d) + 4.f / 29.f);
+        return t > d * d * d ? powf(t, 1.0f / 3.0f) : (t / (3.f * d * d) + 4.f / 29.f);
     };
 
     const float Xn = 0.950489f;  // reference white
     const float Yn = 1.0f;
     const float Zn = 0.825188f;
-    const float L = 116.f * f(XYZ.y / Yn) - 16.f;             // maximum L = 100
-    const float a = 500.f * (f(XYZ.x / Xn) - f(XYZ.y / Yn));  // maximum
-    const float b = 200.f * (f(XYZ.y / Yn) - f(XYZ.z / Zn));
+    const float fx = f(XYZ.x / Xn);
+    const float fy = f(XYZ.y / Yn);
+    const float fz = f(XYZ.z / Zn);
+    const float L = 116.f * fy - 16.f;  // maximum L = 100
+    const float a = 500.f * (fx - fy);
+    const float b = 200.f * (fy - fz);
 
     return {L, a, b};
 }
