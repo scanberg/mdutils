@@ -2,13 +2,13 @@
 
 #include "string_utils.h"
 
-#define LOG_NOTE(...) logging::record(logging::Note, __VA_ARGS__);
-#define LOG_WARNING(...) logging::record(logging::Warning, __VA_ARGS__);
-#define LOG_ERROR(...) logging::record(logging::Error, __VA_ARGS__);
-#define LOG_FATAL(...) logging::record(logging::Fatal, __VA_ARGS__);
+#define LOG_NOTE(...) logging::record(logging::Severity::Note, __VA_ARGS__);
+#define LOG_WARNING(...) logging::record(logging::Severity::Warning, __VA_ARGS__);
+#define LOG_ERROR(...) logging::record(logging::Severity::Error, __VA_ARGS__);
+#define LOG_FATAL(...) logging::record(logging::Severity::Fatal, __VA_ARGS__);
 
 namespace logging {
-enum Severity { Note, Warning, Error, Fatal };
+enum class Severity { Note, Warning, Error, Fatal };
 
 typedef void (*LoggingFunc)(CStringView str, Severity severity, void* usr_data);
 

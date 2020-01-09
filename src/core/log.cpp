@@ -28,7 +28,7 @@ void record(Severity severity, const char* format, ...) {
     va_list ap;
     va_start(ap, format);
     int count = 0;
-    count += strftime(buf, BUF_SIZE, "%T: ", &tstruct);
+    count += (int)strftime(buf, BUF_SIZE, "%T: ", &tstruct);
     count += vsnprintf(buf + count, BUF_SIZE, format, ap);
     va_end(ap);
     CStringView str(buf, count);
