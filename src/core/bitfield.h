@@ -27,7 +27,7 @@ struct Bitfield {
     constexpr bool empty() const { return bit_count > 0; }
     constexpr bool operator[](const int64 bit_idx) const;
 
-    operator bool() const { return block_ptr != nullptr; }
+    constexpr operator bool() const { return block_ptr != nullptr; }
 };
 
 namespace bitfield {
@@ -182,7 +182,7 @@ constexpr bool any_bit_set_in_range(const Bitfield field, Range<Int> range) {
     return false;
 }
 
-inline bool any_bit_set(const Bitfield field) {
+constexpr bool any_bit_set(const Bitfield field) {
     const auto beg_blk_idx = detail::block_idx(0);
     const auto end_blk_idx = detail::block_idx(field.bit_count);
 
@@ -294,13 +294,13 @@ constexpr int64 find_last_bit_set(const Bitfield field) {
     return -1;
 }
 
-inline bool get_bit(const Bitfield field, int64 idx) { return (field.block_ptr[detail::block_idx(idx)] & detail::bit_pattern(idx)) != 0U; }
+constexpr bool get_bit(const Bitfield field, int64 idx) { return (field.block_ptr[detail::block_idx(idx)] & detail::bit_pattern(idx)) != 0U; }
 
-inline void set_bit(Bitfield field, int64 idx) { field.block_ptr[detail::block_idx(idx)] |= detail::bit_pattern(idx); }
+constexpr void set_bit(Bitfield field, int64 idx) { field.block_ptr[detail::block_idx(idx)] |= detail::bit_pattern(idx); }
 
-inline void clear_bit(Bitfield field, int64 idx) { field.block_ptr[detail::block_idx(idx)] &= ~detail::bit_pattern(idx); }
+constexpr void clear_bit(Bitfield field, int64 idx) { field.block_ptr[detail::block_idx(idx)] &= ~detail::bit_pattern(idx); }
 
-inline bool invert_bit(Bitfield field, int64 idx) { return field.block_ptr[detail::block_idx(idx)] ^= detail::bit_pattern(idx); }
+constexpr bool invert_bit(Bitfield field, int64 idx) { return field.block_ptr[detail::block_idx(idx)] ^= detail::bit_pattern(idx); }
 
 inline void and_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) {
     ASSERT(dst.size() == src_a.size() && dst.size() == src_b.size());
@@ -343,7 +343,7 @@ inline void xor_field(Bitfield dst, const Bitfield src_a, const Bitfield src_b) 
 }
 
 template <typename T>
-int64_t gather_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, Bitfield mask, int64_t offset = 0) {
+int64_t gather_masked(T* RESTRICT dst_data, const T* RESTRICT src_data, Bitfield mask, int64_t offset = 0) {
     int64_t dst_count = 0;
     const int64_t last_blk = detail::num_blocks(mask) - 1;
     for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
@@ -377,7 +377,7 @@ int64_t gather_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, 
 
 // @TODO: Implement scatter version of 'extract' mask
 template <typename T>
-int64_t scatter_data_from_mask(T* RESTRICT dst_data, const T* RESTRICT src_data, Bitfield mask, int64_t offset = 0) {
+int64_t scatter_masked(T* RESTRICT dst_data, const T* RESTRICT src_data, Bitfield mask, int64_t offset = 0) {
     int64_t src_count = 0;
     const int64_t last_blk = detail::num_blocks(mask) - 1;
     for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
