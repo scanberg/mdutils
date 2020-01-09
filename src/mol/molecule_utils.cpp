@@ -587,7 +587,7 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
     const auto& mol = dynamic->molecule;
     auto& traj = dynamic->trajectory;
 
-    int32 count = bitfield::number_of_bits_set(atom_mask);
+    int64 count = bitfield::number_of_bits_set(atom_mask);
     void* mem = TMP_MALLOC(count * sizeof(float) * 4);
     defer { TMP_FREE(mem); };
     float* x = (float*)mem + 0 * count;
@@ -595,12 +595,12 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
     float* z = (float*)mem + 2 * count;
     float* m = (float*)mem + 3 * count;
 
-    bitfield::gather_data_from_mask(m, mol.atom.mass, atom_mask);
+    bitfield::gather_masked(m, mol.atom.mass, atom_mask);
 
     for (auto& frame : traj.frame_buffer) {
-        bitfield::gather_data_from_mask(x, frame.atom_position.x, atom_mask);
-        bitfield::gather_data_from_mask(y, frame.atom_position.y, atom_mask);
-        bitfield::gather_data_from_mask(z, frame.atom_position.z, atom_mask);
+        bitfield::gather_masked(x, frame.atom_position.x, atom_mask);
+        bitfield::gather_masked(y, frame.atom_position.y, atom_mask);
+        bitfield::gather_masked(z, frame.atom_position.z, atom_mask);
         const vec3 com = compute_com_periodic(x, y, z, m, count, frame.box);
         const vec3 translation = frame.box * vec3(0.5f) - com;
         translate(frame.atom_position.x, frame.atom_position.y, frame.atom_position.z, mol.atom.count, translation);
@@ -1644,7 +1644,7 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
         if (mask[i]) bitfield::set_bit(used_atoms, offset + i);
     }
 
-    int32 count = bitfield::number_of_bits_set(mask);
+    int64 count = bitfield::number_of_bits_set(mask);
     if (count == 0) {
         LOG_WARNING("Supplied mask was empty");
         return {};
@@ -1658,10 +1658,10 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
     float* z = (float*)mem + 2 * count;
     float* m = (float*)mem + 3 * count;
 
-    bitfield::gather_data_from_mask(x, mol.atom.position.x, mask, offset);
-    bitfield::gather_data_from_mask(y, mol.atom.position.y, mask, offset);
-    bitfield::gather_data_from_mask(z, mol.atom.position.z, mask, offset);
-    bitfield::gather_data_from_mask(m, mol.atom.mass, mask, offset);
+    bitfield::gather_masked(x, mol.atom.position.x, mask, offset);
+    bitfield::gather_masked(y, mol.atom.position.y, mask, offset);
+    bitfield::gather_masked(z, mol.atom.position.z, mask, offset);
+    bitfield::gather_masked(m, mol.atom.mass, mask, offset);
 
     const EigenFrame ref_eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
 #endif
@@ -1672,10 +1672,10 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
 
         if (structure_match(mol, mask, offset, i, used_atoms)) {
 #if 0
-            bitfield::gather_data_from_mask(x, mol.atom.position.x, mask, i);
-            bitfield::gather_data_from_mask(y, mol.atom.position.y, mask, i);
-            bitfield::gather_data_from_mask(z, mol.atom.position.z, mask, i);
-            bitfield::gather_data_from_mask(m, mol.atom.mass, mask);
+            bitfield::gather_masked(x, mol.atom.position.x, mask, i);
+            bitfield::gather_masked(y, mol.atom.position.y, mask, i);
+            bitfield::gather_masked(z, mol.atom.position.z, mask, i);
+            bitfield::gather_masked(m, mol.atom.mass, mask);
 
             const EigenFrame eigen = compute_eigen_frame(x, y, z, m, count, compute_com(x, y, z, m, count));
 
