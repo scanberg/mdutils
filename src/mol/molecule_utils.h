@@ -125,7 +125,19 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
 
 inline vec3 apply_pbc(const vec3& pos, const mat3& sim_box) {
     const vec3 ext = sim_box * vec3(1.0f);
-    return math::fract(pos / ext) * ext;
+    vec3 p = math::fract(pos / ext);
+    if (p.x < 0.0f) p.x += 1.0f;
+    if (p.y < 0.0f) p.y += 1.0f;
+    if (p.z < 0.0f) p.z += 1.0f;
+    return p * ext;
+}
+
+inline vec3 apply_pbc(const vec3& pos) {
+    vec3 p = math::fract(pos);
+    if (p.x < 0.0f) p.x += 1.0f;
+    if (p.y < 0.0f) p.y += 1.0f;
+    if (p.z < 0.0f) p.z += 1.0f;
+    return p;
 }
 
 void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, ArrayView<const Sequence> sequences, const mat3& sim_box);
