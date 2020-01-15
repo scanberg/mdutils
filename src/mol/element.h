@@ -1,5 +1,4 @@
 #pragma once
-#include <core/string_utils.h>
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4305)  // double to float
@@ -18,7 +17,7 @@ enum class Element : unsigned char {
 // clang-format on
 
 namespace element {
-constexpr int32 num_elements = 119;
+constexpr int num_elements = 119;
 namespace detail {
 
 static constexpr const char* names[num_elements] = {
@@ -95,43 +94,5 @@ constexpr unsigned int color(Element symbol) { return detail::colors[(int)symbol
 constexpr float vdw_radius(Element symbol) { return detail::vdw_radii[(int)symbol]; }
 constexpr float covalent_radius(Element symbol) { return detail::covalent_radii[(int)symbol]; }
 constexpr float atomic_mass(Element symbol) { return detail::atomic_mass[(int)symbol]; }
-
-constexpr Element get_from_string(CStringView cstr) {
-    if (cstr.count == 0) return Element::Unknown;
-
-    // Prune
-    const auto* c = cstr.beg();
-    while (c != cstr.end() && !is_alpha(*c)) c++;
-    if (c == cstr.end()) {
-        return Element::Unknown;
-    }
-    cstr.ptr = c;
-    while (c != cstr.end() && is_alpha(*c)) c++;
-    cstr.count = c - cstr.beg();
-
-    // Two or more (Try to match first two)
-    if (cstr.length() > 1) {
-        for (int32 i = 0; i < num_elements; i++) {
-            CStringView elem = symbol((Element)i);
-            if (elem.size() == 2 && cstr[0] == elem[0] && cstr[1] == elem[1]) return (Element)i;
-        }
-    }
-
-    // Try to match against first character
-    for (int32 i = 0; i < num_elements; i++) {
-        CStringView elem = symbol((Element)i);
-        if (elem.size() == 1 && cstr[0] == elem[0]) return (Element)i;
-    }
-
-    // Try to match against two characters again with the latter in lower case
-    if (cstr.length() > 1) {
-        for (int32 i = 0; i < num_elements; i++) {
-            CStringView elem = symbol((Element)i);
-            if (elem.size() == 2 && cstr[0] == elem[0] && to_lower(cstr[1]) == elem[1]) return (Element)i;
-        }
-    }
-
-    return Element::Unknown;
-}
 
 }  // namespace element

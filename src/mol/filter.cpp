@@ -2,6 +2,10 @@
 #include <core/common.h>
 #include <core/hash.h>
 #include <core/log.h>
+#include <mol/element.h>
+#include <mol/element_utils.h>
+#include <mol/aminoacid.h>
+#include <mol/aminoacid_utils.h>
 #include <mol/molecule_utils.h>
 
 namespace filter {
@@ -326,7 +330,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 ArrayView<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
                                                 defer { TMP_FREE(elements.data()); };
                                                 for (int64 i = 0; i < elements.count; i++) {
-                                                    elements[i] = element::get_from_string(args[i]);
+                                                    elements[i] = get_element_from_string(args[i]);
                                                     if (elements[i] == Element::Unknown) return false;
                                                 }
 

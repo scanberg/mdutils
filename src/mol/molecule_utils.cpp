@@ -6,6 +6,10 @@
 #include <core/log.h>
 #include <core/spatial_hash.h>
 
+#include <mol/element.h>
+#include <mol/element_utils.h>
+#include <mol/aminoacid.h>
+#include <mol/aminoacid_utils.h>
 #include <mol/trajectory_utils.h>
 
 #include <svd3/svd3.h>
@@ -1531,7 +1535,7 @@ void compute_atom_masses(float* out_mass, const Element* element, int64 count) {
     }
 }
 
-bool is_amino_acid(const Residue& res) { return aminoacid::get_from_string(res.name) != AminoAcid::Unknown; }
+bool is_amino_acid(const Residue& res) { return get_amino_acid_from_string(res.name) != AminoAcid::Unknown; }
 
 static constexpr CStringView dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
 bool is_dna(const Residue& res) {

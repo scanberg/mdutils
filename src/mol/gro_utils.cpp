@@ -2,6 +2,7 @@
 #include <core/string_utils.h>
 #include <core/log.h>
 #include <mol/element.h>
+#include <mol/element_utils.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
 
@@ -126,7 +127,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
             // If we have an amino acid, we can assume its an organic element with just one letter. C/N/H/O?
             element_str = element_str.substr(0, 1);
         }
-        Element elem = element::get_from_string(element_str);
+        Element elem = get_element_from_string(element_str);
 
         // Convert from nm to ångström
         atom_pos_x[i] = pos[0] * 10.f;

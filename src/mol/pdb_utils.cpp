@@ -1,6 +1,8 @@
 ﻿#include "pdb_utils.h"
 #include <mol/element.h>
+#include <mol/element_utils.h>
 #include <mol/aminoacid.h>
+#include <mol/aminoacid_utils.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
 #include <mol/trajectory_utils.h>
@@ -56,19 +58,19 @@ inline void extract_simulation_box(mat3* box, CStringView line) {
 inline void extract_element(Element* element, CStringView line) {
     Element elem = Element::Unknown;
     if (line.size() >= 78) {
-        // @NOTE: Try optional atom element field
-        elem = element::get_from_string(line.substr(76, 2));
+        // @NOTE: Try optional atom element field, ignore case
+        elem = get_element_from_string(line.substr(76, 2), true);
     }
 
     if (elem == Element::Unknown) {
         // @NOTE: Try to deduce from atom id
         const CStringView atom_id = line.substr(12, 4);
         const CStringView res_name = line.substr(17, 3);
-        if (compare_n(atom_id, "CA", 2) && aminoacid::get_from_string(res_name) == AminoAcid::Unknown) {
+        if (compare_n(atom_id, "CA", 2) && get_amino_acid_from_string(res_name) == AminoAcid::Unknown) {
             // @NOTE: Ambigous case where CA is probably calcium if not part of an amino acid
             elem = Element::Ca;
         } else {
-            elem = element::get_from_string(atom_id);
+            elem = get_element_from_string(atom_id);
         }
     }
     *element = elem;
