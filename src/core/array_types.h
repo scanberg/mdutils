@@ -268,10 +268,9 @@ struct DynamicArray : ArrayView<T> {
         return this->back();
     }
 
-    T pop_back() noexcept {
+    void pop_back() noexcept {
         ASSERT(this->count > 0);
         this->count--;
-        return this->back();
     }
 
     void reserve(int64 new_capacity) noexcept {
@@ -320,9 +319,10 @@ struct DynamicArray : ArrayView<T> {
 
     void swap_back_and_pop(T* it) noexcept {
         ASSERT(this->beg() <= it && it < this->end());
-        *it = this->back();
-        this->pop_back();
-        this->count--;
+        if (this->count > 1) {
+            *it = this->back();
+            this->pop_back();
+        }
     }
 
     void clear() noexcept { this->count = 0; }
