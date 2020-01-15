@@ -53,7 +53,11 @@ inline ConversionResult<int> to_int(CStringView str) { return to_int32(str); }
 
 constexpr int char_to_digit(char c) { return c - '0'; }
 constexpr char to_lower(char c) {
-    if ('A' <= c && c <= 'Z') return c|0x60;
+    if ('A' <= c && c <= 'Z') return c+32;
+    return c;
+}
+constexpr char to_upper(char c) {
+    if ('a' <= c && c <= 'z') return c-32;
     return c;
 }
 constexpr bool is_digit(char c) { return '0' <= c && c <= '9'; }
