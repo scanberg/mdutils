@@ -155,7 +155,9 @@ bool camera_controller_trackball(vec3* position, quat* orientation, TrackballCon
         *position = look_at + *orientation * vec3(0, 0, state->distance);
         if (flags & TrackballFlags_RotateReturnsTrue) return true;
     } else if (state->input.pan_button && mouse_move) {
-        const vec2 delta = (ndc_curr - ndc_prev) * vec2(1, -1);
+        const float aspect_ratio = state->input.screen_size.x / state->input.screen_size.y;
+        const float scl = math::tan(state->input.fov_y * 0.5f);
+        const vec2 delta = (ndc_curr - ndc_prev) * vec2(1, -1) * vec2(aspect_ratio * scl, scl);
         const vec3 move = *orientation * vec3(-delta.x, delta.y, 0) * math::pow(state->distance * state->params.pan_scale, state->params.pan_exponent);
         *position += move;
         if (flags & TrackballFlags_PanReturnsTrue) return true;

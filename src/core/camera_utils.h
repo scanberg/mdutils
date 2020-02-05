@@ -30,10 +30,11 @@ struct TrackballControllerState {
         vec2 mouse_coord_prev = vec2(0, 0);
         vec2 mouse_coord_curr = vec2(0, 0);
         vec2 screen_size = vec2(0, 0);
+        float fov_y = 0.5f;
     } input;
 
     struct {
-        float pan_scale = 0.5f;
+        float pan_scale = 1.0f;
         float pan_exponent = 1.f;
         float dolly_drag_scale = 0.01f;
         float dolly_drag_exponent = 1.1f;
