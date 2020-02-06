@@ -17,6 +17,7 @@ struct BackboneAnglesTrajectory {
 struct AABB {
     vec3 min = {};
     vec3 max = {};
+    vec3 ext() const { return max - min; }
 };
 
 struct EigenFrame {
