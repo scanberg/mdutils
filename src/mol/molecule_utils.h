@@ -141,6 +141,8 @@ inline vec3 apply_pbc(const vec3& pos) {
     return p;
 }
 
+void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, int64 count, const mat3& sim_box);
+
 void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, ArrayView<const Sequence> sequences, const mat3& sim_box);
 
 //void recenter_trajectory_on_residue(MoleculeDynamic* dynamic, ResIdx target_residue);
