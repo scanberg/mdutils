@@ -1401,9 +1401,6 @@ DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue>
             // LOG_ERROR("Could not identify all backbone indices for residue %s.", res.name.beg());
             invalid_segments++;
         }
-        //} else {
-        //    invalid_segments++;
-        //}
         segments.push_back(seg);
     }
 
@@ -1430,12 +1427,12 @@ void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const Backb
     }
 
     ASSERT(valid_segment(backbone_segments[0]));
-    vec3 n = {pos_x[backbone_segments[0].n_idx], pos_y[backbone_segments[0].n_idx], pos_z[backbone_segments[0].n_idx]};
-    vec3 ca = {pos_x[backbone_segments[0].ca_idx], pos_y[backbone_segments[0].ca_idx], pos_z[backbone_segments[0].ca_idx]};
-    vec3 c = {pos_x[backbone_segments[0].c_idx], pos_y[backbone_segments[0].c_idx], pos_z[backbone_segments[0].c_idx]};
+    vec3 n =  { pos_x[backbone_segments[0].n_idx],  pos_y[backbone_segments[0].n_idx],  pos_z[backbone_segments[0].n_idx]  };
+    vec3 ca = { pos_x[backbone_segments[0].ca_idx], pos_y[backbone_segments[0].ca_idx], pos_z[backbone_segments[0].ca_idx] };
+    vec3 c =  { pos_x[backbone_segments[0].c_idx],  pos_y[backbone_segments[0].c_idx],  pos_z[backbone_segments[0].c_idx]  };
 
     vec3 c_prev = c;
-    vec3 n_next = {pos_x[backbone_segments[1].n_idx], pos_y[backbone_segments[1].n_idx], pos_z[backbone_segments[1].n_idx]};
+    vec3 n_next = { pos_x[backbone_segments[1].n_idx], pos_y[backbone_segments[1].n_idx], pos_z[backbone_segments[1].n_idx] };
     phi = 0.0f;
     psi = math::dihedral_angle(n, ca, c, n_next);
     dst[0] = {phi, psi};
