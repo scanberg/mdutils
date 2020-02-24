@@ -8,12 +8,6 @@
 #include <mol/molecule_dynamic.h>
 #include <mol/aminoacid.h>
 
-struct BackboneAnglesTrajectory {
-    int num_segments = 0;
-    int num_frames = 0;
-    ArrayView<BackboneAngle> angle_data{};
-};
-
 struct AABB {
     vec3 min = {};
     vec3 max = {};
@@ -21,52 +15,23 @@ struct AABB {
 };
 
 struct EigenFrame {
-    mat3 vectors;
-    vec3 values;
+    vec3 vectors[3];
+    float values[3];
 };
 
-inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index) {
-    if (backbone_angle_traj.angle_data.count == 0 || backbone_angle_traj.num_segments == 0) return {};
-    ASSERT(frame_index < backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments);
-    return ArrayView<BackboneAngle>(&backbone_angle_traj.angle_data[frame_index * backbone_angle_traj.num_segments], backbone_angle_traj.num_segments);
-}
-
-inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_offset, int frame_count) {
-    if (backbone_angle_traj.angle_data.count == 0 || backbone_angle_traj.num_segments == 0) return {};
-#ifdef DEBUG
-    int32 num_frames = (int32)backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments;
-    ASSERT(frame_offset < num_frames);
-    ASSERT(frame_offset + frame_count <= num_frames);
-#endif
-    return backbone_angle_traj.angle_data.subarray(frame_offset * backbone_angle_traj.num_segments, frame_count * backbone_angle_traj.num_segments);
-}
-
-inline int32 get_backbone_angles_trajectory_current_frame_count(const BackboneAnglesTrajectory& backbone_angle_traj) {
-    if (backbone_angle_traj.angle_data.count == 0 || backbone_angle_traj.num_segments == 0) return 0;
-    return (int32)backbone_angle_traj.angle_data.count / backbone_angle_traj.num_segments;
-}
-
-inline ArrayView<BackboneAngle> get_backbone_angles(BackboneAnglesTrajectory& backbone_angle_traj, int frame_index, Chain chain) {
-    return get_backbone_angles(backbone_angle_traj, frame_index).subarray(chain.res_range);
-}
-
-DynamicArray<BackboneSequence> compute_backbone_sequences(ArrayView<const BackboneSegment> segments, ArrayView<const Residue> residues);
-DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue> residues, ArrayView<const Label> atom_labels);
+DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues);
+DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels);
 // DynamicArray<SplineSegment> compute_spline(Array<const vec3> atom_pos, Array<const uint32> colors, Array<const BackboneSegment> backbone, int32 num_subdivisions = 1, float tension = 0.5f);
 
 // Computes the dihedral angles within the backbone:
 // phi   = dihedral( C[i-1], N[i],  CA[i],  C[i])
 // psi   = dihedral( N[i],  CA[i],   C[i],  N[i+1])
-// As seen here https://en.wikipedia.org/wiki/Ramachandran_plot.
-DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z);
-void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z);
+// As explained here https://en.wikipedia.org/wiki/Ramachandran_plot.
+//DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z);
+void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z, i64 num_segments);
 
-DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z);
-void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z);
-
-void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic);
-void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
-void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
+//DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z);
+//void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* segments, Array<const BackboneSequence> sequences, const float* pos_x, const float* pos_y, const float* pos_z);
 
 void translate(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const vec3& translation);
 
@@ -144,27 +109,25 @@ inline vec3 apply_pbc(const vec3& pos) {
 void apply_pbc(float* x, float* y, float* z, const float* mass, int64 count, const mat3& sim_box);
 void apply_pbc(float* x, float* y, float* z, const float* mass, const Sequence* sequences, int64 num_sequences, const mat3& sim_box);
 
-//void recenter_trajectory_on_residue(MoleculeDynamic* dynamic, ResIdx target_residue);
-
 void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask);
 
 // This computes heuristical covalent bonds in a hierarchical way (first internal, then external per residue) and stores the indices to the bonds
 // within the residues. Only adjacent residues can form external covalent bonds in this function.
-DynamicArray<Bond> compute_covalent_bonds(ArrayView<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, i64 count);
 
 // This is computes heuristical covalent bonds between any atoms without hierarchical constraints.
-DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count);
+DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, i64 count);
 
 bool has_covalent_bond(const Residue& res_a, const Residue& res_b);
 bool valid_segment(const BackboneSegment& seg);
 
-DynamicArray<Sequence> compute_sequences(ArrayView<const Residue> residue);
+DynamicArray<Sequence> compute_sequences(Array<const Residue> residue);
 
-DynamicArray<float> compute_atom_radii(ArrayView<const Element> elements);
-void compute_atom_radii(float* out_radii, const Element* element, int64 count);
+DynamicArray<float> compute_atom_radii(Array<const Element> elements);
+void compute_atom_radii(float* out_radii, const Element* element, i64 count);
 
-DynamicArray<float> compute_atom_masses(ArrayView<const Element> elements);
-void compute_atom_masses(float* out_mass, const Element* element, int64 count);
+DynamicArray<float> compute_atom_masses(Array<const Element> elements);
+void compute_atom_masses(float* out_mass, const Element* element, i64 count);
 
 bool is_amino_acid(const Residue& res);
 bool is_dna(const Residue& res);
