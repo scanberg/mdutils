@@ -2,20 +2,15 @@
 
 //#define GLM_FORCE_INTRINSICS
 //#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#define GLM_FORCE_SILENT_WARNINGS // silence warnings induced by glm
+//#define GLM_FORCE_SILENT_WARNINGS // silence warnings induced by glm
+#define GLM_FORCE_XYZW_ONLY
 
 #include <glm/detail/type_vec2.hpp>
 #include <glm/detail/type_vec3.hpp>
 #include <glm/detail/type_vec4.hpp>
 #include <glm/detail/type_quat.hpp>
 #include <glm/detail/type_mat2x2.hpp>
-#include <glm/detail/type_mat2x3.hpp>
-#include <glm/detail/type_mat2x4.hpp>
-#include <glm/detail/type_mat3x2.hpp>
 #include <glm/detail/type_mat3x3.hpp>
-#include <glm/detail/type_mat3x4.hpp>
-#include <glm/detail/type_mat4x2.hpp>
-#include <glm/detail/type_mat4x3.hpp>
 #include <glm/detail/type_mat4x4.hpp>
 
 using quat = glm::tquat<float>;
@@ -79,24 +74,62 @@ using mat2 = glm::tmat2x2<float>;
 using mat3 = glm::tmat3x3<float>;
 using mat4 = glm::tmat4x4<float>;
 using mat2x2 = glm::tmat2x2<float>;
-using mat2x3 = glm::tmat2x3<float>;
-using mat2x4 = glm::tmat2x4<float>;
-using mat3x2 = glm::tmat3x2<float>;
 using mat3x3 = glm::tmat3x3<float>;
-using mat3x4 = glm::tmat3x4<float>;
-using mat4x2 = glm::tmat4x2<float>;
-using mat4x3 = glm::tmat4x3<float>;
 using mat4x4 = glm::tmat4x4<float>;
 
 using dmat2 = glm::tmat2x2<double>;
 using dmat3 = glm::tmat3x3<double>;
 using dmat4 = glm::tmat4x4<double>;
 using dmat2x2 = glm::tmat2x2<double>;
-using dmat2x3 = glm::tmat2x3<double>;
-using dmat2x4 = glm::tmat2x4<double>;
-using dmat3x2 = glm::tmat3x2<double>;
 using dmat3x3 = glm::tmat3x3<double>;
-using dmat3x4 = glm::tmat3x4<double>;
-using dmat4x2 = glm::tmat4x2<double>;
-using dmat4x3 = glm::tmat4x3<double>;
 using dmat4x4 = glm::tmat4x4<double>;
+
+#ifndef HAS_VECTOR_TEMPLATE_INSTANTIATION
+extern template struct glm::vec<2, float, glm::packed_highp>;
+extern template struct glm::vec<3, float, glm::packed_highp>;
+extern template struct glm::vec<4, float, glm::packed_highp>;
+
+extern template struct glm::vec<2, double, glm::packed_highp>;
+extern template struct glm::vec<3, double, glm::packed_highp>;
+extern template struct glm::vec<4, double, glm::packed_highp>;
+
+extern template struct glm::vec<2, int8_t, glm::packed_highp>;
+extern template struct glm::vec<3, int8_t, glm::packed_highp>;
+extern template struct glm::vec<4, int8_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, int16_t, glm::packed_highp>;
+extern template struct glm::vec<3, int16_t, glm::packed_highp>;
+extern template struct glm::vec<4, int16_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, int32_t, glm::packed_highp>;
+extern template struct glm::vec<3, int32_t, glm::packed_highp>;
+extern template struct glm::vec<4, int32_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, int64_t, glm::packed_highp>;
+extern template struct glm::vec<3, int64_t, glm::packed_highp>;
+extern template struct glm::vec<4, int64_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, uint8_t, glm::packed_highp>;
+extern template struct glm::vec<3, uint8_t, glm::packed_highp>;
+extern template struct glm::vec<4, uint8_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, uint16_t, glm::packed_highp>;
+extern template struct glm::vec<3, uint16_t, glm::packed_highp>;
+extern template struct glm::vec<4, uint16_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, uint32_t, glm::packed_highp>;
+extern template struct glm::vec<3, uint32_t, glm::packed_highp>;
+extern template struct glm::vec<4, uint32_t, glm::packed_highp>;
+
+extern template struct glm::vec<2, uint64_t, glm::packed_highp>;
+extern template struct glm::vec<3, uint64_t, glm::packed_highp>;
+extern template struct glm::vec<4, uint64_t, glm::packed_highp>;
+
+extern template struct glm::mat<2, 2, float, glm::packed_highp>;
+extern template struct glm::mat<3, 3, float, glm::packed_highp>;
+extern template struct glm::mat<4, 4, float, glm::packed_highp>;
+
+extern template struct glm::mat<2, 2, double, glm::packed_highp>;
+extern template struct glm::mat<3, 3, double, glm::packed_highp>;
+extern template struct glm::mat<4, 4, double, glm::packed_highp>;
+#endif
