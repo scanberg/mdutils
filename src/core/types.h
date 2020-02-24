@@ -2,30 +2,33 @@
 
 #include <stdint.h>
 
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
+using i8 = int8_t;
+using i16 = int16_t;
+using i32 = int32_t;
+using i64 = int64_t;
 
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
 
-typedef float float32;
-typedef double float64;
+typedef float f32;
+typedef double f64;
 
 template <typename T>
 struct Range {
     union {
-        T beg = 0, x, min;
+        T beg = 0, min;
     };
     union {
-        T end = 0, y, max;
+        T end = 0, max;
     };
 
     constexpr Range() = default;
     constexpr Range(T lo, T hi) : beg(lo), end(hi){};
+    template <typename U>
+    constexpr Range(const Range<U>& other)
+        : beg(other.beg), end(other.end) {}
 
     constexpr operator bool() const { return beg != end && beg < end; }
 	constexpr Range& operator +=(T val) {
@@ -38,7 +41,7 @@ struct Range {
 		end -= val;
 		return *this;
 	}
-    constexpr int64 size() const { return end - beg; }
+    constexpr i64 ext() const { return end - beg; }
 };
 
 template <typename T>

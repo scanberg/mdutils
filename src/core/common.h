@@ -1,7 +1,7 @@
 #pragma once
 
 #include <assert.h>
-#include <stdio.h>
+//#include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -29,6 +29,7 @@ inline bool _assert(const char* file, const char* func, int line) { _assert(file
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
+/*
 // This is to handle big files. 64-bit versions
 #ifdef _WIN32
 #define FSEEK _fseeki64
@@ -37,6 +38,7 @@ inline bool _assert(const char* file, const char* func, int line) { _assert(file
 #define FSEEK fseeko
 #define FTELL ftello
 #endif
+*/
 
 #define KILOBYTES(x) (x << 10)
 #define MEGABYTES(x) (KILOBYTES(x) << 10)

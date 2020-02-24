@@ -68,6 +68,22 @@ using glm::length;
 using glm::length2;
 using glm::normalize;
 
+inline float dot(const vec2& a, const vec2& b) { return a.x * b.x + a.y * b.y; }
+inline float dot(const vec3& a, const vec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+inline float dot(const vec4& a, const vec4& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+    
+inline double dot(const dvec2& a, const dvec2& b) { return a.x * b.x + a.y * b.y; }
+inline double dot(const dvec3& a, const dvec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+inline double dot(const dvec4& a, const dvec4& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+
+inline int32_t dot(const ivec2& a, const ivec2& b) { return a.x * b.x + a.y * b.y; }
+inline int32_t dot(const ivec3& a, const ivec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+inline int32_t dot(const ivec4& a, const ivec4& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+
+inline uint32_t dot(const uvec2& a, const uvec2& b) { return a.x * b.x + a.y * b.y; }
+inline uint32_t dot(const uvec3& a, const uvec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+inline uint32_t dot(const uvec4& a, const uvec4& b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+
 // Quaternion
 using glm::angle;
 using glm::axis;
@@ -160,7 +176,7 @@ auto angle(const T& a, const T& b) {
 
 template <>
 inline auto angle<quat>(const quat& a, const quat& b) {
-    return 2.0f * acos(math::abs(dot(normalize(a), normalize(b))));
+    return 2.0f * acos(abs(dot(normalize(a), normalize(b))));
 }
 
 template <typename T>
@@ -356,12 +372,12 @@ void generate_halton_sequence(vec2* dst, int count, int base_x, int base_y);
 // http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
 
 inline vec3 rgb_to_hsv(vec3 c) {
-    vec4 K = vec4(0.0f, -1.0f / 3.0f, 2.0f / 3.0f, -1.0f);
-    vec4 p = mix(vec4(c.b, c.g, K.w, K.z), vec4(c.g, c.b, K.x, K.y), step(c.b, c.g));
-    vec4 q = mix(vec4(p.x, p.y, p.w, c.r), vec4(c.r, p.y, p.z, p.x), step(p.x, c.r));
+    const vec4 K = vec4(0.0f, -1.0f / 3.0f, 2.0f / 3.0f, -1.0f);
+    const vec4 p = mix(vec4(c.z, c.y, K.w, K.z), vec4(c.y, c.z, K.x, K.y), step(c.z, c.y));
+    const vec4 q = mix(vec4(p.x, p.y, p.w, c.x), vec4(c.x, p.y, p.z, p.x), step(p.x, c.x));
 
-    float d = q.x - min(q.w, q.y);
-    float e = 1.0e-10f;
+    const float d = q.x - min(q.w, q.y);
+    const float e = 1.0e-10f;
     return vec3(abs(q.z + (q.w - q.y) / (6.0f * d + e)), d / (q.x + e), q.x);
 }
 
@@ -387,23 +403,23 @@ inline vec3 hcl_to_rgb(vec3 HCL) {
         float T = tan((H + min(fract(2 * H) / 4.f, fract(-2 * H) / 8.f)) * PI * 2);
         H *= 6;
         if (H <= 1) {
-            RGB.r = 1;
-            RGB.g = T / (1 + T);
+            RGB.x = 1;
+            RGB.y = T / (1 + T);
         } else if (H <= 2) {
-            RGB.r = (1 + T) / T;
-            RGB.g = 1;
+            RGB.x = (1 + T) / T;
+            RGB.y = 1;
         } else if (H <= 3) {
-            RGB.g = 1;
-            RGB.b = 1 + T;
+            RGB.y = 1;
+            RGB.z = 1 + T;
         } else if (H <= 4) {
-            RGB.g = 1 / (1 + T);
-            RGB.b = 1;
+            RGB.y = 1 / (1 + T);
+            RGB.z = 1;
         } else if (H <= 5) {
-            RGB.r = -1 / T;
-            RGB.b = 1;
+            RGB.x = -1 / T;
+            RGB.z = 1;
         } else {
-            RGB.r = 1;
-            RGB.b = -T;
+            RGB.x = 1;
+            RGB.z = -T;
         }
         RGB = RGB * V + U;
     }
@@ -417,12 +433,12 @@ inline vec3 rgb_to_hcl(vec3 rgb) {
 
     vec3 HCL;
     float H = 0;
-    float U = min(rgb.r, min(rgb.g, rgb.b));
-    float V = max(rgb.r, max(rgb.g, rgb.b));
+    float U = min(rgb.x, min(rgb.y, rgb.z));
+    float V = max(rgb.x, max(rgb.y, rgb.z));
     float Q = HCLgamma / HCLy0;
     HCL.y = V - U;
     if (HCL.y != 0) {
-        H = atan(rgb.g - rgb.b, rgb.r - rgb.g) / PI;
+        H = atan(rgb.y - rgb.z, rgb.x - rgb.y) / PI;
         Q *= U / V;
     }
     Q = exp(Q);
@@ -489,7 +505,7 @@ inline vec3 Lab_to_rgb(vec3 Lab) { return XYZ_to_rgb(Lab_to_XYZ(Lab)); }
 inline vec3 hcl_to_rgb(float h, float c, float l) { return hcl_to_rgb({h, c, l}); }
 inline vec3 rgb_to_hcl(float r, float g, float b) { return rgb_to_hcl({r, g, b}); }
 
-inline vec4 convert_color(uint32 color) { return glm::unpackUnorm4x8(color); }
-inline uint32 convert_color(vec4 color) { return glm::packUnorm4x8(color); }
+inline vec4 convert_color(u32 color) { return glm::unpackUnorm4x8(color); }
+inline u32 convert_color(vec4 color) { return glm::packUnorm4x8(color); }
 
 }  // namespace math

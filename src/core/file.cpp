@@ -58,3 +58,19 @@ FILE* fopen(CStringView file, CStringView mode) {
     return fopen(z_file.cstr(), z_mode.cstr());
 #endif
 }
+
+int64_t ftelli64(FILE* file) {
+#if defined(_WIN32) && !defined(__CYGWIN__) && !defined(__GNUC__)
+return _ftelli64(file);
+#else
+return ftello(file);
+#endif
+}
+
+int fseeki64(FILE* file, int64_t offset, int origin) {
+#if defined(_WIN32) && !defined(__CYGWIN__) && !defined(__GNUC__)
+    return _fseeki64(file, offset, origin);
+#else
+    return fseeko(file, offset, origin);
+#endif
+}

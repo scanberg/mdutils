@@ -12,10 +12,10 @@ namespace filter {
 
 struct FilterContext {
     const MoleculeStructure& mol;
-    const ArrayView<const StoredSelection> sel;
+    const Array<const StoredSelection> sel;
 };
 
-typedef bool (*FilterCommandFunc)(Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args);
+typedef bool (*FilterCommandFunc)(Bitfield mask, const FilterContext& ctx, Array<const CStringView> args);
 
 struct FilterCommand {
     StringBuffer<16> keyword{};
@@ -41,11 +41,11 @@ static bool is_keyword(CStringView str) {
     return false;
 }
 
-int32 count_parentheses(CStringView str) {
+i32 count_parentheses(CStringView str) {
     int beg_parentheses_count = 0;
     int end_parentheses_count = 0;
 
-    for (int64 i = 0; i < str.count; i++) {
+    for (i64 i = 0; i < str.count; i++) {
         if (str[i] == '(') beg_parentheses_count++;
         if (str[i] == ')') end_parentheses_count++;
     }
@@ -189,7 +189,7 @@ bool internal_filter_mask(Bitfield mask, CStringView filter, const FilterContext
     return true;
 }
 
-bool compute_filter_mask(Bitfield mask, const CStringView filter, const MoleculeStructure& molecule, ArrayView<const StoredSelection> stored_selections) {
+bool compute_filter_mask(Bitfield mask, const CStringView filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selections) {
     ASSERT(molecule);
     ASSERT(molecule.atom.count == mask.bit_count);
 
@@ -204,7 +204,7 @@ bool compute_filter_mask(Bitfield mask, const CStringView filter, const Molecule
     return internal_filter_mask(mask, filter, ctx);
 }
 
-bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> stored_selectons) {
+bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stored_selectons) {
     if (stored_selectons.size() == 0) return false;
 
     if (count_parentheses(filter) != 0) {
@@ -230,10 +230,10 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
 	return false;
 }
 
-    static inline Range<int32> fix_range(Range<int32> user_range, int32 min, int32 max) {
-        if (user_range.x == -1) user_range.x = min;
-        if (user_range.y == -1) user_range.y = max;
-        return {math::clamp(user_range.x, min, max), math::clamp(user_range.y, min, max)};
+    static inline Range<i32> fix_range(Range<i32> user_range, i32 min, i32 max) {
+        if (user_range.beg == -1) user_range.beg = min;
+        if (user_range.end == -1) user_range.end = max;
+        return {math::clamp(user_range.beg, min, max), math::clamp(user_range.end, min, max)};
     }
 
     void initialize() {
@@ -260,7 +260,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                 chainid
         */
 
-        auto filter_amino_acid = [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView>) {
+        auto filter_amino_acid = [](Bitfield mask, const FilterContext& ctx, Array<const CStringView>) {
             for (const auto& res : ctx.mol.residues) {
                 if (is_amino_acid(res)) {
                     bitfield::set_range(mask, res.atom_range);
@@ -269,9 +269,9 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
             return true;
         };
 
-        auto filter_atom_name = [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        auto filter_atom_name = [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
             if (args.size() == 0) return false;
-            for (int64 i = 0; i < ctx.mol.atom.count; i++) {
+            for (i64 i = 0; i < ctx.mol.atom.count; i++) {
                 for (const auto& arg : args) {
                     if (compare(ctx.mol.atom.label[i], arg)) {
                         bitfield::set_bit(mask, i);
@@ -282,16 +282,16 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
             return true;
         };
 
-        context->filter_commands.push_back({"all", [](Bitfield mask, const FilterContext&, ArrayView<const CStringView>) {
+        context->filter_commands.push_back({"all", [](Bitfield mask, const FilterContext&, Array<const CStringView>) {
                                                 bitfield::set_all(mask);
                                                 return true;
                                             }});
-        context->filter_commands.push_back({"water", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView>) {
+        context->filter_commands.push_back({"water", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView>) {
                                                 for (const auto& res : ctx.mol.residues) {
                                                     const auto res_size = res.atom_range.end - res.atom_range.beg;
                                                     if (res_size == 3) {
-                                                        int32 h_count = 0;
-                                                        int32 o_count = 0;
+                                                        i32 h_count = 0;
+                                                        i32 o_count = 0;
                                                         for (auto e : get_elements(ctx.mol, res)) {
                                                             if (e == Element::H) h_count++;
                                                             if (e == Element::O) o_count++;
@@ -304,8 +304,8 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
         context->filter_commands.push_back({"aminoacid", filter_amino_acid});
-        context->filter_commands.push_back({"backbone", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView>) {
-                                                for (int64 i = 0; i < ctx.mol.atom.count; i++) {
+        context->filter_commands.push_back({"backbone", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView>) {
+                                                for (i64 i = 0; i < ctx.mol.atom.count; i++) {
                                                     if (compare_n(ctx.mol.atom.label[i], "CA", 2)) {
                                                         bitfield::set_bit(mask, i);
                                                     }
@@ -313,7 +313,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
         context->filter_commands.push_back({"protein", filter_amino_acid});
-        context->filter_commands.push_back({"dna", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView>) {
+        context->filter_commands.push_back({"dna", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView>) {
                                                 for (const auto& res : ctx.mol.residues) {
                                                     if (is_dna(res)) {
                                                         bitfield::set_range(mask, res.atom_range);
@@ -326,15 +326,15 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
         context->filter_commands.push_back({"label", filter_atom_name});
         context->filter_commands.push_back({"type", filter_atom_name});
 
-        context->filter_commands.push_back({"element", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
-                                                ArrayView<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
+        context->filter_commands.push_back({"element", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
+                                                Array<Element> elements = {(Element*)(TMP_MALLOC(args.count * sizeof(Element))), args.count};
                                                 defer { TMP_FREE(elements.data()); };
-                                                for (int64 i = 0; i < elements.count; i++) {
+                                                for (i64 i = 0; i < elements.count; i++) {
                                                     elements[i] = get_element_from_string(args[i]);
                                                     if (elements[i] == Element::Unknown) return false;
                                                 }
 
-                                                for (int64 i = 0; i < ctx.mol.atom.count; i++) {
+                                                for (i64 i = 0; i < ctx.mol.atom.count; i++) {
                                                     for (const auto& ele : elements) {
                                                         if (ctx.mol.atom.element[i] == ele) {
                                                             bitfield::set_bit(mask, i);
@@ -345,14 +345,14 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"atomicnumber", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
-                                                DynamicArray<Range<int32>> ranges;
+        context->filter_commands.push_back({"atomicnumber", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
+                                                DynamicArray<Range<i32>> ranges;
                                                 if (!extract_ranges(&ranges, args)) return false;
-                                                for (int64 i = 0; i < ctx.mol.atom.count; i++) {
+                                                for (i64 i = 0; i < ctx.mol.atom.count; i++) {
                                                     const int atomnr = (int)ctx.mol.atom.element[i];
                                                     for (auto range : ranges) {
                                                         range = fix_range(range, 1, element::num_elements - 1);
-                                                        if (range.x <= atomnr && atomnr <= range.y) {
+                                                        if (range.beg <= atomnr && atomnr <= range.end) {
                                                             bitfield::set_bit(mask, i);
                                                             break;
                                                         }
@@ -361,24 +361,24 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"atom", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"atom", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 if (ctx.mol.atom.count == 0) return true;
-                                                DynamicArray<Range<int32>> ranges;
+                                                DynamicArray<Range<i32>> ranges;
                                                 if (!extract_ranges(&ranges, args)) return false;
                                                 for (auto range : ranges) {
-                                                    range = fix_range(range, 1, (int32)ctx.mol.atom.count);
-                                                    bitfield::set_range(mask, Range<int32>(range.x - 1, range.y));  // @NOTE: [1, N] range to [0, N[
+                                                    range = fix_range(range, 1, (i32)ctx.mol.atom.count);
+                                                    bitfield::set_range(mask, Range<i32>(range.beg - 1, range.end));  // @NOTE: [1, N] range to [0, N[
                                                 }
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"residue", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"residue", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 if (ctx.mol.residues.count == 0) return true;
-                                                DynamicArray<Range<int32>> ranges;
+                                                DynamicArray<Range<i32>> ranges;
                                                 if (!extract_ranges(&ranges, args)) return false;
                                                 for (auto range : ranges) {
-                                                    range = fix_range(range, 1, (int32)ctx.mol.residues.count);
-                                                    for (int32 i = range.x - 1; i < range.y; i++) {
+                                                    range = fix_range(range, 1, (i32)ctx.mol.residues.count);
+                                                    for (i32 i = range.beg - 1; i < range.end; i++) {
                                                         const auto& res = ctx.mol.residues[i];
                                                         bitfield::set_range(mask, res.atom_range);
                                                     }
@@ -386,7 +386,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"resname", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"resname", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 for (int i = 0; i < args.count; i++) {
                                                     for (const auto& res : ctx.mol.residues) {
                                                         if (compare(args[i], res.name)) {
@@ -397,13 +397,13 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"resid", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"resid", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 if (ctx.mol.residues.count == 0) return true;
-                                                DynamicArray<Range<int32>> ranges;
+                                                DynamicArray<Range<i32>> ranges;
                                                 if (!extract_ranges(&ranges, args)) return false;
                                                 for (auto range : ranges) {
                                                     for (const auto& res : ctx.mol.residues) {
-                                                        if (range.x <= res.id && res.id <= range.y) {
+                                                        if (range.beg <= res.id && res.id <= range.end) {
                                                             bitfield::set_range(mask, res.atom_range);
                                                         }
                                                     }
@@ -411,13 +411,13 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"chain", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"chain", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 if (ctx.mol.chains.count == 0) return true;
-                                                DynamicArray<Range<int32>> ranges;
+                                                DynamicArray<Range<i32>> ranges;
                                                 if (!extract_ranges(&ranges, args)) return false;
                                                 for (auto user_range : ranges) {
-                                                    auto range = fix_range(user_range, 1, (int32)ctx.mol.chains.count);
-                                                    for (int i = range.x - 1; i < range.y; i++) {
+                                                    auto range = fix_range(user_range, 1, (i32)ctx.mol.chains.count);
+                                                    for (int i = range.beg - 1; i < range.end; i++) {
                                                         const Chain& chain = get_chain(ctx.mol, (ChainIdx)i);
                                                         bitfield::set_range(mask, chain.atom_range);
                                                     }
@@ -425,13 +425,13 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"sequence", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"sequence", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 if (ctx.mol.sequences.count == 0) return true;
-                                                DynamicArray<Range<int32>> ranges;
+                                                DynamicArray<Range<i32>> ranges;
                                                 if (!extract_ranges(&ranges, args)) return false;
                                                 for (auto user_range : ranges) {
-                                                    auto range = fix_range(user_range, 1, (int32)ctx.mol.sequences.count);
-                                                    for (int i = range.x - 1; i < range.y; i++) {
+                                                    auto range = fix_range(user_range, 1, (i32)ctx.mol.sequences.count);
+                                                    for (int i = range.beg - 1; i < range.end; i++) {
                                                         const Sequence& seq = get_sequence(ctx.mol, (SeqIdx)i);
                                                         bitfield::set_range(mask, seq.atom_range);
                                                     }
@@ -439,7 +439,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"chainid", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"chainid", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 for (int i = 0; i < args.count; i++) {
                                                     for (const auto& chain : ctx.mol.chains) {
                                                         if (compare(args[i], chain.id)) {
@@ -451,7 +451,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"selection", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"selection", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 for (int i = 0; i < args.count; i++) {
                                                     for (const auto& s : ctx.sel) {
                                                         if (compare(args[i], s.name)) {
@@ -463,7 +463,7 @@ bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> 
                                                 return true;
                                             }});
 
-        context->filter_commands.push_back({"current", [](Bitfield mask, const FilterContext& ctx, ArrayView<const CStringView> args) {
+        context->filter_commands.push_back({"current", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
                                                 UNUSED(args);
                                                 for (const auto& s : ctx.sel) {
                                                     if (compare("current", s.name)) {

@@ -11,7 +11,7 @@ struct LoggingBackend {
 };
 
 static DynamicArray<LoggingBackend> entries;
-static const int buf_size = KILOBYTES(64); // @NOTE (Robin): 64K Ought to be enough for everyone, right?!
+static constexpr int buf_size = KILOBYTES(64); // @NOTE (Robin): 64K Ought to be enough for everyone, right?!
 static char buf[buf_size];
 
 void initialize() {}

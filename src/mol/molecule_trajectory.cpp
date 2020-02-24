@@ -5,7 +5,7 @@
 
 #define ALIGNMENT 64
 
-bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames, float32 time_between_frames, const mat3& sim_box) {
+bool init_trajectory(MoleculeTrajectory* traj, i32 num_atoms, i32 num_frames, f32 time_between_frames, const mat3& sim_box) {
     ASSERT(traj);
 
     traj->num_atoms = num_atoms;
@@ -14,10 +14,10 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
     traj->simulation_type = SimulationType::Undefined;
 	traj->file = {};
 
-    const int64 pos_mem_size = (num_frames * num_atoms * sizeof(float) + ALIGNMENT) * 3;
+    const i64 pos_mem_size = (num_frames * num_atoms * sizeof(float) + ALIGNMENT) * 3;
     void* pos_mem = ALIGNED_MALLOC(pos_mem_size, ALIGNMENT);
 
-    const int64 frame_mem_size = num_frames * sizeof(TrajectoryFrame);
+    const i64 frame_mem_size = num_frames * sizeof(TrajectoryFrame);
     void* frame_mem = MALLOC(frame_mem_size);
 
     if (!pos_mem) {
@@ -44,7 +44,7 @@ bool init_trajectory(MoleculeTrajectory* traj, int32 num_atoms, int32 num_frames
     traj->position_data.z = pos_data_z;
     traj->frame_buffer = {(TrajectoryFrame*)frame_mem, num_frames};
 
-    for (int32 i = 0; i < num_frames; i++) {
+    for (i32 i = 0; i < num_frames; i++) {
         traj->frame_buffer[i].index = i;
         traj->frame_buffer[i].time = i * time_between_frames;
         traj->frame_buffer[i].box = sim_box;

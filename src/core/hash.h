@@ -98,7 +98,7 @@ constexpr uint64_t crc64(const void* ptr, size_t size) { return crc::crc64impl(0
 
 // Array template
 template <typename T>
-constexpr uint32_t crc32(ArrayView<T> arr) {
+constexpr uint32_t crc32(Array<T> arr) {
     return crc32(arr.data(), arr.size_in_bytes());
 }
 
@@ -117,7 +117,7 @@ constexpr uint32_t crc32(const T& data) {
 }
 
 template <typename T>
-constexpr uint64_t crc64(ArrayView<T> arr) {
+constexpr uint64_t crc64(Array<T> arr) {
     return crc64(arr.data(), arr.size_in_bytes());
 }
 

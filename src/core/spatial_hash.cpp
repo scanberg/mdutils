@@ -6,7 +6,7 @@
 
 namespace spatialhash {
 
-void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext) {
+void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext) {
     ASSERT(frame);
     if (count == 0) {
         *frame = {};
@@ -15,7 +15,7 @@ void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const f
 
     vec3 min_box(FLT_MAX);
     vec3 max_box(-FLT_MAX);
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         const vec3 p = {pos_x[i], pos_y[i], pos_z[i]};
         min_box = math::min(min_box, p);
         max_box = math::max(max_box, p);
@@ -25,19 +25,19 @@ void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const f
     compute_frame(frame, pos_x, pos_y, pos_z, count, cell_ext, min_box, max_box);
 }
 
-Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext) {
+Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext) {
     Frame frame;
     compute_frame(&frame, pos_x, pos_y, pos_z, count, cell_ext);
     return frame;
 }
 
-Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box) {
+Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box) {
     Frame frame;
     compute_frame(&frame, pos_x, pos_y, pos_z, count, cell_ext, min_box, max_box);
     return frame;
 }
 
-void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box) {
+void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box) {
     ASSERT(frame);
     if (count == 0) return;
 
@@ -49,8 +49,8 @@ void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const f
     frame->entries.resize(count);
     memset(frame->cells.data(), 0, frame->cells.size() * sizeof(Cell));
 
-    uint32* l_idx = (uint32*)TMP_MALLOC(count * sizeof(uint32));
-    uint32* g_idx = (uint32*)TMP_MALLOC(count * sizeof(uint32));
+    u32* l_idx = (u32*)TMP_MALLOC(count * sizeof(u32));
+    u32* g_idx = (u32*)TMP_MALLOC(count * sizeof(u32));
     defer {
         TMP_FREE(l_idx);
         TMP_FREE(g_idx);

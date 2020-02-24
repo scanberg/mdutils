@@ -14,7 +14,7 @@ struct StoredSelection {
 namespace filter {
 void initialize();
 void shutdown();
-bool compute_filter_mask(Bitfield mask, CStringView filter, const MoleculeStructure& molecule, ArrayView<const StoredSelection> stored_selectons = {});
-bool filter_uses_selection(CStringView filter, ArrayView<const StoredSelection> stored_selectons);
+bool compute_filter_mask(Bitfield mask, CStringView filter, const MoleculeStructure& molecule, Array<const StoredSelection> stored_selectons = {});
+bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stored_selectons);
 
 }  // namespace filter

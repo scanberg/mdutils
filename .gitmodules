@@ -4,3 +4,6 @@
 [submodule "ext/meow_hash"]
 	path = ext/meow_hash
 	url = https://github.com/cmuratori/meow_hash.git
+[submodule "ext/xdrfile"]
+	path = ext/xdrfile
+	url = https://github.com/scanberg/xdrfile

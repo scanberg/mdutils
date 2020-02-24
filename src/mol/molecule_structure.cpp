@@ -3,11 +3,11 @@
 // 32-byte alignment for 256-bit vectorization (AVX+ architectures)
 #define ALIGNMENT 32
 
-bool init_molecule_structure(MoleculeStructure* mol, int32 num_atoms, int32 num_bonds, int32 num_residues, int32 num_chains, int32 num_sequences, int32 num_backbone_segments, int32 num_backbone_sequences,
-                             int32 num_hydrogen_bond_donors, int32 num_hydrogen_bond_acceptors) {
+bool init_molecule_structure(MoleculeStructure* mol, i32 num_atoms, i32 num_bonds, i32 num_residues, i32 num_chains, i32 num_sequences, i32 num_backbone_segments, i32 num_backbone_sequences,
+                             i32 num_hydrogen_bond_donors, i32 num_hydrogen_bond_acceptors) {
     free_molecule_structure(mol);
 
-    int64 alloc_size = 0;
+    i64 alloc_size = 0;
     alloc_size += num_atoms * (sizeof(Element) + sizeof(Label) + sizeof(ResIdx) + sizeof(ChainIdx) + sizeof(SeqIdx));
     alloc_size += num_bonds * sizeof(Bond);
     alloc_size += num_residues * sizeof(Residue);

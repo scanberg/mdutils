@@ -81,7 +81,7 @@ inline void extract_trajectory_frame_data(TrajectoryFrame* frame, CStringView md
     float* x = frame->atom_position.x;
     float* y = frame->atom_position.y;
     float* z = frame->atom_position.z;
-    int32 atom_idx = 0;
+    i32 atom_idx = 0;
     CStringView line;
     while (mdl_str && (line = extract_line(mdl_str))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
@@ -106,7 +106,7 @@ bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
     defer { TMP_FREE(mem); };
 
     auto bytes_read = fread(mem, 1, mem_size, file);
-    CStringView pdb_str = {(const char*)mem, (int64)bytes_read};
+    CStringView pdb_str = {(const char*)mem, (i64)bytes_read};
 
     return load_molecule_from_string(mol, pdb_str);
 }
@@ -211,14 +211,13 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     auto sequences = compute_sequences(residues);
     auto backbone_segments = compute_backbone_segments(residues, labels);
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
-    auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, pos_x.data(), pos_y.data(), pos_z.data());
     auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors(elements);
 
-    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), (int32)chains.size(), (int32)sequences.size(), (int32)backbone_segments.size(),
-                            (int32)backbone_sequences.size(), (int32)donors.size(), (int32)acceptors.size());
+    init_molecule_structure(mol, num_atoms, (i32)covalent_bonds.size(), (i32)residues.size(), (i32)chains.size(), (i32)sequences.size(), (i32)backbone_segments.size(),
+                            (i32)backbone_sequences.size(), (i32)donors.size(), (i32)acceptors.size());
 
-    for (int32 i = 0; i < num_atoms; i++) {
+    for (i32 i = 0; i < num_atoms; i++) {
         mol->atom.res_idx[i] = -1;
         mol->atom.chain_idx[i] = -1;
         mol->atom.seq_idx[i] = -1;
@@ -254,10 +253,14 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     memcpy(mol->sequences.data(), sequences.data(), sequences.size_in_bytes());
     memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
     memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
-    memcpy(mol->backbone.angles.data(), backbone_angles.data(), backbone_angles.size_in_bytes());
     memcpy(mol->backbone.sequences.data(), backbone_sequences.data(), backbone_sequences.size_in_bytes());
     memcpy(mol->hydrogen_bond.donors.data(), donors.data(), donors.size_in_bytes());
     memcpy(mol->hydrogen_bond.acceptors.data(), acceptors.data(), acceptors.size_in_bytes());
+
+    for (const auto& bb_seq : mol->backbone.sequences) {
+        auto segments = get_backbone(*mol, bb_seq);
+        compute_backbone_angles(mol->backbone.angles.data(), segments.data(), mol->atom.position.x, mol->atom.position.y, mol->atom.position.z, segments.size());
+    }
 
     return true;
 }
@@ -310,10 +313,10 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView pdb_strin
 
     // Time between frames
     const float dt = 1.0f;
-    init_trajectory(traj, info.num_atoms, (int32)model_entries.size(), dt, sim_box);
-    traj->num_frames = (int32)model_entries.size();
+    init_trajectory(traj, info.num_atoms, (i32)model_entries.size(), dt, sim_box);
+    traj->num_frames = (i32)model_entries.size();
 
-    for (int64 i = 0; i < model_entries.size(); i++) {
+    for (i64 i = 0; i < model_entries.size(); i++) {
         TrajectoryFrame* frame = traj->frame_buffer.data() + i;
         extract_trajectory_frame_data(frame, model_entries[i]);
     }
@@ -338,8 +341,8 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
     char* page[2] = {(char*)mem, (char*)mem + page_size};
 
     auto bytes_read = fread(page[0], 1, 2 * page_size, file);
-    int64 global_offset = 0;
-    CStringView pdb_str = {page[0], (int64)bytes_read};
+    i64 global_offset = 0;
+    CStringView pdb_str = {page[0], (i64)bytes_read};
     CStringView mdl_str = extract_next_model(pdb_str);
 
     if (!mdl_str) {
@@ -368,7 +371,7 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
         }
     }
 
-    DynamicArray<int64> offsets;
+    DynamicArray<i64> offsets;
     do {
         offsets.push_back(global_offset + (mdl_str.ptr - page[0]));
 
@@ -390,13 +393,13 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
 
     // Time between frames
     const float dt = 1.0f;
-    init_trajectory(traj, info.num_atoms, (int32)offsets.size(), dt, sim_box);
+    init_trajectory(traj, info.num_atoms, (i32)offsets.size(), dt, sim_box);
 
     traj->file.handle = file;
     traj->file.path = filename;
     traj->file.tag = PDB_FILE_TAG;
     traj->num_frames = 0;
-    traj->frame_offsets = allocate_array<int64>(offsets.size());
+    traj->frame_offsets = allocate_array<i64>(offsets.size());
     memcpy(traj->frame_offsets.data(), offsets.data(), offsets.size_in_bytes());
 
     return true;
@@ -427,11 +430,11 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
         return false;
     }
 
-    int64 num_bytes = 0;
+    i64 num_bytes = 0;
     if (num_frames == 1) {
         // @NOTE: Compute bytes of entire file
-        FSEEK((FILE*)traj->file.handle, 0, SEEK_END);
-        num_bytes = FTELL((FILE*)traj->file.handle) - traj->frame_offsets[0];
+        fseeki64((FILE*)traj->file.handle, 0, SEEK_END);
+        num_bytes = ftelli64((FILE*)traj->file.handle) - traj->frame_offsets[0];
     } else {
         // @NOTE: Compute delta between frame offsets (in bytes)
         num_bytes = (i == num_frames - 1) ? (traj->frame_offsets[i] - traj->frame_offsets[i - 1]) : (traj->frame_offsets[i + 1] - traj->frame_offsets[i]);
@@ -440,10 +443,10 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
     void* mem = TMP_MALLOC(num_bytes);
     defer { TMP_FREE(mem); };
 
-    FSEEK((FILE*)traj->file.handle, traj->frame_offsets[i], SEEK_SET);
+    fseeki64((FILE*)traj->file.handle, traj->frame_offsets[i], SEEK_SET);
     const auto bytes_read = fread(mem, 1, num_bytes, (FILE*)traj->file.handle);
 
-    CStringView mdl_str = {(const char*)mem, (int64)bytes_read};
+    CStringView mdl_str = {(const char*)mem, (i64)bytes_read};
     TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
     extract_trajectory_frame_data(frame, mdl_str);
 
@@ -469,17 +472,17 @@ bool close_file_handle(MoleculeTrajectory* traj) {
 bool extract_molecule_info(MoleculeInfo* info, CStringView pdb_string) {
     ASSERT(info);
 
-    int32 num_atoms = 0;
-    int32 num_residues = 0;
-    int32 num_chains = 0;
+    i32 num_atoms = 0;
+    i32 num_residues = 0;
+    i32 num_chains = 0;
 
-    uint32 curr_res_pattern = 0;
+    u32 curr_res_pattern = 0;
     char curr_chain_pattern = 0;
 
     CStringView line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
-            const uint32 res_pattern = *(uint32*)(&line[22]);
+            const u32 res_pattern = *(u32*)(&line[22]);
             const char chain_pattern = line[21];
 
             num_atoms++;

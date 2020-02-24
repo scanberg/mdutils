@@ -65,7 +65,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
         return false;
     }
 
-    int64 mem_size = (sizeof(float) * (3 + 3 + 1 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
+    i64 mem_size = (sizeof(float) * (3 + 3 + 1 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
     void* mem = TMP_MALLOC(mem_size);
     defer { TMP_FREE(mem); };
     memset(mem, 0, mem_size);
@@ -154,15 +154,14 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
     auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_element, num_atoms);
     auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
-    auto backbone_angles = compute_backbone_angles(backbone_segments, backbone_sequences, atom_pos_x, atom_pos_y, atom_pos_z);
     auto sequences = compute_sequences(residues);
     auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
 
-    init_molecule_structure(mol, num_atoms, (int32)covalent_bonds.size(), (int32)residues.size(), 0, (int32)sequences.size(), (int32)backbone_segments.size(), (int32)backbone_sequences.size(),
-                            (int32)donors.size(), (int32)acceptors.size());
+    init_molecule_structure(mol, num_atoms, (i32)covalent_bonds.size(), (i32)residues.size(), 0, (i32)sequences.size(), (i32)backbone_segments.size(), (i32)backbone_sequences.size(),
+                            (i32)donors.size(), (i32)acceptors.size());
 
-    for (int32 i = 0; i < num_atoms; i++) {
+    for (i32 i = 0; i < num_atoms; i++) {
         mol->atom.res_idx[i] = -1;
         mol->atom.chain_idx[i] = -1;
         mol->atom.seq_idx[i] = -1;
@@ -194,10 +193,14 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
     memcpy(mol->sequences.data(), sequences.data(), sequences.size_in_bytes());
     memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
     memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
-    memcpy(mol->backbone.angles.data(), backbone_angles.data(), backbone_angles.size_in_bytes());
     memcpy(mol->backbone.sequences.data(), backbone_sequences.data(), backbone_sequences.size_in_bytes());
     memcpy(mol->hydrogen_bond.donors.data(), donors.data(), donors.size_in_bytes());
     memcpy(mol->hydrogen_bond.acceptors.data(), acceptors.data(), acceptors.size_in_bytes());
+
+    for (const auto& bb_seq : mol->backbone.sequences) {
+        auto segments = get_backbone(*mol, bb_seq);
+        compute_backbone_angles(mol->backbone.angles.data(), segments.data(), atom_pos_x, atom_pos_y, atom_pos_z, segments.size());
+    }
 
     return true;
 }

@@ -46,7 +46,7 @@ inline Cell get_cell(const Frame& frame, ivec3 cell_coord) {
     return frame.cells[idx];
 }
 
-inline ArrayView<const Entry> get_cell_entries(const Frame& frame, ivec3 cell_coord) {
+inline Array<const Entry> get_cell_entries(const Frame& frame, ivec3 cell_coord) {
     Cell cell = get_cell(frame, cell_coord);
     return {frame.entries.beg() + cell.offset, cell.count};
 }
@@ -90,10 +90,10 @@ void for_each_within(const Frame& frame, vec3 coord, float radius, Callback cb) 
     }
 }
 
-Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext);
-void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext);
+Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext);
+void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext);
 
-Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
-void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, int64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
+Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
+void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
 
 }  // namespace spatialhash

@@ -17,14 +17,14 @@ extern "C" {
 char* Railgun_Trolldom(char* pbTarget, char* pbPattern, uint32_t cbTarget, uint32_t cbPattern);
 }
 
-static inline bool internal_compare_ignore_case(const char* str_a, const char* str_b, int64 len) {
-    for (int64 i = 0; i < len; i++) {
+static inline bool internal_compare_ignore_case(const char* str_a, const char* str_b, i64 len) {
+    for (i64 i = 0; i < len; i++) {
         if (tolower(str_a[i]) != tolower(str_b[i])) return false;
     }
     return true;
 }
 
-static inline bool internal_compare(const char* str_a, const char* str_b, int64 len) { return memcmp(str_a, str_b, len) == 0; }
+static inline bool internal_compare(const char* str_a, const char* str_b, i64 len) { return memcmp(str_a, str_b, len) == 0; }
 
 bool compare(CStringView str_a, CStringView str_b) {
     if (str_a.count != str_b.count) return false;
@@ -38,14 +38,14 @@ bool compare_ignore_case(CStringView str_a, CStringView str_b) {
     return internal_compare_ignore_case(str_a.ptr, str_b.ptr, str_a.count);
 }
 
-bool compare_n(CStringView str_a, CStringView str_b, int64 num_chars) {
-    const int64 len = MIN(str_a.count, str_b.count);
+bool compare_n(CStringView str_a, CStringView str_b, i64 num_chars) {
+    const i64 len = MIN(str_a.count, str_b.count);
     //if (MIN(str_a.count, str_b.count) < num_chars) return false;
     return internal_compare(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
-bool compare_n_ignore_case(CStringView str_a, CStringView str_b, int64 num_chars) {
-    const int64 len = MIN(str_a.count, str_b.count);
+bool compare_n_ignore_case(CStringView str_a, CStringView str_b, i64 num_chars) {
+    const i64 len = MIN(str_a.count, str_b.count);
     //if (len < num_chars) return false;
     return internal_compare_ignore_case(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
@@ -58,7 +58,7 @@ void copy(StringView dst, CStringView src) {
     dst.ptr[src.count] = '\0';
 }
 
-void copy_n(StringView dst, CStringView src, int64 num_chars) {
+void copy_n(StringView dst, CStringView src, i64 num_chars) {
     ASSERT(dst.ptr);
     ASSERT(src.ptr);
     const auto len = MIN(dst.count, MIN(src.count, num_chars));
@@ -77,7 +77,7 @@ StringView allocate_string(CStringView str) {
     return {ptr, str.count};
 }
 
-StringView allocate_string(int32 length) {
+StringView allocate_string(i32 length) {
     if (length == 0) return {};
     char* ptr = (char*)MALLOC(length);
     if (!ptr) {
@@ -173,35 +173,35 @@ bool copy_line(String& line, CString& str) {
 }
 */
 
-ConversionResult<float32> to_float32(CStringView str) {
+ConversionResult<f32> to_float32(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    float32 val = strtof(buf.cstr(), &end);
+    f32 val = strtof(buf.cstr(), &end);
     return {val, end != buf.cstr()};
 }
 
-ConversionResult<float64> to_float64(CStringView str) {
+ConversionResult<f64> to_float64(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    float64 val = strtod(buf.cstr(), &end);
+    f64 val = strtod(buf.cstr(), &end);
     return {val, end != buf.cstr()};
 }
 
-ConversionResult<int32> to_int32(CStringView str) {
+ConversionResult<i32> to_int32(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    int32 val = strtol(buf.cstr(), &end, 10);
+    i32 val = strtol(buf.cstr(), &end, 10);
     return {val, end != buf.cstr()};
 }
 
-ConversionResult<int64> to_int64(CStringView str) {
+ConversionResult<i64> to_int64(CStringView str) {
     // Make sure that the string passed into atof is zero-terminated
     StringBuffer<32> buf = str;
     char* end = nullptr;
-    int64 val = strtoll(buf.cstr(), &end, 10);
+    i64 val = strtoll(buf.cstr(), &end, 10);
     return {val, end != buf.cstr()};
 }
 
@@ -233,8 +233,8 @@ StringView allocate_and_read_textfile(CStringView filename) {
 
     if (!file) return {};
 
-    FSEEK(file, 0, SEEK_END);
-    int64 file_size = FTELL(file);
+    fseeki64(file, 0, SEEK_END);
+    i64 file_size = ftelli64(file);
     rewind(file);
 
     if (file_size <= 0) return {};
@@ -344,7 +344,7 @@ StringView get_file_extension(StringView url) {
 }
 
 inline static bool char_in_string(char c, CStringView str) {
-    for (int64 i = 0; i < str.count; i++) {
+    for (i64 i = 0; i < str.count; i++) {
         if (c == str[i]) return true;
     }
     return false;
@@ -449,7 +449,7 @@ CStringView extract_parentheses_contents(CStringView str) {
 CStringView find_string(CStringView target, CStringView pattern) {
     if (target.count == 0 || pattern.count == 0) return {};
 
-    char* ptr = Railgun_Trolldom((char*)target.cstr(), (char*)pattern.cstr(), (uint32)target.size_in_bytes(), (uint32)pattern.size_in_bytes());
+    char* ptr = Railgun_Trolldom((char*)target.cstr(), (char*)pattern.cstr(), (u32)target.size_in_bytes(), (u32)pattern.size_in_bytes());
     if (ptr) {
         return {(char*)ptr, pattern.length()};
     }
@@ -503,15 +503,15 @@ bool is_range(CStringView arg) {
     return false;
 }
 
-bool extract_range(Range<int32>* range, CStringView arg) {
+bool extract_range(Range<i32>* range, CStringView arg) {
     if (arg.count == 0) {
         *range = {-1, -1};
         return false;
     }
 
     if (arg.count == 1 && arg[0] == wildcard) {
-        range->x = -1;
-        range->y = -1;
+        range->beg = -1;
+        range->end = -1;
         return true;
     }
 
@@ -523,30 +523,30 @@ bool extract_range(Range<int32>* range, CStringView arg) {
     CStringView str_last(mid + 1, arg.end());
 
     if (str_first.count == 1 && str_first[0] == wildcard) {
-        range->x = -1;
+        range->beg = -1;
     } else {
         auto res = to_int32(str_first);
         if (!res) return false;
-        range->x = res;
+        range->beg = res;
     }
 
     if (str_last.count == 1 && str_last[0] == wildcard) {
-        range->y = -1;
+        range->end = -1;
     } else {
         auto res = to_int32(str_last);
         if (!res) return false;
-        range->y = res;
+        range->end = res;
     }
 
     return true;
 }
 
-bool extract_ranges(DynamicArray<Range<int32>>* ranges, ArrayView<const CStringView> args) {
+bool extract_ranges(DynamicArray<Range<i32>>* ranges, Array<const CStringView> args) {
     ASSERT(ranges);
 
     for (auto arg : args) {
         if (is_range(arg)) {
-            Range<int32> r;
+            Range<i32> r;
             if (!extract_range(&r, arg)) return false;
             ranges->push_back(r);
         } else {
@@ -557,3 +557,5 @@ bool extract_ranges(DynamicArray<Range<int32>>* ranges, ArrayView<const CStringV
     }
     return true;
 }
+
+void print_string(CStringView str) { printf("%.*s", (int)str.count, str.ptr); }

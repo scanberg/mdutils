@@ -6,8 +6,8 @@
 bool compare(CStringView str_a, CStringView str_b);
 bool compare_ignore_case(CStringView str_a, CStringView str_b);
 
-bool compare_n(CStringView str_a, CStringView str_b, int64 num_chars);
-bool compare_n_ignore_case(CStringView str_a, CStringView str_b, int64 num_chars);
+bool compare_n(CStringView str_a, CStringView str_b, i64 num_chars);
+bool compare_n_ignore_case(CStringView str_a, CStringView str_b, i64 num_chars);
 
 // Copy String
 // Note: will zero terminate the dst String
@@ -15,7 +15,7 @@ void copy(StringView dst, CStringView src);
 
 // Copy N first characters of src String
 // Note: will zero terminate the dst String
-void copy_n(StringView dst, CStringView src, int64 num_chars);
+void copy_n(StringView dst, CStringView src, i64 num_chars);
 
 // Peeks into string and extracts the first line without modifying str.
 CStringView peek_line(CStringView str);
@@ -31,7 +31,7 @@ CStringView extract_line(CStringView& str);
 // String copy_line(String& line, CString& str);
 
 StringView allocate_string(CStringView str);
-StringView allocate_string(int32 length);
+StringView allocate_string(i32 length);
 void free_string(StringView* str);
 
 template <typename T>
@@ -42,13 +42,13 @@ struct ConversionResult {
 };
 
 // Wrappers around strtof
-ConversionResult<float32> to_float32(CStringView str);
-ConversionResult<float64> to_float64(CStringView str);
+ConversionResult<f32> to_float32(CStringView str);
+ConversionResult<f64> to_float64(CStringView str);
 inline ConversionResult<float> to_float(CStringView str) { return to_float32(str); }
 
 // Wrappers around strtol
-ConversionResult<int32> to_int32(CStringView str);
-ConversionResult<int64> to_int64(CStringView str);
+ConversionResult<i32> to_int32(CStringView str);
+ConversionResult<i64> to_int64(CStringView str);
 inline ConversionResult<int> to_int(CStringView str) { return to_int32(str); }
 
 constexpr int char_to_digit(char c) { return c - '0'; }
@@ -64,7 +64,7 @@ constexpr bool is_digit(char c) { return '0' <= c && c <= '9'; }
 constexpr bool is_alpha(char c) { return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
 constexpr bool is_whitespace(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 
-template <typename Float = float32>
+template <typename Float = f32>
 constexpr inline float str_to_float(CStringView str) {
 	const char* c = str.beg();
     const char* end = str.end();
@@ -145,7 +145,7 @@ constexpr bool contains_whitespace(CStringView str) {
 }
 
 constexpr bool balanced_parentheses(CStringView str) {
-    int64 bal = 0;
+    i64 bal = 0;
     for (const char c : str) {
         if (c == '(') ++bal;
         else if (c == ')') --bal;
@@ -202,7 +202,7 @@ DynamicArray<CStringView> tokenize(CStringView str, CStringView delimiters);
 // *-*  -> {-1,-1}
 
 bool is_range(CStringView arg);
-bool extract_range(Range<int32>* range, CStringView arg);
-bool extract_ranges(DynamicArray<Range<int32>>* ranges, ArrayView<const CStringView> args);
+bool extract_range(Range<i32>* range, CStringView arg);
+bool extract_ranges(DynamicArray<Range<i32>>* ranges, Array<const CStringView> args);
 
-inline void print_string(CStringView str) { printf("%.*s", (int)str.count, str.ptr); }
+void print_string(CStringView str);

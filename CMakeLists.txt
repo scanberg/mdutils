@@ -8,10 +8,10 @@ file(GLOB MOL_FILES src/mol/*)
 source_group("core" FILES ${CORE_FILES})
 source_group("mol" FILES ${MOL_FILES})
 
-add_subdirectory(ext/libxdrfile)
+add_subdirectory(ext/xdrfile)
 add_subdirectory(ext/railgun)
 
-message("${ISPC_BUILD_DIR}")
+#message("${ISPC_BUILD_DIR}")
 
 add_library(mdutils ${CORE_FILES} ${MOL_FILES})
 
@@ -26,7 +26,6 @@ target_include_directories(mdutils
 	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/src
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/glm
-		${CMAKE_CURRENT_SOURCE_DIR}/ext/libxdrfile/src
 )
 
 set(RESOURCE_DIR "${PROJECT_SOURCE_DIR}/")
@@ -42,6 +41,6 @@ target_compile_features(mdutils PRIVATE cxx_std_17)
 
 target_link_libraries(mdutils
     PRIVATE
-		libxdrfile
+		xdrfile
 		railgun
 )

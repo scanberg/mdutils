@@ -6,12 +6,12 @@
 
 namespace pdb {
 
-constexpr uint32 PDB_FILE_TAG = 0x50001;
+constexpr u32 PDB_FILE_TAG = 0x50001;
 
 struct MoleculeInfo {
-	int32 num_atoms = 0;
-	int32 num_residues = 0;
-	int32 num_chains = 0;
+	i32 num_atoms = 0;
+	i32 num_residues = 0;
+	i32 num_chains = 0;
 };
 
 // Loads molecule data
