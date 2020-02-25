@@ -208,11 +208,9 @@ inline ArrayView<Residue> get_residues(MoleculeStructure& mol, const Chain& chai
 inline ArrayView<const Residue> get_residues(const MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
 
 inline ArrayView<Element> get_elements(MoleculeStructure& mol, Chain& chain) { return get_elements(mol).subarray(chain.atom_range); }
-
 inline ArrayView<const Element> get_elements(const MoleculeStructure& mol, const Chain& chain) { return get_elements(mol).subarray(chain.atom_range); }
 
 inline ArrayView<Label> get_labels(MoleculeStructure& mol, Chain& chain) { return get_labels(mol).subarray(chain.atom_range); }
-
 inline ArrayView<const Label> get_labels(const MoleculeStructure& mol, const Chain& chain) { return get_labels(mol).subarray(chain.atom_range); }
 
 // Res func
