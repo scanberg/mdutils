@@ -133,6 +133,36 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
     return true;
 }
 
+bool read_trajectory_frame_from_memory(TrajectoryFrame* frame, i32 num_atoms, void* ptr, int64_t num_bytes) {
+    ASSERT(frame);
+    ASSERT(ptr);
+
+    XDRFILE* file = xdrfile_mem(ptr, num_bytes, "r");
+    defer { xdrfile_close(file); };
+    if (!file) {
+        return false;
+    }
+
+    int step;
+    float precision;
+    float time;
+    float matrix[3][3];
+    float* pos_buf = (float*)TMP_MALLOC(num_atoms * 3 * sizeof(float));
+    defer { TMP_FREE(pos_buf); };
+
+    read_xtc(file, num_atoms, &step, &time, matrix, (float(*)[3])pos_buf, &precision);
+
+    for (i32 i = 0; i < num_atoms; i++) {
+        frame->atom_position.x[i] = 10.f * pos_buf[i * 3 + 0];
+        frame->atom_position.y[i] = 10.f * pos_buf[i * 3 + 1];
+        frame->atom_position.z[i] = 10.f * pos_buf[i * 3 + 2];
+    }
+    frame->box =
+        mat3(matrix[0][0], matrix[0][1], matrix[0][2], matrix[1][0], matrix[1][1], matrix[1][2], matrix[2][0], matrix[2][1], matrix[2][2]) * 10.f;
+
+    return true;
+}
+
 bool close_file_handle(MoleculeTrajectory* traj) {
     ASSERT(traj);
     if (traj->file.tag != xtc::XTC_FILE_TAG) {
