@@ -68,59 +68,59 @@ void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const Molec
 void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data);
 void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* bb_angle_traj, const MoleculeDynamic& dynamic);
 
-void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation);
+void translate(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const vec3& translation);
 
 // Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)
 // W-component is supplied by user
-void transform_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
+void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
 
 // Transforms points as homogeneous vectors[x,y,z,w*] with supplied transformation matrix (NO perspective division is done)
 // W-component is supplied by user
-void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
-void transform(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z, float* RESTRICT in_x, float* RESTRICT in_y, float* RESTRICT in_z, int64 count, const mat4& transformation,
+void transform(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation, float w_comp = 1.0f);
+void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_y, float* in_z, int64 count, const mat4& transformation,
                float w_comp = 1.0f);
 
 // Transforms points as homogeneous vectors[x,y,z,1] with supplied transformation matrix and applies 'perspective' division
-void homogeneous_transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation);
+void homogeneous_transform(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation);
 
 // Computes the minimun spanning Axis aligned bounding box which contains all supplied points [x,y,z,(r)adius)]
-AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
-AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_r, int64 count);
+AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, int64 count);
+AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const float* in_r, int64 count);
 
-vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count);
-vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count);
-vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT element, int64 count);
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, int64 count);
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, int64 count);
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const Element* element, int64 count);
 
-vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const mat3& box);
-vec3 compute_com_periodic_ref(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count, const mat3& box);
+vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, int64 count, const mat3& box);
+vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, int64 count, const mat3& box);
 
-mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass, int64 count, const vec3& com);
+mat3 compute_covariance_matrix(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, int64 count, const vec3& com);
 
-EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass, int64 count);
+EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, int64 count);
 
 // clang-format off
-void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-						  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation(float* out_x, float* out_y, float* out_z,
+						  const float* in_x0, const float* in_y0, const float* in_z0,
+						  const float* in_x1, const float* in_y1, const float* in_z1,
 						  int64 count, float t);
 
-void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-							  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
+							  const float* in_x0, const float* in_y0, const float* in_z0,
+							  const float* in_x1, const float* in_y1, const float* in_z1,
 							  int64 count, float t, const mat3& sim_box);
 
-void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-						 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-						 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-						 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation(float* out_x, float* out_y, float* out_z,
+						 const float* in_x0, const float* in_y0, const float* in_z0,
+						 const float* in_x1, const float* in_y1, const float* in_z1,
+						 const float* in_x2, const float* in_y2, const float* in_z2,
+						 const float* in_x3, const float* in_y3, const float* in_z3,
 						 int64 count, float t);
 
-void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-                             const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z,
+							 const float* in_x0, const float* in_y0, const float* in_z0,
+							 const float* in_x1, const float* in_y1, const float* in_z1,
+                             const float* in_x2, const float* in_y2, const float* in_z2,
+							 const float* in_x3, const float* in_y3, const float* in_z3,
 							 int64 count, float t, const mat3& sim_box);
 // clang-format on
 
@@ -141,9 +141,8 @@ inline vec3 apply_pbc(const vec3& pos) {
     return p;
 }
 
-void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, int64 count, const mat3& sim_box);
-
-void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, ArrayView<const Sequence> sequences, const mat3& sim_box);
+void apply_pbc(float* x, float* y, float* z, const float* mass, int64 count, const mat3& sim_box);
+void apply_pbc(float* x, float* y, float* z, const float* mass, const Sequence* sequences, int64 num_sequences, const mat3& sim_box);
 
 //void recenter_trajectory_on_residue(MoleculeDynamic* dynamic, ResIdx target_residue);
 

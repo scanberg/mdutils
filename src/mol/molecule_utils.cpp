@@ -15,10 +15,10 @@
 #include <svd3/svd3.h>
 #include <ctype.h>
 
-inline __m128 apply_pbc(const __m128 x, const __m128 box_ext) {
-    const __m128 add = simd::bit_and(simd::cmp_lt(x, simd::zero_f128()), box_ext);
-    const __m128 sub = simd::bit_and(simd::cmp_gt(x, box_ext), box_ext);
-    const __m128 res = simd::bit_and(x, simd::sub(add, sub));
+inline SIMD_TYPE_F apply_pbc(const SIMD_TYPE_F x, const SIMD_TYPE_F box_ext) {
+    const SIMD_TYPE_F add = simd::bit_and(simd::cmp_lt(x, SIMD_ZERO_F), box_ext);
+    const SIMD_TYPE_F sub = simd::bit_and(simd::cmp_gt(x, box_ext), box_ext);
+    const SIMD_TYPE_F res = simd::bit_and(x, simd::sub(add, sub));
     return res;
 }
 
@@ -30,35 +30,15 @@ inline T de_periodize(T pos, T ref_pos, T box_ext) {
     return res;
 }
 
-inline __m128 de_periodize(const __m128 pos, const __m128 ref_pos, const __m128 box_ext) {
-    const __m128 half_box = simd::mul(box_ext, simd::set_f128(0.5f));
-    const __m128 delta = simd::sub(pos, ref_pos);
-    const __m128 signed_mask = simd::mul(simd::sign(delta), simd::step(half_box, simd::abs(delta)));
-    const __m128 res = simd::sub(pos, simd::mul(box_ext, signed_mask));
+inline SIMD_TYPE_F de_periodize(const SIMD_TYPE_F pos, const SIMD_TYPE_F ref_pos, const SIMD_TYPE_F box_ext) {
+    const SIMD_TYPE_F half_box = simd::mul(box_ext, SIMD_SET_F(0.5f));
+    const SIMD_TYPE_F delta = simd::sub(pos, ref_pos);
+    const SIMD_TYPE_F signed_mask = simd::mul(simd::sign(delta), simd::step(half_box, simd::abs(delta)));
+    const SIMD_TYPE_F res = simd::sub(pos, simd::mul(box_ext, signed_mask));
     return res;
 }
 
-#ifdef __AVX__
-inline __m256 de_periodize(const __m256 pos, const __m256 ref_pos, const __m256 box_ext) {
-    const __m256 half_box = simd::mul(box_ext, simd::set_f256(0.5f));
-    const __m256 delta = simd::sub(pos, ref_pos);
-    const __m256 signed_mask = simd::mul(simd::sign(delta), simd::step(half_box, simd::abs(delta)));
-    const __m256 res = simd::sub(pos, simd::mul(box_ext, signed_mask));
-    return res;
-}
-#endif
-
-#ifdef __AVX512__
-inline __m512 de_periodize(const __m512 pos, const __m512 ref_pos, const __m512 box_ext) {
-    const __m512 half_box = simd::mul(box_ext, simd::set_f512(0.5f));
-    const __m512 delta = simd::sub(pos, ref_pos);
-    const __m512 signed_mask = simd::mul(simd::sign(delta), simd::step(half_box, simd::abs(delta)));
-    const __m512 res = simd::sub(pos, simd::mul(box_ext, signed_mask));
-    return res;
-}
-#endif
-
-void translate_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+void translate_ref(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const vec3& translation) {
     for (int64 i = 0; i < count; i++) {
         in_out_x[i] += translation.x;
         in_out_y[i] += translation.y;
@@ -66,7 +46,7 @@ void translate_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RE
     }
 }
 
-void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const vec3& translation) {
+void translate(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const vec3& translation) {
     int64 i = 0;
 
     const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
@@ -97,7 +77,7 @@ void translate(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRI
     }
 }
 
-void transform_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation,
+void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation,
                    float w_comp) {
     for (int64 i = 0; i < count; i++) {
         vec4 v = {in_out_x[i], in_out_y[i], in_out_z[i], w_comp};
@@ -108,7 +88,7 @@ void transform_ref(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RE
     }
 }
 
-void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRICT in_out_z, int64 count, const mat4& transformation, float w_comp) {
+void transform(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation, float w_comp) {
     const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
     const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
     const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
@@ -169,7 +149,7 @@ void transform(float* RESTRICT in_out_x, float* RESTRICT in_out_y, float* RESTRI
     }
 }
 
-void transform(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z, float* RESTRICT in_x, float* RESTRICT in_y, float* RESTRICT in_z,
+void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_y, float* in_z,
                int64 count, const mat4& transformation, float w_comp) {
     const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
     const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
@@ -231,7 +211,7 @@ void transform(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out
     }
 }
 
-void homogeneous_transform(float* RESTRICT pos_x, float* RESTRICT pos_y, float* RESTRICT pos_z, int64 count, const mat4& transformation) {
+void homogeneous_transform(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat4& transformation) {
     for (int64 i = 0; i < count; i++) {
         const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
         pos_x[i] = p.x / p.w;
@@ -240,7 +220,7 @@ void homogeneous_transform(float* RESTRICT pos_x, float* RESTRICT pos_y, float* 
     }
 }
 
-AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
+AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, int64 count) {
     if (count == 0) {
         return {};
     }
@@ -286,7 +266,7 @@ AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const 
     return aabb;
 }
 
-AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_r, int64 count) {
+AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const float* in_r, int64 count) {
     if (count == 0) {
         return {};
     }
@@ -338,7 +318,7 @@ AABB compute_aabb(const float* RESTRICT in_x, const float* RESTRICT in_y, const 
     return aabb;
 }
 
-vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, int64 count) {
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, int64 count) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
@@ -369,7 +349,7 @@ vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const f
     return sum / (float)count;
 }
 
-vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m, int64 count) {
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const float* in_m, int64 count) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
@@ -407,7 +387,7 @@ vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const f
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic_ref(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m,
+vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float* in_z, const float* in_m,
                               int64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
@@ -427,7 +407,7 @@ vec3 compute_com_periodic_ref(const float* RESTRICT in_x, const float* RESTRICT 
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_m, int64 count,
+vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_m, int64 count,
                           const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
@@ -508,7 +488,7 @@ vec3 compute_com_periodic(const float* RESTRICT in_x, const float* RESTRICT in_y
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const Element* RESTRICT in_element,
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const Element* in_element,
                  int64 count) {
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
@@ -525,7 +505,7 @@ vec3 compute_com(const float* RESTRICT in_x, const float* RESTRICT in_y, const f
     return v_sum / m_sum;
 }
 
-mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y, const float* RESTRICT z, const float* RESTRICT mass, int64 count,
+mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, const float* mass, int64 count,
                                const vec3& com) {
     mat3 A{0};
     float mass_sum = 0.0f;
@@ -552,7 +532,7 @@ mat3 compute_covariance_matrix(const float* RESTRICT x, const float* RESTRICT y,
 }
 
 #define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
-EigenFrame compute_eigen_frame(const float* RESTRICT in_x, const float* RESTRICT in_y, const float* RESTRICT in_z, const float* RESTRICT in_mass,
+EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float* in_z, const float* in_mass,
                                int64 count) {
     const vec3 com = compute_com(in_x, in_y, in_z, count);
     const mat3 M = compute_covariance_matrix(in_x, in_y, in_z, in_mass, count, com);
@@ -619,9 +599,9 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
 }
 
 // clang-format off
-void linear_interpolation_scalar(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                                 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_scalar(float* out_x, float* out_y, float* out_z,
+								 const float* in_x0, const float* in_y0, const float* in_z0,
+                                 const float* in_x1, const float* in_y1, const float* in_z1,
 								 int64 count, float t)
 // clang-format on
 {
@@ -633,9 +613,9 @@ void linear_interpolation_scalar(float* RESTRICT out_x, float* RESTRICT out_y, f
 }
 
 // clang-format off
-void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                          const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation(float* out_x, float* out_y, float* out_z,
+						  const float* in_x0, const float* in_y0, const float* in_z0,
+                          const float* in_x1, const float* in_y1, const float* in_z1,
 						  int64 count, float t)
 // clang-format on
 {
@@ -659,9 +639,9 @@ void linear_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* R
 }
 
 // clang-format off
-void linear_interpolation_128(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                              const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_128(float* out_x, float* out_y, float* out_z,
+							  const float* in_x0, const float* in_y0, const float* in_z0,
+                              const float* in_x1, const float* in_y1, const float* in_z1,
 							  int64 count, float t)
 // clang-format on
 {
@@ -686,9 +666,9 @@ void linear_interpolation_128(float* RESTRICT out_x, float* RESTRICT out_y, floa
 
 #ifdef __AVX__
 // clang-format off
-void linear_interpolation_256(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                              const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_256(float* out_x, float* out_y, float* out_z,
+							  const float* in_x0, const float* in_y0, const float* in_z0,
+                              const float* in_x1, const float* in_y1, const float* in_z1,
 							  int64 count, float t)
 // clang-format on
 {
@@ -713,9 +693,9 @@ void linear_interpolation_256(float* RESTRICT out_x, float* RESTRICT out_y, floa
 #endif
 
 // clang-format off
-void linear_interpolation_pbc_scalar(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-									 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                                     const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
+									 const float* in_x0, const float* in_y0, const float* in_z0,
+                                     const float* in_x1, const float* in_y1, const float* in_z1,
 									 int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -748,9 +728,9 @@ void linear_interpolation_pbc_scalar(float* RESTRICT out_x, float* RESTRICT out_
 }
 
 // clang-format off
-void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                              const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
+							  const float* in_x0, const float* in_y0, const float* in_z0,
+                              const float* in_x1, const float* in_y1, const float* in_z1,
 							  int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -781,10 +761,11 @@ void linear_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, floa
     }
 }
 
+/*
 // clang-format off
-void linear_interpolation_pbc_128(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-								  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
+								  const float* in_x0, const float* in_y0, const float* in_z0,
+								  const float* in_x1, const float* in_y1, const float* in_z1,
 								  int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -817,9 +798,9 @@ void linear_interpolation_pbc_128(float* RESTRICT out_x, float* RESTRICT out_y, 
 
 #ifdef __AVX__
 // clang-format off
-void linear_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								  const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-								  const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
+void linear_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
+								  const float* in_x0, const float* in_y0, const float* in_z0,
+								  const float* in_x1, const float* in_y1, const float* in_z1,
 								  int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -850,13 +831,14 @@ void linear_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, 
     }
 }
 #endif
+*/
 
 // clang-format off
-void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-						 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-						 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-                         const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-						 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation(float* out_x, float* out_y, float* out_z,
+						 const float* in_x0, const float* in_y0, const float* in_z0,
+						 const float* in_x1, const float* in_y1, const float* in_z1,
+                         const float* in_x2, const float* in_y2, const float* in_z2,
+						 const float* in_x3, const float* in_y3, const float* in_z3,
 						 int64 count, float t)
 // clang-format on
 {
@@ -887,12 +869,13 @@ void cubic_interpolation(float* RESTRICT out_x, float* RESTRICT out_y, float* RE
     }
 }
 
+/*
 // clang-format off
-void cubic_interpolation_128(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-							 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_128(float* out_x, float* out_y, float* out_z,
+							 const float* in_x0, const float* in_y0, const float* in_z0,
+							 const float* in_x1, const float* in_y1, const float* in_z1,
+							 const float* in_x2, const float* in_y2, const float* in_z2,
+							 const float* in_x3, const float* in_y3, const float* in_z3,
 							 int64 count, float t)
 // clang-format on
 {
@@ -925,11 +908,11 @@ void cubic_interpolation_128(float* RESTRICT out_x, float* RESTRICT out_y, float
 
 #ifdef __AVX__
 // clang-format off
-void cubic_interpolation_256(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-							 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-							 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_256(float* out_x, float* out_y, float* out_z,
+							 const float* in_x0, const float* in_y0, const float* in_z0,
+							 const float* in_x1, const float* in_y1, const float* in_z1,
+							 const float* in_x2, const float* in_y2, const float* in_z2,
+							 const float* in_x3, const float* in_y3, const float* in_z3,
 							 int64 count, float t)
 // clang-format on
 {
@@ -960,13 +943,13 @@ void cubic_interpolation_256(float* RESTRICT out_x, float* RESTRICT out_y, float
     }
 }
 #endif
-
+*/
 // clang-format off
-void cubic_interpolation_pbc_scalar(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								    const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-								    const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-								    const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-								    const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
+								    const float* in_x0, const float* in_y0, const float* in_z0,
+								    const float* in_x1, const float* in_y1, const float* in_z1,
+								    const float* in_x2, const float* in_y2, const float* in_z2,
+								    const float* in_x3, const float* in_y3, const float* in_z3,
 								    int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -1012,11 +995,11 @@ void cubic_interpolation_pbc_scalar(float* RESTRICT out_x, float* RESTRICT out_y
 }
 
 // clang-format off
-void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-							 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-                             const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-							 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-							 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z,
+							 const float* in_x0, const float* in_y0, const float* in_z0,
+                             const float* in_x1, const float* in_y1, const float* in_z1,
+							 const float* in_x2, const float* in_y2, const float* in_z2,
+							 const float* in_x3, const float* in_y3, const float* in_z3,
 							 int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -1063,12 +1046,13 @@ void cubic_interpolation_pbc(float* RESTRICT out_x, float* RESTRICT out_y, float
     }
 }
 
+/*
 // clang-format off
-void cubic_interpolation_pbc_128(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-								 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-								 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-								 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
+								 const float* in_x0, const float* in_y0, const float* in_z0,
+								 const float* in_x1, const float* in_y1, const float* in_z1,
+								 const float* in_x2, const float* in_y2, const float* in_z2,
+								 const float* in_x3, const float* in_y3, const float* in_z3,
 								 int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -1117,11 +1101,11 @@ void cubic_interpolation_pbc_128(float* RESTRICT out_x, float* RESTRICT out_y, f
 
 #ifdef __AVX__
 // clang-format off
-void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, float* RESTRICT out_z,
-								 const float* RESTRICT in_x0, const float* RESTRICT in_y0, const float* RESTRICT in_z0,
-								 const float* RESTRICT in_x1, const float* RESTRICT in_y1, const float* RESTRICT in_z1,
-								 const float* RESTRICT in_x2, const float* RESTRICT in_y2, const float* RESTRICT in_z2,
-								 const float* RESTRICT in_x3, const float* RESTRICT in_y3, const float* RESTRICT in_z3,
+void cubic_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
+								 const float* in_x0, const float* in_y0, const float* in_z0,
+								 const float* in_x1, const float* in_y1, const float* in_z1,
+								 const float* in_x2, const float* in_y2, const float* in_z2,
+								 const float* in_x3, const float* in_y3, const float* in_z3,
 								 int64 count, float t, const mat3& sim_box)
 // clang-format on
 {
@@ -1169,8 +1153,9 @@ void cubic_interpolation_pbc_256(float* RESTRICT out_x, float* RESTRICT out_y, f
 }
 
 #endif
+*/
 
-void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, int64 count, const mat3& sim_box) {
+void apply_pbc(float* x, float* y, float* z, const float* mass, int64 count, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
@@ -1184,7 +1169,7 @@ void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const fl
     }
 }
 
-void apply_pbc(float* RESTRICT x, float* RESTRICT y, float* RESTRICT z, const float* RESTRICT mass, ArrayView<const Sequence> sequences,
+void apply_pbc(float* x, float* y, float* z, const float* mass, ArrayView<const Sequence> sequences,
                const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
