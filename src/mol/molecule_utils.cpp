@@ -38,18 +38,18 @@ inline SIMD_TYPE_F de_periodize(const SIMD_TYPE_F pos, const SIMD_TYPE_F ref_pos
     return res;
 }
 
-void translate_ref(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const vec3& translation) {
-    for (int64 i = 0; i < count; i++) {
+void translate_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const vec3& translation) {
+    for (i64 i = 0; i < count; i++) {
         in_out_x[i] += translation.x;
         in_out_y[i] += translation.y;
         in_out_z[i] += translation.z;
     }
 }
 
-void translate(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const vec3& translation) {
-    int64 i = 0;
+void translate(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const vec3& translation) {
+    i64 i = 0;
 
-    const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     if (simd_count > 0) {
         SIMD_TYPE_F t_x = SIMD_SET_F(translation.x);
         SIMD_TYPE_F t_y = SIMD_SET_F(translation.y);
@@ -77,9 +77,9 @@ void translate(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, c
     }
 }
 
-void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation,
+void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const mat4& transformation,
                    float w_comp) {
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         vec4 v = {in_out_x[i], in_out_y[i], in_out_z[i], w_comp};
         v = transformation * v;
         in_out_x[i] = v.x;
@@ -88,7 +88,7 @@ void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, int64 coun
     }
 }
 
-void transform(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, const mat4& transformation, float w_comp) {
+void transform(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const mat4& transformation, float w_comp) {
     const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
     const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
     const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
@@ -107,8 +107,8 @@ void transform(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, c
 
     const SIMD_TYPE_F w = SIMD_SET_F(w_comp);
 
-    int64 i = 0;
-    const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    i64 i = 0;
+    const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     for (; i < simd_count; i += SIMD_WIDTH) {
         const SIMD_TYPE_F x = SIMD_LOAD_F(in_out_x + i);
         const SIMD_TYPE_F y = SIMD_LOAD_F(in_out_y + i);
@@ -150,7 +150,7 @@ void transform(float* in_out_x, float* in_out_y, float* in_out_z, int64 count, c
 }
 
 void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_y, float* in_z,
-               int64 count, const mat4& transformation, float w_comp) {
+               i64 count, const mat4& transformation, float w_comp) {
     const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
     const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
     const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
@@ -169,8 +169,8 @@ void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_
 
     const SIMD_TYPE_F w = SIMD_SET_F(w_comp);
 
-    int64 i = 0;
-    const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    i64 i = 0;
+    const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     for (; i < simd_count; i += SIMD_WIDTH) {
         const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
         const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
@@ -211,8 +211,8 @@ void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_
     }
 }
 
-void homogeneous_transform(float* pos_x, float* pos_y, float* pos_z, int64 count, const mat4& transformation) {
-    for (int64 i = 0; i < count; i++) {
+void homogeneous_transform(float* pos_x, float* pos_y, float* pos_z, i64 count, const mat4& transformation) {
+    for (i64 i = 0; i < count; i++) {
         const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
         pos_x[i] = p.x / p.w;
         pos_y[i] = p.y / p.w;
@@ -220,14 +220,14 @@ void homogeneous_transform(float* pos_x, float* pos_y, float* pos_z, int64 count
     }
 }
 
-AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, int64 count) {
+AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, i64 count) {
     if (count == 0) {
         return {};
     }
 
     AABB aabb;
 
-    int64 i = 0;
+    i64 i = 0;
     if (count > SIMD_WIDTH) {  // @NOTE: There is probably some number where this makes most sense
         SIMD_TYPE_F min_x = SIMD_LOAD_F(in_x);
         SIMD_TYPE_F min_y = SIMD_LOAD_F(in_y);
@@ -238,7 +238,7 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, int64
         SIMD_TYPE_F max_z = min_z;
 
         i += SIMD_WIDTH;
-        const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+        const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
             const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
             const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
@@ -266,14 +266,14 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, int64
     return aabb;
 }
 
-AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const float* in_r, int64 count) {
+AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const float* in_r, i64 count) {
     if (count == 0) {
         return {};
     }
 
     AABB aabb;
 
-    int64 i = 0;
+    i64 i = 0;
     if (count > SIMD_WIDTH) {  // @NOTE: There is probably some number where this makes most sense
         SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
         SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
@@ -289,7 +289,7 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const
         SIMD_TYPE_F max_z = simd::add(z, r);
 
         i += SIMD_WIDTH;
-        const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+        const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
             x = SIMD_LOAD_F(in_x + i);
             y = SIMD_LOAD_F(in_y + i);
@@ -318,15 +318,15 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const
     return aabb;
 }
 
-vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, int64 count) {
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, i64 count) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
     vec3 sum{0};
-    int64 i = 0;
+    i64 i = 0;
 
     if (count > SIMD_WIDTH) {
-        const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+        const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
         SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
         SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
         SIMD_TYPE_F z = SIMD_LOAD_F(in_z);
@@ -349,15 +349,15 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, int64 
     return sum / (float)count;
 }
 
-vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const float* in_m, int64 count) {
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
     vec3 vec_sum{0, 0, 0};
     float mass_sum = 0.0f;
-    int64 i = 0;
+    i64 i = 0;
 
-    const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     if (simd_count > SIMD_WIDTH) {
         SIMD_TYPE_F m = SIMD_LOAD_F(in_m);
         SIMD_TYPE_F x = simd::mul(SIMD_LOAD_F(in_x), m);
@@ -388,7 +388,7 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const 
 }
 
 vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float* in_z, const float* in_m,
-                              int64 count, const mat3& box) {
+                              i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
@@ -397,7 +397,7 @@ vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float*
     float mass_sum = in_m[0];
     vec3 vec_sum = vec3(in_x[0], in_y[0], in_z[0]) * in_m[0];
 
-    for (int64 i = 1; i < count; i++) {
+    for (i64 i = 1; i < count; i++) {
         const vec3 pos = {in_x[i], in_y[i], in_z[i]};
         const float mass = in_m[i];
         const vec3 com = vec_sum / mass_sum;
@@ -407,7 +407,7 @@ vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float*
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_m, int64 count,
+vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count,
                           const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
@@ -416,10 +416,10 @@ vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_
 
     vec3 vec_sum = {0, 0, 0};
     float mass_sum = 0;
-    int64 i = 0;
+    i64 i = 0;
 
     if (count > SIMD_WIDTH) {
-        const int64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+        const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
         const SIMD_TYPE_F box_ext_x = SIMD_SET_F(box[0][0]);
         const SIMD_TYPE_F box_ext_y = SIMD_SET_F(box[1][1]);
         const SIMD_TYPE_F box_ext_z = SIMD_SET_F(box[2][2]);
@@ -489,13 +489,13 @@ vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_
 }
 
 vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const Element* in_element,
-                 int64 count) {
+                 i64 count) {
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
     vec3 v_sum{0};
     float m_sum = 0.0f;
-    for (int32 i = 0; i < count; i++) {
+    for (i32 i = 0; i < count; i++) {
         const vec3 v = {in_x[i], in_y[i], in_z[i]};
         const float m = element::atomic_mass(in_element[i]);
         v_sum += v * m;
@@ -505,11 +505,11 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const 
     return v_sum / m_sum;
 }
 
-mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, const float* mass, int64 count,
+mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, const float* mass, i64 count,
                                const vec3& com) {
     mat3 A{0};
     float mass_sum = 0.0f;
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         // @TODO: Vectorize...
         const float qx = x[i] - com.x;
         const float qy = y[i] - com.y;
@@ -533,7 +533,7 @@ mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, c
 
 #define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
 EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float* in_z, const float* in_mass,
-                               int64 count) {
+                               i64 count) {
     const vec3 com = compute_com(in_x, in_y, in_z, count);
     const mat3 M = compute_covariance_matrix(in_x, in_y, in_z, in_mass, count, com);
     mat3 U, S, V;
@@ -577,7 +577,7 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
     const auto& mol = dynamic->molecule;
     auto& traj = dynamic->trajectory;
 
-    int64 count = bitfield::number_of_bits_set(atom_mask);
+    i64 count = bitfield::number_of_bits_set(atom_mask);
     void* mem = TMP_MALLOC(count * sizeof(float) * 4);
     defer { TMP_FREE(mem); };
     float* x = (float*)mem + 0 * count;
@@ -602,10 +602,10 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
 void linear_interpolation_scalar(float* out_x, float* out_y, float* out_z,
                                  const float* in_x0, const float* in_y0, const float* in_z0,
                                  const float* in_x1, const float* in_y1, const float* in_z1,
-                                 int64 count, float t)
+                                 i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         out_x[i] = in_x0[i] * (1.0f - t) + in_x1[i] * t;
         out_y[i] = in_y0[i] * (1.0f - t) + in_y1[i] * t;
         out_z[i] = in_z0[i] * (1.0f - t) + in_z1[i] * t;
@@ -616,10 +616,10 @@ void linear_interpolation_scalar(float* out_x, float* out_y, float* out_z,
 void linear_interpolation(float* out_x, float* out_y, float* out_z,
                           const float* in_x0, const float* in_y0, const float* in_z0,
                           const float* in_x1, const float* in_y1, const float* in_z1,
-                          int64 count, float t)
+                          i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i += SIMD_WIDTH) {
+    for (i64 i = 0; i < count; i += SIMD_WIDTH) {
         const SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
         const SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
         const SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
@@ -642,10 +642,10 @@ void linear_interpolation(float* out_x, float* out_y, float* out_z,
 void linear_interpolation_128(float* out_x, float* out_y, float* out_z,
                               const float* in_x0, const float* in_y0, const float* in_z0,
                               const float* in_x1, const float* in_y1, const float* in_z1,
-                              int64 count, float t)
+                              i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i += 4) {
+    for (i64 i = 0; i < count; i += 4) {
         const __m128 x0 = simd::load_f128(in_x0 + i);
         const __m128 y0 = simd::load_f128(in_y0 + i);
         const __m128 z0 = simd::load_f128(in_z0 + i);
@@ -669,10 +669,10 @@ void linear_interpolation_128(float* out_x, float* out_y, float* out_z,
 void linear_interpolation_256(float* out_x, float* out_y, float* out_z,
                               const float* in_x0, const float* in_y0, const float* in_z0,
                               const float* in_x1, const float* in_y1, const float* in_z1,
-                              int64 count, float t)
+                              i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i += 8) {
+    for (i64 i = 0; i < count; i += 8) {
         const __m256 x0 = simd::load_f256(in_x0 + i);
         const __m256 y0 = simd::load_f256(in_y0 + i);
         const __m256 z0 = simd::load_f256(in_z0 + i);
@@ -696,7 +696,7 @@ void linear_interpolation_256(float* out_x, float* out_y, float* out_z,
 void linear_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
                                      const float* in_x0, const float* in_y0, const float* in_z0,
                                      const float* in_x1, const float* in_y1, const float* in_z1,
-                                     int64 count, float t, const mat3& sim_box)
+                                     i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
 
@@ -704,7 +704,7 @@ void linear_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
     const float box_ext_y = sim_box[1][1];
     const float box_ext_z = sim_box[2][2];
 
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         float x0 = in_x0[i];
         float y0 = in_y0[i];
         float z0 = in_z0[i];
@@ -731,14 +731,14 @@ void linear_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
 void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
                               const float* in_x0, const float* in_y0, const float* in_z0,
                               const float* in_x1, const float* in_y1, const float* in_z1,
-                              int64 count, float t, const mat3& sim_box)
+                              i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const SIMD_TYPE_F box_ext_x = SIMD_SET_F(sim_box[0][0]);
     const SIMD_TYPE_F box_ext_y = SIMD_SET_F(sim_box[1][1]);
     const SIMD_TYPE_F box_ext_z = SIMD_SET_F(sim_box[2][2]);
 
-    for (int64 i = 0; i < count; i += SIMD_WIDTH) {
+    for (i64 i = 0; i < count; i += SIMD_WIDTH) {
         SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
         SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
         SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
@@ -766,14 +766,14 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
 void linear_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
                                   const float* in_x0, const float* in_y0, const float* in_z0,
                                   const float* in_x1, const float* in_y1, const float* in_z1,
-                                  int64 count, float t, const mat3& sim_box)
+                                  i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const __m128 box_ext_x = simd::set_f128(sim_box[0][0]);
     const __m128 box_ext_y = simd::set_f128(sim_box[1][1]);
     const __m128 box_ext_z = simd::set_f128(sim_box[2][2]);
 
-    for (int64 i = 0; i < count; i += 4) {
+    for (i64 i = 0; i < count; i += 4) {
         const __m128 x0 = simd::load_f128(in_x0 + i);
         const __m128 y0 = simd::load_f128(in_y0 + i);
         const __m128 z0 = simd::load_f128(in_z0 + i);
@@ -801,14 +801,14 @@ void linear_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
 void linear_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
                                   const float* in_x0, const float* in_y0, const float* in_z0,
                                   const float* in_x1, const float* in_y1, const float* in_z1,
-                                  int64 count, float t, const mat3& sim_box)
+                                  i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const __m256 box_ext_x = simd::set_f256(sim_box[0][0]);
     const __m256 box_ext_y = simd::set_f256(sim_box[1][1]);
     const __m256 box_ext_z = simd::set_f256(sim_box[2][2]);
 
-    for (int64 i = 0; i < count; i += 8) {
+    for (i64 i = 0; i < count; i += 8) {
         const __m256 x0 = simd::load_f256(in_x0 + i);
         const __m256 y0 = simd::load_f256(in_y0 + i);
         const __m256 z0 = simd::load_f256(in_z0 + i);
@@ -839,10 +839,10 @@ void cubic_interpolation(float* out_x, float* out_y, float* out_z,
                          const float* in_x1, const float* in_y1, const float* in_z1,
                          const float* in_x2, const float* in_y2, const float* in_z2,
                          const float* in_x3, const float* in_y3, const float* in_z3,
-                         int64 count, float t)
+                         i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i += SIMD_WIDTH) {
+    for (i64 i = 0; i < count; i += SIMD_WIDTH) {
         const SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
         const SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
         const SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
@@ -876,10 +876,10 @@ void cubic_interpolation_128(float* out_x, float* out_y, float* out_z,
                              const float* in_x1, const float* in_y1, const float* in_z1,
                              const float* in_x2, const float* in_y2, const float* in_z2,
                              const float* in_x3, const float* in_y3, const float* in_z3,
-                             int64 count, float t)
+                             i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i += 4) {
+    for (i64 i = 0; i < count; i += 4) {
         const __m128 x0 = simd::load_f128(in_x0 + i);
         const __m128 y0 = simd::load_f128(in_y0 + i);
         const __m128 z0 = simd::load_f128(in_z0 + i);
@@ -913,10 +913,10 @@ void cubic_interpolation_256(float* out_x, float* out_y, float* out_z,
                              const float* in_x1, const float* in_y1, const float* in_z1,
                              const float* in_x2, const float* in_y2, const float* in_z2,
                              const float* in_x3, const float* in_y3, const float* in_z3,
-                             int64 count, float t)
+                             i64 count, float t)
 // clang-format on
 {
-    for (int64 i = 0; i < count; i += 8) {
+    for (i64 i = 0; i < count; i += 8) {
         const __m256 x0 = simd::load_f256(in_x0 + i);
         const __m256 y0 = simd::load_f256(in_y0 + i);
         const __m256 z0 = simd::load_f256(in_z0 + i);
@@ -950,12 +950,12 @@ void cubic_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
                                     const float* in_x1, const float* in_y1, const float* in_z1,
                                     const float* in_x2, const float* in_y2, const float* in_z2,
                                     const float* in_x3, const float* in_y3, const float* in_z3,
-                                    int64 count, float t, const mat3& sim_box)
+                                    i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const vec3 box_ext = sim_box * vec3(1.0f);
 
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         float x0 = in_x0[i];
         float y0 = in_y0[i];
         float z0 = in_z0[i];
@@ -1000,14 +1000,14 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z,
                              const float* in_x1, const float* in_y1, const float* in_z1,
                              const float* in_x2, const float* in_y2, const float* in_z2,
                              const float* in_x3, const float* in_y3, const float* in_z3,
-                             int64 count, float t, const mat3& sim_box)
+                             i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const SIMD_TYPE_F box_ext_x = SIMD_SET_F(sim_box[0][0]);
     const SIMD_TYPE_F box_ext_y = SIMD_SET_F(sim_box[1][1]);
     const SIMD_TYPE_F box_ext_z = SIMD_SET_F(sim_box[2][2]);
 
-    for (int64 i = 0; i < count; i += SIMD_WIDTH) {
+    for (i64 i = 0; i < count; i += SIMD_WIDTH) {
         const SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
         const SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
         const SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
@@ -1053,14 +1053,14 @@ void cubic_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
                                  const float* in_x1, const float* in_y1, const float* in_z1,
                                  const float* in_x2, const float* in_y2, const float* in_z2,
                                  const float* in_x3, const float* in_y3, const float* in_z3,
-                                 int64 count, float t, const mat3& sim_box)
+                                 i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const __m128 box_ext_x = simd::set_f128(sim_box[0][0]);
     const __m128 box_ext_y = simd::set_f128(sim_box[1][1]);
     const __m128 box_ext_z = simd::set_f128(sim_box[2][2]);
 
-    for (int64 i = 0; i < count; i += 4) {
+    for (i64 i = 0; i < count; i += 4) {
         const __m128 x0 = simd::load_f128(in_x0 + i);
         const __m128 y0 = simd::load_f128(in_y0 + i);
         const __m128 z0 = simd::load_f128(in_z0 + i);
@@ -1106,14 +1106,14 @@ void cubic_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
                                  const float* in_x1, const float* in_y1, const float* in_z1,
                                  const float* in_x2, const float* in_y2, const float* in_z2,
                                  const float* in_x3, const float* in_y3, const float* in_z3,
-                                 int64 count, float t, const mat3& sim_box)
+                                 i64 count, float t, const mat3& sim_box)
 // clang-format on
 {
     const __m256 box_ext_x = simd::set_f256(sim_box[0][0]);
     const __m256 box_ext_y = simd::set_f256(sim_box[1][1]);
     const __m256 box_ext_z = simd::set_f256(sim_box[2][2]);
 
-    for (int64 i = 0; i < count; i += 8) {
+    for (i64 i = 0; i < count; i += 8) {
         __m256 x0 = simd::load_f256(in_x0 + i);
         __m256 y0 = simd::load_f256(in_y0 + i);
         __m256 z0 = simd::load_f256(in_z0 + i);
@@ -1155,28 +1155,28 @@ void cubic_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
 #endif
 */
 
-void apply_pbc(float* x, float* y, float* z, const float* mass, int64 count, const mat3& sim_box) {
+void apply_pbc(float* x, float* y, float* z, const float* mass, i64 count, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
     const vec3 com = compute_com_periodic(x, y, z, mass, count, sim_box);
     const vec3 com_dp = math::fract(com * one_over_box_ext) * box_ext;
 
-    for (int64 i = 0; i < count; i++) {
+    for (i64 i = 0; i < count; i++) {
         x[i] = de_periodize(x[i], com_dp.x, box_ext.x);
         y[i] = de_periodize(y[i], com_dp.y, box_ext.y);
         z[i] = de_periodize(z[i], com_dp.z, box_ext.z);
     }
 }
 
-void apply_pbc(float* x, float* y, float* z, const float* mass, ArrayView<const Sequence> sequences,
+void apply_pbc(float* x, float* y, float* z, const float* mass, Array<const Sequence> sequences,
                const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
     for (const auto& seq : sequences) {
-        const int64 offset = seq.atom_range.beg;
-        const int64 size = seq.atom_range.size();
+        const i64 offset = seq.atom_range.beg;
+        const i64 size = seq.atom_range.ext();
         float* seq_x = x + offset;
         float* seq_y = y + offset;
         float* seq_z = z + offset;
@@ -1206,8 +1206,8 @@ bool valid_segment(const BackboneSegment& segment) {
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
 // The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
-DynamicArray<Bond> compute_covalent_bonds(ArrayView<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z,
-                                          const Element* element, int64 count) {
+DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z,
+                                          const Element* element, i64 count) {
     UNUSED(count);
 
     if (residues.count == 0) {
@@ -1226,7 +1226,7 @@ DynamicArray<Bond> compute_covalent_bonds(ArrayView<Residue> residues, const flo
         const float* res_pos_y = pos_y + res.atom_range.beg;
         const float* res_pos_z = pos_z + res.atom_range.beg;
 
-        spatialhash::compute_frame(&frame, res_pos_x, res_pos_y, res_pos_z, res.atom_range.size(), vec3(max_covelent_bond_length));
+        spatialhash::compute_frame(&frame, res_pos_x, res_pos_y, res_pos_z, res.atom_range.ext(), vec3(max_covelent_bond_length));
 
         if (ri > 0) {
             // Include potential shared bonds from previous residue
@@ -1261,7 +1261,7 @@ DynamicArray<Bond> compute_covalent_bonds(ArrayView<Residue> residues, const flo
             const float* next_res_pos_y = pos_y + next_res.atom_range.beg;
             const float* next_res_pos_z = pos_z + next_res.atom_range.beg;
 
-            spatialhash::compute_frame(&frame, next_res_pos_x, next_res_pos_y, next_res_pos_z, next_res.atom_range.size(),
+            spatialhash::compute_frame(&frame, next_res_pos_x, next_res_pos_y, next_res_pos_z, next_res.atom_range.ext(),
                                        vec3(max_covelent_bond_length));
 
             for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
@@ -1285,7 +1285,7 @@ DynamicArray<Bond> compute_covalent_bonds(ArrayView<Residue> residues, const flo
     return bonds;
 }
 
-DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, int64 count) {
+DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, i64 count) {
     constexpr float max_covelent_bond_length = 4.0f;
     spatialhash::Frame frame = spatialhash::compute_frame(pos_x, pos_y, pos_z, count, vec3(max_covelent_bond_length));
     DynamicArray<Bond> bonds;
@@ -1305,23 +1305,23 @@ DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y
     return bonds;
 }
 
-DynamicArray<Sequence> compute_sequences(ArrayView<const Residue> residues) {
+DynamicArray<Sequence> compute_sequences(Array<const Residue> residues) {
     DynamicArray<Sequence> seq;
 
-    seq.push_back({"", {0, 1}, residues[0].atom_range});
+    seq.push_back({{0, 1}, residues[0].atom_range});
     for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
         if (has_covalent_bond(residues[i], residues[i + 1])) {
             seq.back().res_range.end++;
             seq.back().atom_range.end = residues[i + 1].atom_range.end;
         } else {
-            seq.push_back({"", {i + 1, i + 2}, residues[i + 1].atom_range});
+            seq.push_back({{i + 1, i + 2}, residues[i + 1].atom_range});
         }
     }
 
     return seq;
 }
 
-DynamicArray<BackboneSequence> compute_backbone_sequences(ArrayView<const BackboneSegment> segments, ArrayView<const Residue> residues) {
+DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
     if (segments.count == 0) return {};
     ASSERT(segments.count == residues.count);
 
@@ -1339,20 +1339,20 @@ DynamicArray<BackboneSequence> compute_backbone_sequences(ArrayView<const Backbo
     return bb_sequences;
 }
 
-template <int64 N>
+template <i64 N>
 bool match(const Label& lbl, const char (&cstr)[N]) {
-    for (int64 i = 0; i < N; i++) {
+    for (i64 i = 0; i < N; i++) {
         if (tolower(lbl[i]) != tolower(cstr[i])) return false;
     }
     return true;
 }
 
-DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue> residues, ArrayView<const Label> atom_labels) {
+DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels) {
     DynamicArray<BackboneSegment> segments;
-    int64 invalid_segments = 0;
-    constexpr int32 min_atom_count = 4;  // Must contain at least 4 atoms to be considered as an amino acid.
+    i64 invalid_segments = 0;
+    constexpr i32 min_atom_count = 4;  // Must contain at least 4 atoms to be considered as an amino acid.
     for (auto& res : residues) {
-        const int32 atom_count = res.atom_range.end - res.atom_range.beg;
+        const i32 atom_count = res.atom_range.end - res.atom_range.beg;
         if (atom_count < min_atom_count) {
             segments.push_back({-1, -1, -1, -1});
             invalid_segments++;
@@ -1362,7 +1362,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue>
         BackboneSegment seg{};
 
         // find atoms
-        for (int32 i = res.atom_range.beg; i < res.atom_range.end; i++) {
+        for (i32 i = res.atom_range.beg; i < res.atom_range.end; i++) {
             const auto& lbl = atom_labels[i];
             if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
             if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
@@ -1373,7 +1373,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue>
         // Could not match "O"
         if (seg.o_idx == -1) {
             // Pick first atom containing O after C atom
-            for (int32 i = seg.c_idx; i < res.atom_range.end; i++) {
+            for (i32 i = seg.c_idx; i < res.atom_range.end; i++) {
                 const auto& lbl = atom_labels[i];
                 if (lbl[0] == 'o' || lbl[0] == 'O') {
                     seg.o_idx = i;
@@ -1394,20 +1394,23 @@ DynamicArray<BackboneSegment> compute_backbone_segments(ArrayView<const Residue>
     return segments;
 }
 
-DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> backbone, const float* pos_x, const float* pos_y,
+/*
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone, const float* pos_x, const float* pos_y,
                                                     const float* pos_z) {
     if (backbone.count == 0) return {};
     DynamicArray<BackboneAngle> angles(backbone.count);
     compute_backbone_angles(angles, backbone, pos_x, pos_y, pos_z);
     return angles;
 }
+*/
 
-void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> backbone_segments, const float* pos_x, const float* pos_y,
-                             const float* pos_z) {
-    ASSERT(dst.count >= backbone_segments.count);
+void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone_segments, const float* pos_x, const float* pos_y,
+                             const float* pos_z, i64 num_segments) {
+    ASSERT(dst);
+    ASSERT(backbone_segments);
     float phi = 0, psi = 0;
 
-    if (backbone_segments.size() < 2) {
+    if (num_segments < 2) {
         return;
     }
 
@@ -1422,7 +1425,7 @@ void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const Backb
     psi = math::dihedral_angle(n, ca, c, n_next);
     dst[0] = {phi, psi};
 
-    for (int64 i = 1; i < backbone_segments.count - 1; i++) {
+    for (i64 i = 1; i < num_segments - 1; i++) {
         ASSERT(valid_segment(backbone_segments[i]));
 
         c_prev = c;
@@ -1436,7 +1439,7 @@ void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const Backb
         dst[i] = {phi, psi};
     }
 
-    auto N = backbone_segments.count - 1;
+    auto N = num_segments - 1;
     ASSERT(valid_segment(backbone_segments[N]));
 
     c_prev = c;
@@ -1449,7 +1452,8 @@ void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const Backb
     dst[N] = {phi, psi};
 }
 
-DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences,
+/*
+DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences,
                                                     const float* pos_x, const float* pos_y, const float* pos_z) {
     if (segments.size() == 0) return {};
     DynamicArray<BackboneAngle> angles(segments.count);
@@ -1457,89 +1461,35 @@ DynamicArray<BackboneAngle> compute_backbone_angles(ArrayView<const BackboneSegm
     return angles;
 }
 
-void compute_backbone_angles(ArrayView<BackboneAngle> dst, ArrayView<const BackboneSegment> segments, ArrayView<const BackboneSequence> sequences,
+
+void compute_backbone_angles(BackboneAngle dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences,
                              const float* pos_x, const float* pos_y, const float* pos_z) {
     for (const auto& seq : sequences) {
         compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), segments.subarray(seq.beg, seq.end - seq.beg), pos_x, pos_y, pos_z);
     }
 }
+*/
 
-void init_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic) {
-    ASSERT(data);
-    if (!dynamic.molecule || !dynamic.trajectory) return;
-
-    if (data->angle_data) {
-        FREE(data->angle_data.ptr);
-    }
-
-    int32 alloc_count = (int32)dynamic.molecule.backbone.segments.count * (int32)dynamic.trajectory.frame_buffer.count;
-    data->num_segments = (int32)dynamic.molecule.backbone.segments.count;
-    data->num_frames = 0;
-    data->angle_data = {(BackboneAngle*)CALLOC(alloc_count, sizeof(BackboneAngle)), alloc_count};
-}
-
-void free_backbone_angles_trajectory(BackboneAnglesTrajectory* data) {
-    ASSERT(data);
-    if (data->angle_data) {
-        FREE(data->angle_data.ptr);
-        *data = {};
-    }
-}
-
-void compute_backbone_angles_trajectory(BackboneAnglesTrajectory* data, const MoleculeDynamic& dynamic) {
-    ASSERT(dynamic);
-    if (dynamic.trajectory.num_frames == 0 || dynamic.molecule.backbone.segments.count == 0) return;
-
-    //@NOTE: Trajectory may be loading while this is taking place, therefore read num_frames once and stick to that
-    const int32 traj_num_frames = dynamic.trajectory.num_frames;
-
-    // @NOTE: If we are up to date, no need to compute anything
-    if (traj_num_frames == data->num_frames) {
-        return;
-    }
-
-    // @TODO: parallelize?
-    // @NOTE: Only compute data for indices which are new
-    for (int32 f_idx = data->num_frames; f_idx < traj_num_frames; f_idx++) {
-        auto pos_x = get_trajectory_position_x(dynamic.trajectory, f_idx);
-        auto pos_y = get_trajectory_position_y(dynamic.trajectory, f_idx);
-        auto pos_z = get_trajectory_position_z(dynamic.trajectory, f_idx);
-
-        ArrayView<BackboneAngle> frame_angles = get_backbone_angles(*data, f_idx);
-        for (const auto& bb_seq : dynamic.molecule.backbone.sequences) {
-            auto bb_segments = get_backbone(dynamic.molecule, bb_seq);
-            auto bb_angles = frame_angles.subarray(bb_seq);
-
-            if (bb_segments.size() < 2) {
-                memset(bb_angles.ptr, 0, bb_angles.size_in_bytes());
-            } else {
-                compute_backbone_angles(bb_angles, bb_segments, pos_x.data(), pos_y.data(), pos_z.data());
-            }
-        }
-    }
-    data->num_frames = traj_num_frames;  // update current count
-}
-
-DynamicArray<float> compute_atom_radii(ArrayView<const Element> elements) {
+DynamicArray<float> compute_atom_radii(Array<const Element> elements) {
     DynamicArray<float> radii(elements.size(), 0);
     compute_atom_radii(radii.data(), elements.data(), radii.size());
     return radii;
 }
 
-void compute_atom_radii(float* out_radius, const Element* element, int64 count) {
-    for (int64 i = 0; i < count; i++) {
+void compute_atom_radii(float* out_radius, const Element* element, i64 count) {
+    for (i64 i = 0; i < count; i++) {
         out_radius[i] = element::vdw_radius(element[i]);
     }
 }
 
-DynamicArray<float> compute_atom_masses(ArrayView<const Element> elements) {
+DynamicArray<float> compute_atom_masses(Array<const Element> elements) {
     DynamicArray<float> mass(elements.size(), 0);
     compute_atom_radii(mass.data(), elements.data(), mass.size());
     return mass;
 }
 
-void compute_atom_masses(float* out_mass, const Element* element, int64 count) {
-    for (int64 i = 0; i < count; i++) {
+void compute_atom_masses(float* out_mass, const Element* element, i64 count) {
+    for (i64 i = 0; i < count; i++) {
         out_mass[i] = element::vdw_radius(element[i]);
     }
 }
@@ -1576,8 +1526,8 @@ DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringV
 }
 
 bool atom_ranges_match(const MoleculeStructure& mol, AtomRange range_a, AtomRange range_b) {
-    if (range_a.size() == 0 || range_b.size() == 0) return false;
-    if (range_a.size() != range_b.size()) return false;
+    if (range_a.ext() == 0 || range_b.ext() == 0) return false;
+    if (range_a.ext() != range_b.ext()) return false;
 
     const auto ele_a = get_elements(mol).subarray(range_a);
     const auto ele_b = get_elements(mol).subarray(range_b);
@@ -1610,7 +1560,7 @@ DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol,
         if (ele[i] == ele_ref[j] && (compare(lbl[i], lbl_ref[j]))) {
             j++;
         }
-        if (j == ref.size()) {
+        if (j == ref.ext()) {
             matches.push_back({i - j + 1, i + 1});
             j = 0;
         }
@@ -1657,7 +1607,7 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
         if (mask[i]) bitfield::set_bit(used_atoms, offset + i);
     }
 
-    int64 count = bitfield::number_of_bits_set(mask);
+    i64 count = bitfield::number_of_bits_set(mask);
     if (count == 0) {
         LOG_WARNING("Supplied mask was empty");
         return {};

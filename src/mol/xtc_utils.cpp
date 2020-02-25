@@ -34,24 +34,21 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, i32 mol_atom_count, CSt
         return false;
     }
 
-    int num_atoms = 0;
-    unsigned long num_frames = 0;
-    int64_t* offsets = nullptr;
-    /*
+    i32 num_atoms = 0;
+    i32 num_frames = 0;
+    i64* offsets = nullptr;
+    
     if (read_xtc_natoms(filename.cstr(), &num_atoms) != exdrOK) {
         LOG_ERROR("Could not extract number of atoms in trajectory");
-                xdrfile_close(file_handle);
+                xdrfile_close(xtc_file_handle);
         return false;
     }
-    */
 
-    /*
-        if (num_atoms != mol_atom_count) {
-                LOG_ERROR("Trajectory atom count did not match molecule atom count");
-                xdrfile_close(file_handle);
-                return false;
-        }
-    */
+    if (num_atoms != mol_atom_count) {
+        LOG_ERROR("Trajectory atom count did not match molecule atom count");
+        xdrfile_close(xtc_file_handle);
+        return false;
+    }
 
     // Try to read offsets from cache-file
     FILE* cache_handle = fopen(cache_file, "rb");
