@@ -11,8 +11,8 @@ struct LoggingBackend {
 };
 
 static DynamicArray<LoggingBackend> entries;
-static constexpr int32 BUF_SIZE = KILOBYTES(64); // @NOTE (Robin): Ought to be enough for everyone, right?!
-static char buf[BUF_SIZE];
+static const int buf_size = KILOBYTES(64); // @NOTE (Robin): 64K Ought to be enough for everyone, right?!
+static char buf[buf_size];
 
 void initialize() {}
 void shutdown() {}
@@ -20,7 +20,6 @@ void shutdown() {}
 void register_backend(LoggingFunc func, void* usr_data) { entries.push_back({func, usr_data}); }
 
 void record(Severity severity, const char* format, ...) {
-
     time_t now = time(0);
     struct tm tstruct;
     tstruct = *localtime(&now);
@@ -28,8 +27,8 @@ void record(Severity severity, const char* format, ...) {
     va_list ap;
     va_start(ap, format);
     int count = 0;
-    count += (int)strftime(buf, BUF_SIZE, "%T: ", &tstruct);
-    count += vsnprintf(buf + count, BUF_SIZE, format, ap);
+    count += (int)strftime(buf, buf_size, "%T: ", &tstruct);
+    count += vsnprintf(buf + count, buf_size, format, ap);
     va_end(ap);
     CStringView str(buf, count);
 
