@@ -41,7 +41,7 @@ struct Range {
 		end -= val;
 		return *this;
 	}
-    constexpr i64 ext() const { return end - beg; }
+    constexpr i64 ext() const { return i64(end - beg); }
 };
 
 template <typename T>

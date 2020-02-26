@@ -375,7 +375,6 @@ int64_t gather_masked(T* dst_data, const T* src_data, Bitfield mask, int64_t off
     return dst_count;
 }
 
-// @TODO: Implement scatter version of 'extract' mask
 template <typename T>
 int64_t scatter_masked(T* dst_data, const T* src_data, Bitfield mask, int64_t offset = 0) {
     int64_t src_count = 0;
@@ -407,6 +406,37 @@ int64_t scatter_masked(T* dst_data, const T* src_data, Bitfield mask, int64_t of
     }
 
     return src_count;
+}
+
+template <typename Func>
+void for_each_bit_set(Bitfield mask, Func f, int64_t offset = 0) {
+    const int64_t last_blk = detail::num_blocks(mask) - 1;
+    for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
+        const auto blk = mask.block_ptr[blk_idx];
+        if (blk == 0) continue;
+
+        for (uint64_t i = 0; i < detail::bits_per_block; ++i) {
+            const uint64_t bit = (Bitfield::BlockType)1 << i;
+            if (blk & bit) {
+                const int64_t idx = offset + blk_idx * detail::bits_per_block + i;
+                f(idx);
+            }
+        }
+    }
+
+    // @NOTE: Remainder
+    const uint64_t blk_idx = last_blk;
+    const uint64_t remainder = (uint64_t)mask.size() - blk_idx * detail::bits_per_block;
+    const uint64_t blk = mask.block_ptr[blk_idx];
+    if (blk) {
+        for (uint64_t i = 0; i < remainder; ++i) {
+            const uint64_t bit = (Bitfield::BlockType)1 << i;
+            if (blk & bit) {
+                const int64_t idx = offset + blk_idx * detail::bits_per_block + i;
+                f(idx);
+            }
+        }
+    }
 }
 
 void print(const Bitfield field);

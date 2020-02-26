@@ -6,6 +6,8 @@
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
 
+#include <stdio.h>
+
 namespace gro {
 
 struct LineFormat {
