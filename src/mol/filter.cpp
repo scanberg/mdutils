@@ -159,7 +159,7 @@ bool internal_filter_mask(Bitfield mask, CStringView filter, const FilterContext
                         LOG_ERROR("Could not parse command: '%s' with arguments: ", buf.beg());
                         for (const auto& arg : args) {
                             buf = arg;
-                            printf("'%s'", buf.beg());
+                            LOG_NOTE("'%s'", buf.beg());
                         }
                         return false;
                     }
