@@ -260,12 +260,9 @@ DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern
     }
     defer { fclose(file); };
 
-    fseeki64(file, 0, SEEK_END);
-    i64 file_size = ftelli64(file);
-    rewind(file);
-
-    constexpr i64 buf_size = KILOBYTES(1);
-    char buf[buf_size];
+    constexpr i64 buf_size = MEGABYTES(1);
+    char* buf = (char*)TMP_MALLOC(buf_size);
+    defer { TMP_FREE(buf); };
 
     i64 byte_offset = 0;
     i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
@@ -276,22 +273,16 @@ DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern
         str = { match.end(), str.end() };
     }
 
+    const i64 chunk_size = buf_size - pattern.size_in_bytes();
     while (bytes_read == buf_size) {
         // Copy potential 'cut' pattern at end of buffer
-        //printf("%.*s\n", buf_size, buf);
         memcpy(buf, buf + buf_size - pattern.size_in_bytes(), pattern.size_in_bytes());
-        bytes_read = (i64)fread(buf + pattern.size_in_bytes(), 1, buf_size - pattern.size_in_bytes(), file);
-        //printf("%.*s\n", buf_size, buf);
-        byte_offset += bytes_read;
-        bytes_read += pattern.size_in_bytes();
+        bytes_read = (i64)fread(buf + pattern.size_in_bytes(), 1, chunk_size, file) + pattern.size_in_bytes();
+        byte_offset += chunk_size;
 
-        printf("(%lli / %lli)\n", bytes_read, buf_size);
-        printf("off: %lli\n", byte_offset);
-
-        CStringView str = {buf, (i64)bytes_read};
+        str = {buf, (i64)bytes_read};
         while (CStringView match = find_string(str, pattern)) {
             offsets.push_back(byte_offset + (i64)(match.beg() - buf));
-            printf("found match: (%lli), '%.*s'\n", offsets.back(), match.size(), match.beg());
             str = { match.end(), str.end() };
         }
     }

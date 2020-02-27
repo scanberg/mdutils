@@ -37,10 +37,10 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, i32 mol_atom_count, CSt
     i32 num_atoms = 0;
     i32 num_frames = 0;
     i64* offsets = nullptr;
-    
+
     if (read_xtc_natoms(filename.cstr(), &num_atoms) != exdrOK) {
         LOG_ERROR("Could not extract number of atoms in trajectory");
-                xdrfile_close(xtc_file_handle);
+        xdrfile_close(xtc_file_handle);
         return false;
     }
 
@@ -57,17 +57,17 @@ bool init_trajectory_from_file(MoleculeTrajectory* traj, i32 mol_atom_count, CSt
         const i64 file_size = ftelli64(cache_handle);
         rewind(cache_handle);
         i64 expected_xtc_file_size;
-        fread(&expected_xtc_file_size, sizeof(i64), 1, cache_handle); // First i64 is the expected size of the xtc
+        fread(&expected_xtc_file_size, sizeof(i64), 1, cache_handle);  // First i64 is the expected size of the xtc
 
         if (expected_xtc_file_size == xtc_file_size) {
-            const i64 offset_size = file_size - sizeof(i64); // minus expected size
+            const i64 offset_size = file_size - sizeof(i64);  // minus expected size
             offsets = (i64*)malloc(offset_size);
             ASSERT(offsets);
             num_frames = (i32)(offset_size / sizeof(i64));
             fread(offsets, sizeof(i64), num_frames, cache_handle);
         }
         fclose(cache_handle);
-    } 
+    }
 
     // If no cache-file was found or was not fitting, then re-read all offsets and re-create offset-cache
     if (!offsets) {
@@ -111,14 +111,14 @@ bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
     // Next index to be loaded
     int i = traj->num_frames;
 
-    int step;
+    int natoms, step;
     float precision;
     float time;
     float matrix[3][3];
     float* pos_buf = (float*)TMP_MALLOC(traj->num_atoms * 3 * sizeof(float));
     defer { TMP_FREE(pos_buf); };
 
-    read_xtc((XDRFILE*)traj->file.handle, traj->num_atoms, &step, &time, matrix, (float(*)[3])pos_buf, &precision);
+    read_xtc((XDRFILE*)traj->file.handle, &natoms, &step, &time, matrix, (float(*)[3])pos_buf, &precision);
 
     TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
     for (int j = 0; j < traj->num_atoms; j++) {
@@ -143,14 +143,14 @@ bool read_trajectory_frame_from_memory(TrajectoryFrame* frame, i32 num_atoms, vo
         return false;
     }
 
-    int step;
+    int natoms, step;
     float precision;
     float time;
     float matrix[3][3];
     float* pos_buf = (float*)TMP_MALLOC(num_atoms * 3 * sizeof(float));
     defer { TMP_FREE(pos_buf); };
 
-    read_xtc(file, num_atoms, &step, &time, matrix, (float(*)[3])pos_buf, &precision);
+    read_xtc(file, &natoms, &step, &time, matrix, (float(*)[3])pos_buf, &precision);
 
     for (i32 i = 0; i < num_atoms; i++) {
         frame->atom_position.x[i] = 10.f * pos_buf[i * 3 + 0];
@@ -176,6 +176,99 @@ bool close_file_handle(MoleculeTrajectory* traj) {
         return true;
     }
     return false;
+}
+
+DynamicArray<i64> read_frame_offsets(CStringView filename) {
+    i64 file_size = 0;
+    {
+        FILE* f = fopen(filename, "rb");
+        if (f) {
+            fseeki64(f, 0, SEEK_END);
+            file_size = ftelli64(f);
+            fclose(f);
+        }
+    }
+
+    if (file_size == 0) {
+        LOG_ERROR("Could not locate file %.*s", filename.size(), filename.beg());
+        return {};
+    }
+
+    StringBuffer<512> cache_file = get_directory(filename);
+    cache_file += "/";
+    cache_file += get_file_without_extension(filename);
+    cache_file += ".cache";
+
+    DynamicArray<i64> offsets = {};
+
+    // Try to read offsets from cache-file
+    FILE* cache_handle = fopen(cache_file, "rb");
+    if (cache_handle) {
+        fseeki64(cache_handle, 0, SEEK_END);
+        const i64 cache_file_size = ftelli64(cache_handle);
+        rewind(cache_handle);
+        i64 expected_file_size;
+        fread(&expected_file_size, sizeof(i64), 1, cache_handle);  // First entry is the expected size of the trajectory file
+
+        if (expected_file_size == file_size) {
+            const i64 num_offsets = cache_file_size / sizeof(i64) - 1;  // Minus first entry
+            offsets.resize(num_offsets);
+            fread(offsets.data(), sizeof(i64), num_offsets, cache_handle);
+        }
+        fclose(cache_handle);
+    }
+
+    if (offsets.empty()) {
+        i64* tmp_offsets;
+        i32 num_atoms, num_frames;
+        if (read_xtc_header(filename.cstr(), &num_atoms, &num_frames, &tmp_offsets) != exdrOK) {
+            LOG_ERROR("Could not read frame offsets in trajectory");
+            return {};
+        }
+
+        FILE* write_cache_handle = fopen(cache_file, "wb");
+        if (write_cache_handle) {
+            fwrite(&file_size, sizeof(i64), 1, write_cache_handle);
+            fwrite(offsets.data(), sizeof(i64), offsets.size(), write_cache_handle);
+            fclose(write_cache_handle);
+        }
+
+        offsets.resize(num_frames);
+        memcpy(offsets.data(), tmp_offsets, num_frames * sizeof(i64));
+    }
+
+    offsets.push_back(file_size);
+
+    return offsets;
+}
+
+i32 read_num_frames(CStringView filename) { return (i32)read_frame_offsets(filename).size(); }
+
+bool decompress_trajectory_frame(TrajectoryFrame* frame, i32 num_atoms, Array<u8> raw_data) {
+    ASSERT(frame);
+    XDRFILE* file = xdrfile_mem(raw_data.beg(), raw_data.size_in_bytes(), "r");
+    if (!file) {
+        LOG_ERROR("Could not open XDR-stream to memory location");
+        return false;
+    }
+
+    float* pos_buf = (float*)TMP_MALLOC(num_atoms * 3 * sizeof(float));
+    defer { TMP_FREE(pos_buf); };
+
+    int natoms;
+    float precision;
+    read_xtc(file, &natoms, &frame->index, &frame->time, (float(&)[3][3])frame->box, (float(*)[3])pos_buf, &precision);
+
+    // nm -> Ångström
+    for (i32 i = 0; i < num_atoms; i++) {
+        frame->atom_position.x[i] = 10.f * pos_buf[i * 3 + 0];
+        frame->atom_position.y[i] = 10.f * pos_buf[i * 3 + 1];
+        frame->atom_position.z[i] = 10.f * pos_buf[i * 3 + 2];
+    }
+
+    frame->box *= 10.0f;
+
+    return true;
 }
 
 }  // namespace xtc
