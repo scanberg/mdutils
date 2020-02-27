@@ -88,6 +88,7 @@ constexpr inline float str_to_float(CStringView str) {
 	}
     while (c != end && *c != ' ') {
 		if ('0' <= *c && *c <= '9') {
+            // @TODO: Probably not numerically stable, replace with integers   
 			base *= (Float)0.1;
 			val += char_to_digit(*c) * base;
 		}
@@ -159,6 +160,9 @@ CStringView trim(CStringView str);
 
 // Reads text file and copies into allocated zero terminated String
 StringView allocate_and_read_textfile(CStringView filename);
+
+// Finds all occurrences with offsets (in bytes) of a pattern within a file
+DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern);
 
 // Returns directory part from url, ex: func("C:/folder/file.ext") should return "C:/folder/"
 CStringView get_directory(CStringView url);

@@ -324,6 +324,10 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView pdb_strin
     return true;
 }
 
+DynamicArray<i64> read_frame_offsets(CStringView filename) {
+    return find_pattern_offsets(filename, "MODEL ");
+}
+
 bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
     ASSERT(traj);
     free_trajectory(traj);

@@ -22,6 +22,9 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView string);
 bool load_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename);
 bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView string);
 
+i32 read_num_frames(CStringView filename);
+DynamicArray<i64> read_frame_offsets(CStringView filename);
+
 // Initializes a trajectory from file, but does not load frames (for async operations)
 bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename);
 bool read_next_trajectory_frame(MoleculeTrajectory* traj);

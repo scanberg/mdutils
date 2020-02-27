@@ -250,6 +250,55 @@ StringView allocate_and_read_textfile(CStringView filename) {
     return {ptr, file_size + 1};
 }
 
+// Finds all occurrences with offsets (in bytes) of a pattern within a file
+DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern) {
+    DynamicArray<i64> offsets;
+
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        return offsets;
+    }
+    defer { fclose(file); };
+
+    fseeki64(file, 0, SEEK_END);
+    i64 file_size = ftelli64(file);
+    rewind(file);
+
+    constexpr i64 buf_size = KILOBYTES(1);
+    char buf[buf_size];
+
+    i64 byte_offset = 0;
+    i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
+
+    CStringView str = {buf, (i64)bytes_read};
+    while (CStringView match = find_string(str, pattern)) {
+        offsets.push_back((i64)(match.beg() - buf));
+        str = { match.end(), str.end() };
+    }
+
+    while (bytes_read == buf_size) {
+        // Copy potential 'cut' pattern at end of buffer
+        //printf("%.*s\n", buf_size, buf);
+        memcpy(buf, buf + buf_size - pattern.size_in_bytes(), pattern.size_in_bytes());
+        bytes_read = (i64)fread(buf + pattern.size_in_bytes(), 1, buf_size - pattern.size_in_bytes(), file);
+        //printf("%.*s\n", buf_size, buf);
+        byte_offset += bytes_read;
+        bytes_read += pattern.size_in_bytes();
+
+        printf("(%lli / %lli)\n", bytes_read, buf_size);
+        printf("off: %lli\n", byte_offset);
+
+        CStringView str = {buf, (i64)bytes_read};
+        while (CStringView match = find_string(str, pattern)) {
+            offsets.push_back(byte_offset + (i64)(match.beg() - buf));
+            printf("found match: (%lli), '%.*s'\n", offsets.back(), match.size(), match.beg());
+            str = { match.end(), str.end() };
+        }
+    }
+
+    return offsets;
+}
+
 CStringView get_directory(CStringView url) {
     if (url.count == 0) {
         return url;
@@ -447,7 +496,7 @@ CStringView extract_parentheses_contents(CStringView str) {
 }
 
 CStringView find_string(CStringView target, CStringView pattern) {
-    if (target.count == 0 || pattern.count == 0) return {};
+    if (pattern.count == 0 || target.count < pattern.count) return {};
 
     char* ptr = Railgun_Trolldom((char*)target.cstr(), (char*)pattern.cstr(), (u32)target.size_in_bytes(), (u32)pattern.size_in_bytes());
     if (ptr) {
