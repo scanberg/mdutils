@@ -578,4 +578,16 @@ bool extract_trajectory_frame(TrajectoryFrame* frame, i32 num_atoms, Array<u8> r
     return extract_trajectory_frame_data(frame, num_atoms, {(char*)raw_data.beg(), (char*)raw_data.end()});
 }
 
+/*
+bool read_trajectory_data(Array<u8> dst, i64 offset, i64 size, CStringView filename) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        LOG_ERROR("Could not open file %.*s", filename.length(), filename.beg());
+    }
+    fseeki64(file, offset, SEEK_END);
+    file_size = ftelli64(f);
+    fclose(f);
+}
+*/
+
 }  // namespace pdb

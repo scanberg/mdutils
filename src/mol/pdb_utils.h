@@ -36,6 +36,8 @@ i32 read_num_frames(CStringView filename);
 // Reads frame offsets within pdb file
 DynamicArray<i64> read_frame_offsets(CStringView filename);
 
+//bool read_trajectory_data(Array<u8> dst, i64 offset, i64 size, CStringView filename);
+
 // Extracts trajectory frame data from a raw-chunk of pdb_data
 bool extract_trajectory_frame(TrajectoryFrame* frame, i32 num_atoms, Array<u8> raw_data);
 }
