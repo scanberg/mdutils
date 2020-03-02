@@ -29,16 +29,7 @@ inline bool _assert(const char* file, const char* func, int line) { _assert(file
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-/*
-// This is to handle big files. 64-bit versions
-#ifdef _WIN32
-#define FSEEK _fseeki64
-#define FTELL _ftelli64
-#else
-#define FSEEK fseeko
-#define FTELL ftello
-#endif
-*/
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
 #define KILOBYTES(x) (x << 10)
 #define MEGABYTES(x) (KILOBYTES(x) << 10)

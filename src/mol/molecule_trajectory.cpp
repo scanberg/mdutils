@@ -12,7 +12,7 @@ bool init_trajectory(MoleculeTrajectory* traj, i32 num_atoms, i32 num_frames, f3
     traj->num_frames = num_frames;
     traj->total_simulation_time = 0;
     traj->simulation_type = SimulationType::Undefined;
-	traj->file = {};
+	//traj->file = {};
 
     const i64 pos_mem_size = (num_frames * num_atoms * sizeof(float) + ALIGNMENT) * 3;
     void* pos_mem = ALIGNED_MALLOC(pos_mem_size, ALIGNMENT);
@@ -38,7 +38,7 @@ bool init_trajectory(MoleculeTrajectory* traj, i32 num_atoms, i32 num_frames, f3
     ASSERT(IS_ALIGNED(pos_data_y, ALIGNMENT));
     ASSERT(IS_ALIGNED(pos_data_z, ALIGNMENT));
 
-    traj->frame_offsets = {};
+    //traj->frame_offsets = {};
     traj->position_data.x = pos_data_x;
     traj->position_data.y = pos_data_y;
     traj->position_data.z = pos_data_z;
@@ -59,9 +59,7 @@ bool init_trajectory(MoleculeTrajectory* traj, i32 num_atoms, i32 num_frames, f3
 void free_trajectory(MoleculeTrajectory* traj) {
     ASSERT(traj);
 
-	close_file_handle(traj);
-    traj->file.path = "";
-    if (traj->frame_offsets.ptr) FREE(traj->frame_offsets.ptr);
+    //if (traj->frame_offsets.ptr) FREE(traj->frame_offsets.ptr);
     if (traj->position_data.x) ALIGNED_FREE(traj->position_data.x);
     if (traj->frame_buffer.ptr) FREE(traj->frame_buffer.ptr);
 

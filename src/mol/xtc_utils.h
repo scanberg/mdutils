@@ -1,19 +1,16 @@
 #pragma once
 
 #include <mol/molecule_trajectory.h>
+#include <mol/trajectory_utils.h>
 
 namespace xtc {
 
-constexpr u32 XTC_FILE_TAG = 0x50002;
+// Helper functions
+bool read_trajectory_frames_from_file(Array<TrajectoryFrame> frames, Array<const i64> frame_file_offsets, i32 num_atoms, CStringView filename);
 
-bool init_trajectory_from_file(MoleculeTrajectory* traj, i32 num_atoms, CStringView filename);
-bool close_file_handle(MoleculeTrajectory* traj);
-
-bool read_next_trajectory_frame(MoleculeTrajectory* traj);
-bool read_trajectory_frame_from_memory(TrajectoryFrame* frame, i32 num_atoms, void* ptr, int64_t num_bytes);
-
-i32 read_num_frames(CStringView filename);
-DynamicArray<i64> read_frame_offsets(CStringView filename);
+// --- Core functionality ---
+bool read_trajectory_num_frames(i32* num_frames, CStringView filename);
+bool read_trajectory_frame_bytes(FrameBytes* frame_bytes, CStringView filename);
 bool decompress_trajectory_frame(TrajectoryFrame* frame, i32 num_atoms, Array<u8> raw_data);
 
 }

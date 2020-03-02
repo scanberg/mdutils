@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_types.h"
+#include <core/string_types.h>
 
 // Comparison of Strings
 bool compare(CStringView str_a, CStringView str_b);
@@ -161,8 +161,12 @@ CStringView trim(CStringView str);
 // Reads text file and copies into allocated zero terminated String
 StringView allocate_and_read_textfile(CStringView filename);
 
+// Finds first occurrence of pattern within file. Result is given as offset in bytes.
+// If no matching pattern is found, -1 is returned
+i64 find_pattern_in_file(CStringView filename, CStringView pattern);
+
 // Finds all occurrences with offsets (in bytes) of a pattern within a file
-DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern);
+DynamicArray<i64> find_patterns_in_file(CStringView filename, CStringView pattern);
 
 // Returns directory part from url, ex: func("C:/folder/file.ext") should return "C:/folder/"
 CStringView get_directory(CStringView url);

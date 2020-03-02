@@ -26,9 +26,10 @@ struct Range {
 
     constexpr Range() = default;
     constexpr Range(T lo, T hi) : beg(lo), end(hi){};
+
     template <typename U>
     constexpr Range(const Range<U>& other)
-        : beg(other.beg), end(other.end) {}
+        : beg((T)other.beg), end((T)other.end) {}
 
     constexpr operator bool() const { return beg != end && beg < end; }
 	constexpr Range& operator +=(T val) {

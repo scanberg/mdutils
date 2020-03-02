@@ -3,13 +3,13 @@
 #include <core/types.h>
 #include <core/array_types.h>
 #include <core/vector_types.h>
-#include <core/string_types.h>
 #include <core/common.h>
 
 enum class SimulationType {
     Undefined,
     NVT,
-    NPT
+    NPT,
+    NVE
 };
 
 struct TrajectoryFrame {
@@ -29,14 +29,9 @@ struct MoleculeTrajectory {
     f32 total_simulation_time = 0;
     SimulationType simulation_type = SimulationType::Undefined;
 
-    struct {
-        StringBuffer<512> path{};
-        void* handle = nullptr;
-        u32 tag = 0;
-    } file;
-
     // @NOTE: The frame_buffer may not contain all frames in trajectory.
     // If the trajectory is large, frame_buffer will be used as a cache towards the trajectory streamed from disk.
+    // @NOTE: This is not implemented at the moment.
     Array<TrajectoryFrame> frame_buffer{};
 
     // This is the position data of the full trajectory
@@ -47,7 +42,7 @@ struct MoleculeTrajectory {
     } position_data;
 
     // These are the offsets for each frame inside the file on disk.
-    Array<i64> frame_offsets{};
+    //Array<i64> frame_offsets{};
 
     operator bool() const { return num_atoms > 0 && frame_buffer.count > 0; }
 };

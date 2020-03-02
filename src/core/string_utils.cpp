@@ -2,7 +2,6 @@
 #include <core/common.h>
 #include <core/file.h>
 #include <core/log.h>
-#include <stdio.h>
 #include <ctype.h>
 
 #ifdef WIN32
@@ -40,13 +39,13 @@ bool compare_ignore_case(CStringView str_a, CStringView str_b) {
 
 bool compare_n(CStringView str_a, CStringView str_b, i64 num_chars) {
     const i64 len = MIN(str_a.count, str_b.count);
-    //if (MIN(str_a.count, str_b.count) < num_chars) return false;
+    // if (MIN(str_a.count, str_b.count) < num_chars) return false;
     return internal_compare(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
 bool compare_n_ignore_case(CStringView str_a, CStringView str_b, i64 num_chars) {
     const i64 len = MIN(str_a.count, str_b.count);
-    //if (len < num_chars) return false;
+    // if (len < num_chars) return false;
     return internal_compare_ignore_case(str_a.ptr, str_b.ptr, MIN(len, num_chars));
 }
 
@@ -250,12 +249,48 @@ StringView allocate_and_read_textfile(CStringView filename) {
     return {ptr, file_size + 1};
 }
 
+i64 find_pattern_in_file(CStringView filename, CStringView pattern) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        LOG_ERROR("Could not open file '.*s'", filename.length(), filename.beg());
+        return -1;
+    }
+    defer { fclose(file); };
+
+    constexpr i64 buf_size = MEGABYTES(1);
+    char* buf = (char*)TMP_MALLOC(buf_size);
+    defer { TMP_FREE(buf); };
+
+    i64 byte_offset = 0;
+    i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
+
+    CStringView str = {buf, (i64)bytes_read};
+    if (CStringView match = find_string(str, pattern)) {
+        return (i64)(match.beg() - buf);
+    }
+
+    const i64 chunk_size = buf_size - pattern.size_in_bytes();
+    while (bytes_read == buf_size) {
+        // Copy potential 'cut' pattern at end of buffer
+        memcpy(buf, buf + buf_size - pattern.size_in_bytes(), pattern.size_in_bytes());
+        bytes_read = (i64)fread(buf + pattern.size_in_bytes(), 1, chunk_size, file) + pattern.size_in_bytes();
+        byte_offset += chunk_size;
+
+        str = {buf, (i64)bytes_read};
+        if (CStringView match = find_string(str, pattern)) {
+            return byte_offset + (i64)(match.beg() - buf);
+        }
+    }
+    return -1;
+}
+
 // Finds all occurrences with offsets (in bytes) of a pattern within a file
-DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern) {
+DynamicArray<i64> find_patterns_in_file(CStringView filename, CStringView pattern) {
     DynamicArray<i64> offsets;
 
     FILE* file = fopen(filename, "rb");
     if (!file) {
+        LOG_ERROR("Could not open file '.*s'", filename.length(), filename.beg());
         return offsets;
     }
     defer { fclose(file); };
@@ -270,7 +305,7 @@ DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern
     CStringView str = {buf, (i64)bytes_read};
     while (CStringView match = find_string(str, pattern)) {
         offsets.push_back((i64)(match.beg() - buf));
-        str = { match.end(), str.end() };
+        str = {match.end(), str.end()};
     }
 
     const i64 chunk_size = buf_size - pattern.size_in_bytes();
@@ -283,7 +318,7 @@ DynamicArray<i64> find_pattern_offsets(CStringView filename, CStringView pattern
         str = {buf, (i64)bytes_read};
         while (CStringView match = find_string(str, pattern)) {
             offsets.push_back(byte_offset + (i64)(match.beg() - buf));
-            str = { match.end(), str.end() };
+            str = {match.end(), str.end()};
         }
     }
 
@@ -433,7 +468,8 @@ StringBuffer<256> get_absolute_path(CStringView absolute_reference, CStringView 
 
     int dir_count = 0;
     for (const char* c = relative_file.beg(); c < relative_file.end(); c += 3) {
-        if (c[0] == '.' && (c + 1) != relative_file.end() && c[1] == '.' && (c + 2) != relative_file.end() && (c[2] == '/' || c[2] == '\\')) dir_count++;
+        if (c[0] == '.' && (c + 1) != relative_file.end() && c[1] == '.' && (c + 2) != relative_file.end() && (c[2] == '/' || c[2] == '\\'))
+            dir_count++;
     }
 
     const char* c = abs_dir.end() - 1;

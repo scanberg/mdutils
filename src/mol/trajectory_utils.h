@@ -1,12 +1,26 @@
 #pragma once
 
+#include <core/string_types.h>
 #include <mol/molecule_trajectory.h>
 
-inline bool all_trajectory_frames_read(const MoleculeTrajectory& traj) { return (traj.num_frames == (i32)traj.frame_offsets.count); }
+struct FrameBytes {
+    u64 offset : 40;
+    u64 extent : 24;
+};
 
-bool read_next_trajectory_frame(MoleculeTrajectory* traj);
+constexpr u64 INVALID_UID = 0;
 
-bool close_file_handle(MoleculeTrajectory* traj);
+u64 generate_UID(CStringView filename);
+
+// Reads the number of frames and unique ID of trajectory
+bool read_trajectory_cache_header(u64* UID, i64* num_frames, CStringView cache_filename);
+
+// Read trajectory Frame Byte Cache and the unique ID
+bool read_trajectory_cache(FrameBytes* frame_bytes, CStringView cache_filename);
+
+// Write trajectory Frame Byte Cache with a unique ID (fingerprint)
+bool write_trajectory_cache(u64 UID, const FrameBytes* frame_bytes, i64 num_frames, CStringView cache_filename);
+
 
 inline TrajectoryFrame& get_trajectory_frame(MoleculeTrajectory& traj, int frame_index) {
     ASSERT(-1 < frame_index && frame_index < traj.num_frames);

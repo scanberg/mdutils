@@ -129,7 +129,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
 
     constexpr auto atom_reserve_size = 4096;
     constexpr auto residue_reserve_size = 128;
-    constexpr auto chain_reserve_size = 64;
+    constexpr auto chain_reserve_size = 16;
 
     pos_x.reserve(atom_reserve_size);
     pos_y.reserve(atom_reserve_size);
@@ -326,152 +326,6 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView pdb_strin
     return true;
 }
 
-bool init_trajectory_from_file(MoleculeTrajectory* traj, CStringView filename) {
-    ASSERT(traj);
-    free_trajectory(traj);
-
-    LOG_NOTE("Loading pdb trajectory from file: %.*s", filename.length(), filename.cstr());
-    FILE* file = fopen(filename, "rb");
-    if (!file) {
-        LOG_ERROR("Could not open file: %.*s", filename.length(), filename.cstr());
-        return false;
-    }
-
-    constexpr auto page_size = MEGABYTES(32);
-    void* mem = TMP_MALLOC(2 * page_size);
-    defer { TMP_FREE(mem); };
-    char* page[2] = {(char*)mem, (char*)mem + page_size};
-
-    auto bytes_read = fread(page[0], 1, 2 * page_size, file);
-    i64 global_offset = 0;
-    CStringView pdb_str = {page[0], (i64)bytes_read};
-    CStringView mdl_str = extract_next_model(pdb_str);
-
-    if (!mdl_str) {
-        LOG_NOTE("File does not contain MODEL entry and is therefore not a trajectory");
-        fclose(file);
-        return false;
-    }
-
-    MoleculeInfo info;
-    extract_molecule_info(&info, mdl_str);
-
-    if (info.num_atoms == 0) {
-        LOG_ERROR("Could not determine number of atoms in trajectory");
-        fclose(file);
-        return false;
-    }
-
-    // @NOTE: Search space for CRYST1 containing global simulation box parameters
-    mat3 sim_box(0);
-    CStringView box_str = {page[0], mdl_str.beg() - page[0]};
-    CStringView line;
-    while ((line = extract_line(box_str))) {
-        if (compare_n(line, "CRYST1", 6)) {
-            extract_simulation_box(&sim_box, line);
-            break;
-        }
-    }
-
-    DynamicArray<i64> offsets;
-    do {
-        offsets.push_back(global_offset + (mdl_str.ptr - page[0]));
-
-        // @NOTE: Have we crossed the boundry to the second page
-        if (mdl_str.ptr > page[1]) {
-            // Copy contents of second page to first page and read in a new page...
-            memcpy(page[0], page[1], page_size);
-            bytes_read = fread(page[1], 1, page_size, file);
-
-            // Modify pointers accordingly
-            mdl_str.ptr -= page_size;
-            pdb_str.ptr -= page_size;
-            pdb_str.count += bytes_read;
-            global_offset += page_size;
-        }
-    } while ((mdl_str = extract_next_model(pdb_str)));
-
-    rewind(file);
-
-    // Time between frames
-    const float dt = 1.0f;
-    init_trajectory(traj, info.num_atoms, (i32)offsets.size(), dt, sim_box);
-
-    traj->file.handle = file;
-    traj->file.path = filename;
-    traj->file.tag = PDB_FILE_TAG;
-    traj->num_frames = 0;
-    traj->frame_offsets = allocate_array<i64>(offsets.size());
-    memcpy(traj->frame_offsets.data(), offsets.data(), offsets.size_in_bytes());
-
-    return true;
-}
-
-bool read_next_trajectory_frame(MoleculeTrajectory* traj) {
-    ASSERT(traj);
-
-    if (traj->file.handle == nullptr) {
-        LOG_WARNING("No file handle is open");
-        return false;
-    }
-
-    if (traj->file.tag != PDB_FILE_TAG) {
-        LOG_ERROR("Wrong file tag for reading trajectory frame... Expected PDB_FILE_TAG");
-        return false;
-    }
-
-    const auto num_frames = traj->frame_offsets.size();
-    if (num_frames == 0) {
-        LOG_WARNING("Trajectory does not contain any frames");
-        return false;
-    }
-
-    const auto i = traj->num_frames;
-    if (i == num_frames) {
-        LOG_NOTE("Trajectory is fully loaded");
-        return false;
-    }
-
-    i64 num_bytes = 0;
-    if (num_frames == 1) {
-        // @NOTE: Compute bytes of entire file
-        fseeki64((FILE*)traj->file.handle, 0, SEEK_END);
-        num_bytes = ftelli64((FILE*)traj->file.handle) - traj->frame_offsets[0];
-    } else {
-        // @NOTE: Compute delta between frame offsets (in bytes)
-        num_bytes =
-            (i == num_frames - 1) ? (traj->frame_offsets[i] - traj->frame_offsets[i - 1]) : (traj->frame_offsets[i + 1] - traj->frame_offsets[i]);
-    }
-
-    void* mem = TMP_MALLOC(num_bytes);
-    defer { TMP_FREE(mem); };
-
-    fseeki64((FILE*)traj->file.handle, traj->frame_offsets[i], SEEK_SET);
-    const auto bytes_read = fread(mem, 1, num_bytes, (FILE*)traj->file.handle);
-
-    CStringView mdl_str = {(const char*)mem, (i64)bytes_read};
-    TrajectoryFrame* frame = traj->frame_buffer.ptr + i;
-    extract_trajectory_frame_data(frame, traj->num_atoms, mdl_str);
-
-    traj->num_frames++;
-    return true;
-}
-
-bool close_file_handle(MoleculeTrajectory* traj) {
-    ASSERT(traj);
-    if (traj->file.tag != PDB_FILE_TAG) {
-        LOG_ERROR("Wrong file tag for closing file handle... Expected PDB_FILE_TAG");
-        return false;
-    }
-
-    if (traj->file.handle) {
-        fclose((FILE*)traj->file.handle);
-        traj->file.handle = nullptr;
-        return true;
-    }
-    return false;
-}
-
 bool extract_molecule_info(MoleculeInfo* info, CStringView pdb_string) {
     ASSERT(info);
 
@@ -509,20 +363,11 @@ bool extract_molecule_info(MoleculeInfo* info, CStringView pdb_string) {
     return true;
 }
 
-DynamicArray<i64> read_frame_offsets(CStringView filename) {
-    i64 file_size = 0;
-    {
-        FILE* f = fopen(filename, "rb");
-        if (f) {
-            fseeki64(f, 0, SEEK_END);
-            file_size = ftelli64(f);
-            fclose(f);
-        }
-    }
-
-    if (file_size == 0) {
-        LOG_ERROR("Could not locate file %.*s", filename.size(), filename.beg());
-        return {};
+static bool generate_cache(CStringView filename) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        LOG_ERROR("Could not open file '.*s", filename.length(), filename.beg());
+        return false;
     }
 
     StringBuffer<512> cache_file = get_directory(filename);
@@ -530,64 +375,125 @@ DynamicArray<i64> read_frame_offsets(CStringView filename) {
     cache_file += get_file_without_extension(filename);
     cache_file += ".cache";
 
-    DynamicArray<i64> offsets = {};
+    constexpr CStringView pattern = "MODEL ";
+    constexpr u64 buf_size = MEGABYTES(1);
+    char* buf = (char*)TMP_MALLOC(buf_size);
+    defer { TMP_FREE(buf); };
 
-    // Try to read offsets from cache-file
-    FILE* cache_handle = fopen(cache_file, "rb");
-    if (cache_handle) {
-        fseeki64(cache_handle, 0, SEEK_END);
-        const i64 cache_file_size = ftelli64(cache_handle);
-        rewind(cache_handle);
-        i64 expected_file_size;
-        fread(&expected_file_size, sizeof(i64), 1, cache_handle);  // First entry is the expected size of the trajectory file
+    u64 byte_offset = 0;
+    u64 bytes_read = (u64)fread(buf, 1, buf_size, file);
 
-        if (expected_file_size == file_size) {
-            const i64 num_offsets = cache_file_size / sizeof(i64) - 1;  // Minus first entry
-            offsets.resize(num_offsets);
-            fread(offsets.data(), sizeof(i64), num_offsets, cache_handle);
-        }
-        fclose(cache_handle);
+    DynamicArray<FrameBytes> frame_bytes;
+
+    CStringView str = {buf, (i64)bytes_read};
+    while (CStringView match = find_string(str, pattern)) {
+        const u64 offset = match.beg() - buf;
+        frame_bytes.push_back({offset, 0});
+        str = {match.end(), str.end()};
     }
 
-    if (offsets.empty()) {
-        offsets = find_pattern_offsets(filename, "MODEL ");
-        if (offsets.empty()) {
-            LOG_ERROR("Could not read frame offsets in trajectory");
-            return {};
-        }
+    const u64 chunk_size = buf_size - pattern.size_in_bytes();
+    while (bytes_read == buf_size) {
+        // Copy potential 'cut' pattern at end of buffer
+        memcpy(buf, buf + buf_size - pattern.size_in_bytes(), pattern.size_in_bytes());
+        bytes_read = (u64)fread(buf + pattern.size_in_bytes(), 1, chunk_size, file) + pattern.size_in_bytes();
+        byte_offset += chunk_size;
 
-        FILE* write_cache_handle = fopen(cache_file, "wb");
-        if (write_cache_handle) {
-            fwrite(&file_size, sizeof(i64), 1, write_cache_handle);
-            fwrite(offsets.data(), sizeof(i64), offsets.size(), write_cache_handle);
-            fclose(write_cache_handle);
+        str = {buf, (i64)bytes_read};
+        while (CStringView match = find_string(str, pattern)) {
+            const u64 offset = byte_offset + (u64)(match.beg() - buf);
+            frame_bytes.push_back({offset, 0});
+            str = {match.end(), str.end()};
         }
     }
 
-    offsets.push_back(file_size);
+    fseeki64(file, 0, SEEK_END);
+    const u64 file_size = (u64)ftelli64(file);
+    fclose(file);
 
-    return offsets;
+    for (i64 i = 0; i < frame_bytes.size() - 1; i++) {
+        frame_bytes[i].extent = frame_bytes[i + 1].offset - frame_bytes[i].offset;
+    }
+    frame_bytes.back().extent = file_size - frame_bytes.back().offset;
+
+    u64 UID = generate_UID(filename);
+    return write_trajectory_cache(UID, frame_bytes.data(), frame_bytes.size(), cache_file);
 }
 
-// @NOTE: I'm lazy!
-i32 read_num_frames(CStringView filename) {
-    return (i32)read_frame_offsets(filename).size();
+bool read_trajectory_num_frames(i32* num_frames, CStringView filename) {
+    u64 UID;
+    if ((UID = generate_UID(filename)) != INVALID_UID) {
+        StringBuffer<512> cache_file = get_directory(filename);
+        cache_file += "/";
+        cache_file += get_file_without_extension(filename);
+        cache_file += ".cache";
+
+        u64 c_UID;
+        i64 c_num_frames;
+        if (read_trajectory_cache_header(&c_UID, &c_num_frames, cache_file) && (UID == c_UID)) {
+            // Cache is valid
+            *num_frames = (i32)c_num_frames;
+            return true;
+        } else {
+            // Cache is invalid
+            // Regenerate data
+            if (generate_cache(filename)) {
+                if (read_trajectory_cache_header(&c_UID, &c_num_frames, cache_file) && (UID == c_UID)) {
+                    *num_frames = (i32)c_num_frames;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
-bool extract_trajectory_frame(TrajectoryFrame* frame, i32 num_atoms, Array<u8> raw_data) {
-    return extract_trajectory_frame_data(frame, num_atoms, {(char*)raw_data.beg(), (char*)raw_data.end()});
+bool read_trajectory_frame_bytes(FrameBytes* frame_bytes, CStringView filename) {
+    u64 UID;
+    if ((UID = generate_UID(filename)) != INVALID_UID) {
+        StringBuffer<512> cache_file = get_directory(filename);
+        cache_file += "/";
+        cache_file += get_file_without_extension(filename);
+        cache_file += ".cache";
+
+        u64 c_UID;
+        i64 c_num_frames;
+        if (read_trajectory_cache_header(&c_UID, &c_num_frames, cache_file) && (UID == c_UID)) {
+            // Cache is valid
+            return read_trajectory_cache(frame_bytes, cache_file);
+        } else {
+            // Cache is invalid
+            // Regenerate data
+            if (generate_cache(filename)) {
+                if (read_trajectory_cache_header(&c_UID, &c_num_frames, cache_file) && (UID == c_UID)) {
+                    return read_trajectory_cache(frame_bytes, cache_file);
+                }
+            }
+        }
+    }
+    return false;
 }
 
-/*
-bool read_trajectory_data(Array<u8> dst, i64 offset, i64 size, CStringView filename) {
+bool read_trajectory_simulation_box(mat3* sim_box, CStringView filename) {
     FILE* file = fopen(filename, "rb");
-    if (!file) {
-        LOG_ERROR("Could not open file %.*s", filename.length(), filename.beg());
+    if (file) {
+        constexpr i64 buf_size = MEGABYTES(1);
+        char* buf = (char*)TMP_MALLOC(buf_size);
+        ASSERT(buf);
+        const i64 bytes_read = fread(buf, 1, buf_size, file);
+        CStringView line = find_string({buf, bytes_read}, "CRYST1");
+        if (line) {
+            line.count = 54;
+            extract_simulation_box(sim_box, line);
+            return true;
+        }
     }
-    fseeki64(file, offset, SEEK_END);
-    file_size = ftelli64(f);
-    fclose(f);
+    LOG_ERROR("Could not read file '.*s'", filename.length(), filename.beg());
+    return false;
 }
-*/
+
+bool extract_trajectory_frame(TrajectoryFrame* frame, i32 num_atoms, Array<u8> data) {
+    return extract_trajectory_frame_data(frame, num_atoms, {(char*)data.beg(), (char*)data.end()});
+}
 
 }  // namespace pdb

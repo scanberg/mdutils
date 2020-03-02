@@ -50,7 +50,7 @@ static uint32_t constexpr crc32_tab[] = {
     0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
     0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d};
 
-constexpr uint32_t crc32impl(uint32_t prevCrc, const uint8_t* str, size_t size) { return !size ? prevCrc : crc32impl((prevCrc >> 8) ^ crc32_tab[(prevCrc ^ *str) & 0xff], str + 1, size - 1); }
+constexpr uint32_t crc32impl(uint32_t prevCrc, const char* str, size_t size) { return !size ? prevCrc : crc32impl((prevCrc >> 8) ^ crc32_tab[(prevCrc ^ *str) & 0xff], str + 1, size - 1); }
 
 static uint64_t constexpr crc64_tab[] = {
     0x0000000000000000ULL, 0x24854997ba2f81e7ULL, 0x490a932f745f03ceULL, 0x6d8fdab8ce708229ULL, 0x9215265ee8be079cULL, 0xb6906fc95291867bULL, 0xdb1fb5719ce10452ULL, 0xff9afce626ce85b5ULL,
@@ -87,46 +87,46 @@ static uint64_t constexpr crc64_tab[] = {
     0x22499b3228721766ULL, 0x06ccd2a5925d9681ULL, 0x6b43081d5c2d14a8ULL, 0x4fc6418ae602954fULL, 0xb05cbd6cc0cc10faULL, 0x94d9f4fb7ae3911dULL, 0xf9562e43b4931334ULL, 0xddd367d40ebc92d3ULL,
 };
 
-constexpr uint64_t crc64impl(uint64_t prevCrc, const uint8_t* str, size_t size) { return !size ? prevCrc : crc64impl((prevCrc >> 8) ^ crc64_tab[(prevCrc ^ *str) & 0xff], str + 1, size - 1); }
+constexpr uint64_t crc64impl(uint64_t prevCrc, const char* str, size_t size) { return !size ? prevCrc : crc64impl((prevCrc >> 8) ^ crc64_tab[(prevCrc ^ *str) & 0xff], str + 1, size - 1); }
 
 }  // namespace crc
 
 // --- CRC (constexpr) ---
 
-constexpr uint32_t crc32(const void* ptr, size_t size) { return crc::crc32impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
-constexpr uint64_t crc64(const void* ptr, size_t size) { return crc::crc64impl(0xffffffff, (const uint8_t*)ptr, size) ^ 0xffffffff; }
+constexpr uint32_t crc32(const char* ptr, size_t size) { return crc::crc32impl(0xffffffff, ptr, size) ^ 0xffffffff; }
+constexpr uint64_t crc64(const char* ptr, size_t size) { return crc::crc64impl(0xffffffff, ptr, size) ^ 0xffffffff; }
 
 // Array template
 template <typename T>
 constexpr uint32_t crc32(Array<T> arr) {
-    return crc32(arr.data(), arr.size_in_bytes());
+    return crc32((const char*)arr.data(), arr.size_in_bytes());
 }
 
-constexpr uint32_t crc32(CStringView str) { return crc32(str.ptr, str.count); }
+constexpr uint32_t crc32(CStringView str) { return crc32((const char*)str.ptr, str.count); }
 
 template <size_t N>
 constexpr uint32_t crc32(const char (&cstr)[N]) {
 	STATIC_ASSERT(N > 0, "crc32: length of cstr was zero!");
-    return crc32(cstr, N);
+    return crc32((const char*)cstr, N);
 }
 
 template <typename T>
 constexpr uint32_t crc32(const T& data) {
     static_assert(std::is_pointer<T>::value == false, "Pointers are not supported");
-    return crc32(&data, sizeof(T));
+    return crc32((const char*)(&data), sizeof(T));
 }
 
 template <typename T>
 constexpr uint64_t crc64(Array<T> arr) {
-    return crc64(arr.data(), arr.size_in_bytes());
+    return crc64((const char*)arr.data(), arr.size_in_bytes());
 }
 
-constexpr uint64_t crc64(CStringView str) { return crc64(str.ptr, str.count); }
+constexpr uint64_t crc64(CStringView str) { return crc64((const char*)str.ptr, str.count); }
 
 template <size_t N>
 constexpr uint64_t crc64(const char (&cstr)[N]) {
     STATIC_ASSERT(N > 0, "crc64: length of cstr was zero!");
-    return crc64(cstr, N - 1);
+    return crc64((const char*)cstr, N - 1);
 }
 
 }  // namespace hash
