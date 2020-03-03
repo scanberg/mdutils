@@ -357,43 +357,6 @@ private:
     i64 m_capacity = 0;
 };
 
-template <typename T, uint32_t N>
-struct LIFO {
-    T data[N] = {};
-    uint32_t count = 0;
-
-    bool push(const T& item) {
-        if (count == N) return false;
-        data[count] = item;
-        count++;
-        return true;
-    }
-
-    void pop() {
-        if (count > 0) count--;
-    }
-    void clear() { count = 0; }
-    bool empty() { return count == 0; }
-    uint32_t size() { return count; }
-
-    T& back() {
-        ASSERT(size() > 0);
-        return data[count - 1];
-    }
-    const T& back() const {
-        ASSERT(size() > 0);
-        return data[count - 1];
-    }
-
-    T* begin() { return data; }
-    T* end() { return data + count; }
-
-    T& operator[](size_t i) { return data[i]; }
-    const T& operator[](size_t i) const { return data[i]; }
-
-    operator Array<T>() const { return {data, count}; }
-};
-
 template <typename T>
 Array<T> allocate_array(i64 num_elements) noexcept {
     if (num_elements == 0) return {};
