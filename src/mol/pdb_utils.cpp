@@ -96,6 +96,7 @@ inline bool extract_trajectory_frame_data(TrajectoryFrame* frame, i32 num_atoms,
 
 bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
     FILE* file = fopen(filename, "rb");
+    defer { fclose(file); };
     if (!file) {
         LOG_ERROR("Could not open file: %.*s", filename.length(), filename.cstr());
         return false;
@@ -281,7 +282,8 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView pdb_strin
     ASSERT(traj);
     free_trajectory(traj);
 
-    CStringView mdl_str = extract_next_model(pdb_string);
+    CStringView pdb_str = pdb_string;
+    CStringView mdl_str = extract_next_model(pdb_str);
     if (!mdl_str) {
         LOG_NOTE("Supplied string does not contain MODEL entry and is therefore not a trajectory");
         return false;
@@ -311,7 +313,7 @@ bool load_trajectory_from_string(MoleculeTrajectory* traj, CStringView pdb_strin
 
     do {
         model_entries.push_back(mdl_str);
-    } while (pdb_string && (mdl_str = extract_next_model(pdb_string)));
+    } while (pdb_str && (mdl_str = extract_next_model(pdb_str)));
 
     // Time between frames
     const float dt = 1.0f;
@@ -375,37 +377,12 @@ static bool generate_cache(CStringView filename) {
     cache_file += get_file_without_extension(filename);
     cache_file += ".cache";
 
-    constexpr CStringView pattern = "MODEL ";
-    constexpr u64 buf_size = MEGABYTES(1);
-    char* buf = (char*)TMP_MALLOC(buf_size);
-    defer { TMP_FREE(buf); };
-
-    u64 byte_offset = 0;
-    u64 bytes_read = (u64)fread(buf, 1, buf_size, file);
-
+    constexpr CStringView pattern = "\nMODEL ";
     DynamicArray<FrameBytes> frame_bytes;
 
-    CStringView str = {buf, (i64)bytes_read};
-    while (CStringView match = find_string(str, pattern)) {
-        const u64 offset = match.beg() - buf;
-        frame_bytes.push_back({offset, 0});
-        str = {match.end(), str.end()};
-    }
-
-    const u64 chunk_size = buf_size - pattern.size_in_bytes();
-    while (bytes_read == buf_size) {
-        // Copy potential 'cut' pattern at end of buffer
-        memcpy(buf, buf + buf_size - pattern.size_in_bytes(), pattern.size_in_bytes());
-        bytes_read = (u64)fread(buf + pattern.size_in_bytes(), 1, chunk_size, file) + pattern.size_in_bytes();
-        byte_offset += chunk_size;
-
-        str = {buf, (i64)bytes_read};
-        while (CStringView match = find_string(str, pattern)) {
-            const u64 offset = byte_offset + (u64)(match.beg() - buf);
-            frame_bytes.push_back({offset, 0});
-            str = {match.end(), str.end()};
-        }
-    }
+    for_each_pattern_found_in_file(filename, pattern, [&frame_bytes](i64 offset) {
+        frame_bytes.push_back({(u64)offset, 0});
+    });
 
     fseeki64(file, 0, SEEK_END);
     const u64 file_size = (u64)ftelli64(file);
@@ -434,17 +411,20 @@ bool read_trajectory_num_frames(i32* num_frames, CStringView filename) {
             // Cache is valid
             *num_frames = (i32)c_num_frames;
             return true;
-        } else {
-            // Cache is invalid
-            // Regenerate data
-            if (generate_cache(filename)) {
-                if (read_trajectory_cache_header(&c_UID, &c_num_frames, cache_file) && (UID == c_UID)) {
-                    *num_frames = (i32)c_num_frames;
-                    return true;
-                }
-            }
         }
     }
+
+    i32 nframes = 0;
+    bool res = for_each_pattern_found_in_file(filename, "\nMODEL ", [&nframes](i64 offset) {
+        (void)offset;
+        nframes++;
+    });
+
+    if (res) {
+        *num_frames = nframes;
+        return true;
+    }
+    
     return false;
 }
 

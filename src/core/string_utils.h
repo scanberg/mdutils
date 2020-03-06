@@ -1,6 +1,8 @@
 #pragma once
 
 #include <core/string_types.h>
+#include <core/file.h>
+#include <core/log.h>
 
 // Comparison of Strings
 bool compare(CStringView str_a, CStringView str_b);
@@ -164,6 +166,46 @@ StringView allocate_and_read_textfile(CStringView filename);
 // Finds first occurrence of pattern within file. Result is given as offset in bytes.
 // If no matching pattern is found, -1 is returned
 i64 find_pattern_in_file(CStringView filename, CStringView pattern);
+
+template <typename Func>
+bool for_each_pattern_found_in_file(CStringView filename, CStringView pattern, Func func) {
+    FILE* file = fopen(filename, "rb");
+    defer { fclose(file); };
+
+    if (!file) {
+        LOG_ERROR("Could not open file '%.*s'", filename.length(), filename.beg());
+        return false;
+    }
+
+    constexpr i64 buf_size = MEGABYTES(4);
+    char* buf = (char*)TMP_MALLOC(buf_size);
+    defer { TMP_FREE(buf); };
+
+    i64 file_pos = 0;
+    i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
+
+    CStringView str = {buf, (i64)bytes_read};
+    while (CStringView match = find_string(str, pattern)) {
+        func((i64)(match.beg() - buf));
+        str = {match.end(), str.end()};
+    }
+
+    const i64 chunk_size = buf_size - pattern.size_in_bytes();
+    while (bytes_read == buf_size) {
+        // Copy potential 'cut' pattern at end of buffer
+        memcpy(buf, buf + buf_size - pattern.size_in_bytes(), pattern.size_in_bytes());
+        bytes_read = (i64)fread(buf + pattern.size_in_bytes(), 1, chunk_size, file) + pattern.size_in_bytes();
+        file_pos += chunk_size;
+
+        str = {buf, (i64)bytes_read};
+        while (CStringView match = find_string(str, pattern)) {
+            func(file_pos + (i64)(match.beg() - buf));
+            str = {match.end(), str.end()};
+        }
+    }
+
+    return true;
+}
 
 // Finds all occurrences with offsets (in bytes) of a pattern within a file
 DynamicArray<i64> find_patterns_in_file(CStringView filename, CStringView pattern);

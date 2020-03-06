@@ -1,6 +1,5 @@
 ﻿#include "string_utils.h"
 #include <core/common.h>
-#include <core/file.h>
 #include <core/log.h>
 #include <ctype.h>
 

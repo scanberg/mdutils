@@ -379,7 +379,7 @@ void zero_array(Array<T> arr) noexcept {
 
 template <typename T>
 void memset_array(Array<T> arr, const T& val) noexcept {
-    ASSERT(arr);
+    ASSERT(arr.data());
     for (i64 i = 0; i < arr.count; i++) {
         *(arr.data() + i) = val;
     }
