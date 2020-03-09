@@ -1169,14 +1169,14 @@ void apply_pbc(float* x, float* y, float* z, const float* mass, i64 count, const
     }
 }
 
-void apply_pbc(float* x, float* y, float* z, const float* mass, Array<const Sequence> sequences,
+void apply_pbc(float* x, float* y, float* z, const float* mass, const Sequence* sequences, i64 num_sequences,
                const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
-    for (const auto& seq : sequences) {
-        const i64 offset = seq.atom_range.beg;
-        const i64 size = seq.atom_range.ext();
+    for (i64 i = 0; i < num_sequences; i++) {
+        const i64 offset = sequences[i].atom_range.beg;
+        const i64 size = sequences[i].atom_range.ext();
         float* seq_x = x + offset;
         float* seq_y = y + offset;
         float* seq_z = z + offset;
