@@ -3,8 +3,8 @@
 // 32-byte alignment for 256-bit vectorization (AVX+ architectures)
 #define ALIGNMENT 32
 
-bool init_molecule_structure(MoleculeStructure* mol, i32 num_atoms, i32 num_bonds, i32 num_residues, i32 num_chains, i32 num_sequences, i32 num_backbone_segments, i32 num_backbone_sequences,
-                             i32 num_hydrogen_bond_donors, i32 num_hydrogen_bond_acceptors) {
+bool init_molecule_structure(MoleculeStructure* mol, i32 num_atoms, i32 num_bonds, i32 num_residues, i32 num_chains, i32 num_sequences,
+                             i32 num_backbone_segments, i32 num_backbone_sequences, i32 num_hydrogen_bond_donors, i32 num_hydrogen_bond_acceptors) {
     free_molecule_structure(mol);
 
     i64 alloc_size = 0;
@@ -14,6 +14,7 @@ bool init_molecule_structure(MoleculeStructure* mol, i32 num_atoms, i32 num_bond
     alloc_size += num_chains * sizeof(Chain);
     alloc_size += num_sequences * sizeof(Sequence);
     alloc_size += num_backbone_segments * sizeof(BackboneSegment);
+    alloc_size += num_backbone_segments * sizeof(SecondaryStructure);
     alloc_size += num_backbone_segments * sizeof(BackboneAngle);
     alloc_size += num_backbone_sequences * sizeof(BackboneSequence);
     alloc_size += num_hydrogen_bond_donors * sizeof(HydrogenBondDonor);
@@ -71,7 +72,8 @@ bool init_molecule_structure(MoleculeStructure* mol, i32 num_atoms, i32 num_bond
     mol->chains = {(Chain*)(mol->residues.end()), num_chains};
     mol->sequences = {(Sequence*)(mol->chains.end()), num_sequences};
     mol->backbone.segments = {(BackboneSegment*)(mol->sequences.end()), num_backbone_segments};
-    mol->backbone.angles = {(BackboneAngle*)(mol->backbone.segments.end()), num_backbone_segments};
+    mol->backbone.secondary_structures = {(SecondaryStructure*)(mol->backbone.segments.end()), num_backbone_segments};
+    mol->backbone.angles = { (BackboneAngle*)(mol->backbone.secondary_structures.end()), num_backbone_segments};
     mol->backbone.sequences = {(BackboneSequence*)(mol->backbone.angles.end()), num_backbone_sequences};
     mol->hydrogen_bond.donors = {(HydrogenBondDonor*)(mol->backbone.sequences.end()), num_hydrogen_bond_donors};
     mol->hydrogen_bond.acceptors = {(HydrogenBondAcceptor*)(mol->hydrogen_bond.donors.end()), num_hydrogen_bond_acceptors};

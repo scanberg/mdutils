@@ -18,6 +18,13 @@ using ResRange = Range<ResIdx>;
 using ChainRange = Range<ChainIdx>;
 using BondRange = Range<BondIdx>;
 
+enum class SecondaryStructure : u8 {
+    Undefined,
+    Coil = Undefined,
+    Sheet,
+    Helix
+};
+
 struct Bond {
     AtomIdx idx[2] = {0, 0};
 };
@@ -110,6 +117,7 @@ struct MoleculeStructure {
     struct {
         // Segments and angles should match in length and if not zero, they should match the number of residues
         Array<BackboneSegment> segments{};
+        Array<SecondaryStructure> secondary_structures{};
         Array<BackboneAngle> angles{};
         Array<BackboneSequence> sequences{};
     } backbone;

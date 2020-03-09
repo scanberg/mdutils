@@ -16,10 +16,10 @@
 namespace pdb {
 
 inline CStringView extract_next_model(CStringView& pdb_string) {
-    CStringView beg_mdl = find_string(pdb_string, "MODEL ");
+    CStringView beg_mdl = find_string(pdb_string, "\nMODEL ");
     if (beg_mdl) {
         CStringView tmp_mdl = {beg_mdl.end(), pdb_string.end() - beg_mdl.end()};
-        CStringView end_mdl = find_string(tmp_mdl, "ENDMDL");  // @NOTE: The more characters as a search pattern, the merrier
+        CStringView end_mdl = find_string(tmp_mdl, "\nENDMDL");  // @NOTE: The more characters as a search pattern, the merrier
         if (end_mdl) {
             // @NOTE: Only modify pdb_string if we found a complete model block.
             pdb_string = {end_mdl.end(), pdb_string.end() - end_mdl.end()};
@@ -76,6 +76,22 @@ inline void extract_element(Element* element, CStringView line) {
     *element = elem;
 }
 
+inline void extract_helix_residue_indices(int* init_idx, int* term_idx, CStringView line) {
+    ASSERT(init_idx);
+    ASSERT(term_idx);
+    ASSERT(line.length() >= 37);
+    *init_idx = to_int32(line.substr(21, 4));
+    *term_idx = to_int32(line.substr(33, 4));
+}
+
+inline void extract_sheet_residue_indices(int* init_idx, int* term_idx, CStringView line) {
+    ASSERT(init_idx);
+    ASSERT(term_idx);
+    ASSERT(line.length() >= 37);
+    *init_idx = to_int32(line.substr(22, 4));
+    *term_idx = to_int32(line.substr(33, 4));
+}
+
 inline bool extract_trajectory_frame_data(TrajectoryFrame* frame, i32 num_atoms, CStringView mdl_str) {
     ASSERT(frame);
     float* x = frame->atom_position.x;
@@ -127,6 +143,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     DynamicArray<float> temp_factors;
     DynamicArray<Residue> residues;
     DynamicArray<Chain> chains;
+    DynamicArray<Range<ResIdx>> helices;
+    DynamicArray<Range<ResIdx>> sheets;
 
     constexpr auto atom_reserve_size = 4096;
     constexpr auto residue_reserve_size = 128;
@@ -202,6 +220,14 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
 
             residue_indices.push_back((ResIdx)(residues.size() - 1));
             num_atoms++;
+        } else if (compare_n(line, "HELIX", 5)) {
+            Range<ResIdx> helix;
+            extract_helix_residue_indices(&helix.beg, &helix.end, line);
+            helices.push_back(helix);
+        } else if (compare_n(line, "SHEET", 5)) { 
+            Range<ResIdx> sheet;
+            extract_sheet_residue_indices(&sheet.beg, &sheet.end, line);
+            sheets.push_back(sheet);
         } else if (compare_n(line, "ENDMDL", 6) || compare_n(line, "END", 3)) {
             break;
         }

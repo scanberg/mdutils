@@ -1201,7 +1201,7 @@ bool has_covalent_bond(const Residue& res_a, const Residue& res_b) {
 }
 
 bool valid_segment(const BackboneSegment& segment) {
-    return segment.ca_idx != -1 && segment.c_idx != -1 && segment.n_idx != -1 && segment.o_idx != -1;
+    return segment.ca_idx != 0 && segment.c_idx != 0 && segment.n_idx != 0 && segment.o_idx != 0;
 }
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
@@ -1352,9 +1352,9 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
     i64 invalid_segments = 0;
     constexpr i32 min_atom_count = 4;  // Must contain at least 4 atoms to be considered as an amino acid.
     for (auto& res : residues) {
-        const i32 atom_count = res.atom_range.end - res.atom_range.beg;
+        const i32 atom_count = res.atom_range.ext();
         if (atom_count < min_atom_count) {
-            segments.push_back({-1, -1, -1, -1});
+            segments.push_back({0, 0, 0, 0});
             invalid_segments++;
             continue;
         }
@@ -1389,7 +1389,7 @@ DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> res
         segments.push_back(seg);
     }
 
-    if (invalid_segments == segments.size()) return {};
+    if (invalid_segments == segments.size()) return {}; // If all segments are invalid, there is no point in 
 
     return segments;
 }
