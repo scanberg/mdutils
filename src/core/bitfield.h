@@ -35,8 +35,8 @@ namespace bitfield {
 namespace detail {
 constexpr auto bits_per_block = sizeof(Bitfield::BlockType) * 8;
 
-constexpr Bitfield::BlockType block_idx(i64 idx) { return (Bitfield::BlockType)(idx / bits_per_block); }
-constexpr Bitfield::BlockType bit_pattern(i64 idx) { return (Bitfield::BlockType)1 << (idx % bits_per_block); }
+constexpr Bitfield::BlockType block_idx(i64 bit_idx) { return (Bitfield::BlockType)(bit_idx / bits_per_block); }
+constexpr Bitfield::BlockType bit_pattern(i64 bit_idx) { return (Bitfield::BlockType)1 << (bit_idx % bits_per_block); }
 
 // from https://yesteapea.wordpress.com/2013/03/03/counting-the-number-of-set-bits-in-an-integer/
 constexpr i64 number_of_set_bits(u64 i) {
@@ -54,8 +54,7 @@ constexpr i64 num_blocks(Bitfield field) {
 constexpr i64 bit_scan_forward(Bitfield::BlockType mask) {
     if (mask == 0) return -1;
     i64 idx = 0;
-    constexpr Bitfield::BlockType first_bit = 1;
-    while ((mask & first_bit) == 0) {
+    while ((mask & 1) == 0) {
         mask = mask >> 1;
         ++idx;
     }
