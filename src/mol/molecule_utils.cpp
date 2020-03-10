@@ -46,7 +46,7 @@ void translate_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count,
     }
 }
 
-void translate(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const vec3& translation) {
+void translate(soa_vec3 in_out, i64 count, const vec3& translation) {
     i64 i = 0;
 
     const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
@@ -56,29 +56,28 @@ void translate(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, con
         SIMD_TYPE_F t_z = SIMD_SET_F(translation.z);
 
         for (; i < simd_count; i += SIMD_WIDTH) {
-            SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out_x + i);
-            SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out_y + i);
-            SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out_z + i);
+            SIMD_TYPE_F p_x = SIMD_LOAD_F(in_out.x + i);
+            SIMD_TYPE_F p_y = SIMD_LOAD_F(in_out.y + i);
+            SIMD_TYPE_F p_z = SIMD_LOAD_F(in_out.z + i);
 
             p_x = simd::add(p_x, t_x);
             p_y = simd::add(p_y, t_y);
             p_z = simd::add(p_z, t_z);
 
-            SIMD_STORE(in_out_x + i, p_x);
-            SIMD_STORE(in_out_y + i, p_y);
-            SIMD_STORE(in_out_z + i, p_z);
+            SIMD_STORE(in_out[0] + i, p_x);
+            SIMD_STORE(in_out[1] + i, p_y);
+            SIMD_STORE(in_out[2] + i, p_z);
         }
     }
 
     for (; i < count; i++) {
-        in_out_x[i] += translation.x;
-        in_out_y[i] += translation.y;
-        in_out_z[i] += translation.z;
+        in_out.x[i] += translation.x;
+        in_out.y[i] += translation.y;
+        in_out.z[i] += translation.z;
     }
 }
 
-void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const mat4& transformation,
-                   float w_comp) {
+void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const mat4& transformation, float w_comp) {
     for (i64 i = 0; i < count; i++) {
         vec4 v = {in_out_x[i], in_out_y[i], in_out_z[i], w_comp};
         v = transformation * v;
@@ -149,8 +148,7 @@ void transform(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, con
     }
 }
 
-void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_y, float* in_z,
-               i64 count, const mat4& transformation, float w_comp) {
+void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_y, float* in_z, i64 count, const mat4& transformation, float w_comp) {
     const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
     const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
     const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
@@ -387,8 +385,7 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const 
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float* in_z, const float* in_m,
-                              i64 count, const mat3& box) {
+vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
@@ -407,8 +404,7 @@ vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float*
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count,
-                          const mat3& box) {
+vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
@@ -488,8 +484,7 @@ vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const Element* in_element,
-                 i64 count) {
+vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const Element* in_element, i64 count) {
     if (count == 0) return {0, 0, 0};
     if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
@@ -505,8 +500,7 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const 
     return v_sum / m_sum;
 }
 
-mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, const float* mass, i64 count,
-                               const vec3& com) {
+mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, const float* mass, i64 count, const vec3& com) {
     mat3 A{0};
     float mass_sum = 0.0f;
     for (i64 i = 0; i < count; i++) {
@@ -532,8 +526,7 @@ mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, c
 }
 
 #define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
-EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float* in_z, const float* in_mass,
-                               i64 count) {
+EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, i64 count) {
     const vec3 com = compute_com(in_x, in_y, in_z, count);
     const mat3 M = compute_covariance_matrix(in_x, in_y, in_z, in_mass, count, com);
     mat3 U, S, V;
@@ -1169,8 +1162,7 @@ void apply_pbc(float* x, float* y, float* z, const float* mass, i64 count, const
     }
 }
 
-void apply_pbc(float* x, float* y, float* z, const float* mass, const Sequence* sequences, i64 num_sequences,
-               const mat3& sim_box) {
+void apply_pbc(float* x, float* y, float* z, const float* mass, const AtomRange* sequences, i64 num_sequences, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
@@ -1185,127 +1177,32 @@ void apply_pbc(float* x, float* y, float* z, const float* mass, const Sequence* 
     }
 }
 
-inline bool covelent_bond_heuristic(float x0, float y0, float z0, Element e0, float x1, float y1, float z1, Element e1) {
-    const float d = element::covalent_radius(e0) + element::covalent_radius(e1);
-    const float d_max = d + 0.3f;
-    const float d_min = d - 0.5f;
-    const float dx = x1 - x0;
-    const float dy = y1 - y0;
-    const float dz = z1 - z0;
-    const float d2 = dx * dx + dy * dy + dz * dz;
-    return (d_min * d_min) < d2 && d2 < (d_max * d_max);
-}
+bool valid_segment(const BackboneSegment& segment) { return segment.ca_idx != 0 && segment.c_idx != 0 && segment.n_idx != 0 && segment.o_idx != 0; }
 
-bool has_covalent_bond(const Residue& res_a, const Residue& res_b) {
-    return (res_a.bond_idx.beg < res_b.bond_idx.end && res_b.bond_idx.beg < res_a.bond_idx.end);
-}
+i64 compute_covalent_bonds(DynamicArray<Bond>* dst_bond, const soa_vec3 in_position, const Element in_element[], i64 count) {
+    ASSERT(dst_bond);
 
-bool valid_segment(const BackboneSegment& segment) {
-    return segment.ca_idx != 0 && segment.c_idx != 0 && segment.n_idx != 0 && segment.o_idx != 0;
-}
-
-// Computes covalent bonds between a set of atoms with given positions and elements.
-// The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
-DynamicArray<Bond> compute_covalent_bonds(Array<Residue> residues, const float* pos_x, const float* pos_y, const float* pos_z,
-                                          const Element* element, i64 count) {
-    UNUSED(count);
-
-    if (residues.count == 0) {
-        LOG_WARNING("Cannot compute covalent bonds, no residues were given.");
-        return {};
-    }
-
+    const i64 start_size = dst_bond->size();
     constexpr float max_covelent_bond_length = 4.0f;
-    DynamicArray<Bond> bonds;
-    spatialhash::Frame frame;
-
-    // @NOTE: The assumtion is that a bond is either within a single residue or between concecutive residues.
-    for (ResIdx ri = 0; ri < (ResIdx)residues.size(); ri++) {
-        auto& res = residues[ri];
-        const float* res_pos_x = pos_x + res.atom_range.beg;
-        const float* res_pos_y = pos_y + res.atom_range.beg;
-        const float* res_pos_z = pos_z + res.atom_range.beg;
-
-        spatialhash::compute_frame(&frame, res_pos_x, res_pos_y, res_pos_z, res.atom_range.ext(), vec3(max_covelent_bond_length));
-
-        if (ri > 0) {
-            // Include potential shared bonds from previous residue
-            res.bond_idx.beg = residues[ri - 1].bond_idx.end_internal;
-            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = residues[ri - 1].bond_idx.end;
-        } else {
-            res.bond_idx.beg = res.bond_idx.end = (BondIdx)bonds.size();
-            res.bond_idx.beg_internal = res.bond_idx.end_internal = res.bond_idx.end = (BondIdx)bonds.size();
-        }
-
-        // Internal bonds
-        for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
-            const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-            spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length,
-                                         [&bonds, &res, offset = res.atom_range.beg, pos_x, pos_y, pos_z, element, i](int j, const vec3& atom_j_pos) {
-                                             (void)atom_j_pos;
-                                             j += offset;  // @NOTE: Map residue idx j (given by spatial hash) back to full atomic idx
-                                             const bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j],
-                                                                                           pos_y[j], pos_z[j], element[j]);
-                                             if (i < j && has_bond) {
-                                                 bonds.push_back({{i, j}});
-                                                 res.bond_idx.end++;
-                                             }
-                                         });
-        }
-        res.bond_idx.end_internal = res.bond_idx.end;
-
-        // Locate potential external bonds to next residue
-        if (ri < (ResIdx)residues.size() - 1) {
-            auto& next_res = residues[ri + 1];
-            const float* next_res_pos_x = pos_x + next_res.atom_range.beg;
-            const float* next_res_pos_y = pos_y + next_res.atom_range.beg;
-            const float* next_res_pos_z = pos_z + next_res.atom_range.beg;
-
-            spatialhash::compute_frame(&frame, next_res_pos_x, next_res_pos_y, next_res_pos_z, next_res.atom_range.ext(),
-                                       vec3(max_covelent_bond_length));
-
-            for (AtomIdx i = res.atom_range.beg; i < res.atom_range.end; i++) {
-                const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-                spatialhash::for_each_within(
-                    frame, pos_xyz, max_covelent_bond_length,
-                    [&bonds, &res, offset = next_res.atom_range.beg, pos_x, pos_y, pos_z, element, i](int j, const vec3& atom_j_pos) {
-                        (void)atom_j_pos;
-                        j += offset;  // @NOTE: Map residue idx j (given by spatial hash) back to full atomic idx
-                        const bool has_bond =
-                            covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
-                        if (has_bond) {
-                            bonds.push_back({{i, j}});
-                            res.bond_idx.end++;
-                        }
-                    });
-            }
-        }
-    }
-
-    return bonds;
-}
-
-DynamicArray<Bond> compute_covalent_bonds(const float* pos_x, const float* pos_y, const float* pos_z, const Element* element, i64 count) {
-    constexpr float max_covelent_bond_length = 4.0f;
-    spatialhash::Frame frame = spatialhash::compute_frame(pos_x, pos_y, pos_z, count, vec3(max_covelent_bond_length));
-    DynamicArray<Bond> bonds;
+    spatialhash::Frame frame = spatialhash::compute_frame(in_position.x, in_position.y, in_position.z, count, vec3(max_covelent_bond_length));
 
     for (int i = 0; i < count; i++) {
-        const vec3& pos_xyz = {pos_x[i], pos_y[i], pos_z[i]};
-        spatialhash::for_each_within(
-            frame, pos_xyz, max_covelent_bond_length, [&bonds, pos_x, pos_y, pos_z, element, i](int j, const vec3& atom_j_pos) {
-                (void)atom_j_pos;
-                bool has_bond = covelent_bond_heuristic(pos_x[i], pos_y[i], pos_z[i], element[i], pos_x[j], pos_y[j], pos_z[j], element[j]);
-                if (i < j && has_bond) {
-                    bonds.push_back({{i, j}});
-                }
-            });
+        const vec3& pos_xyz = {in_position.x[i], in_position.y[i], in_position.z[i]};
+        spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [dst_bond, in_position, in_element, i](int j, const vec3& atom_j_pos) {
+            (void)atom_j_pos;
+            if (i == j) return;
+            bool has_bond = covelent_bond_heuristic(in_position.x[i], in_position.y[i], in_position.z[i], in_element[i], in_position.x[j],
+                                                    in_position.y[j], in_position.z[j], in_element[j]);
+            if (i < j && has_bond) {
+                dst_bond->push_back({{i, j}});
+            }
+        });
     }
 
-    return bonds;
+    return dst_bond->size() - start_size;
 }
 
-DynamicArray<Sequence> compute_sequences(Array<const Residue> residues) {
+DynamicArray<ResRange> compute_sequences() {
     DynamicArray<Sequence> seq;
 
     seq.push_back({{0, 1}, residues[0].atom_range});
@@ -1339,60 +1236,6 @@ DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSe
     return bb_sequences;
 }
 
-template <i64 N>
-bool match(const Label& lbl, const char (&cstr)[N]) {
-    for (i64 i = 0; i < N; i++) {
-        if (tolower(lbl[i]) != tolower(cstr[i])) return false;
-    }
-    return true;
-}
-
-DynamicArray<BackboneSegment> compute_backbone_segments(Array<const Residue> residues, Array<const Label> atom_labels) {
-    DynamicArray<BackboneSegment> segments;
-    i64 invalid_segments = 0;
-    constexpr i32 min_atom_count = 4;  // Must contain at least 4 atoms to be considered as an amino acid.
-    for (auto& res : residues) {
-        const i32 atom_count = res.atom_range.ext();
-        if (atom_count < min_atom_count) {
-            segments.push_back({0, 0, 0, 0});
-            invalid_segments++;
-            continue;
-        }
-
-        BackboneSegment seg{};
-
-        // find atoms
-        for (i32 i = res.atom_range.beg; i < res.atom_range.end; i++) {
-            const auto& lbl = atom_labels[i];
-            if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
-            if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
-            if (seg.c_idx == -1 && match(lbl, "C")) seg.c_idx = i;
-            if (seg.o_idx == -1 && match(lbl, "O")) seg.o_idx = i;
-        }
-
-        // Could not match "O"
-        if (seg.o_idx == -1) {
-            // Pick first atom containing O after C atom
-            for (i32 i = seg.c_idx; i < res.atom_range.end; i++) {
-                const auto& lbl = atom_labels[i];
-                if (lbl[0] == 'o' || lbl[0] == 'O') {
-                    seg.o_idx = i;
-                    break;
-                }
-            }
-        }
-
-        if (!valid_segment(seg)) {
-            // LOG_ERROR("Could not identify all backbone indices for residue %s.", res.name.beg());
-            invalid_segments++;
-        }
-        segments.push_back(seg);
-    }
-
-    if (invalid_segments == segments.size()) return {}; // If all segments are invalid, there is no point in 
-
-    return segments;
-}
 
 /*
 DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone, const float* pos_x, const float* pos_y,
@@ -1404,8 +1247,8 @@ DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment>
 }
 */
 
-void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone_segments, const float* pos_x, const float* pos_y,
-                             const float* pos_z, i64 num_segments) {
+void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z,
+                             i64 num_segments) {
     ASSERT(dst);
     ASSERT(backbone_segments);
     float phi = 0, psi = 0;
@@ -1415,12 +1258,12 @@ void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone
     }
 
     ASSERT(valid_segment(backbone_segments[0]));
-    vec3 n =  { pos_x[backbone_segments[0].n_idx],  pos_y[backbone_segments[0].n_idx],  pos_z[backbone_segments[0].n_idx]  };
-    vec3 ca = { pos_x[backbone_segments[0].ca_idx], pos_y[backbone_segments[0].ca_idx], pos_z[backbone_segments[0].ca_idx] };
-    vec3 c =  { pos_x[backbone_segments[0].c_idx],  pos_y[backbone_segments[0].c_idx],  pos_z[backbone_segments[0].c_idx]  };
+    vec3 n = {pos_x[backbone_segments[0].n_idx], pos_y[backbone_segments[0].n_idx], pos_z[backbone_segments[0].n_idx]};
+    vec3 ca = {pos_x[backbone_segments[0].ca_idx], pos_y[backbone_segments[0].ca_idx], pos_z[backbone_segments[0].ca_idx]};
+    vec3 c = {pos_x[backbone_segments[0].c_idx], pos_y[backbone_segments[0].c_idx], pos_z[backbone_segments[0].c_idx]};
 
     vec3 c_prev = c;
-    vec3 n_next = { pos_x[backbone_segments[1].n_idx], pos_y[backbone_segments[1].n_idx], pos_z[backbone_segments[1].n_idx] };
+    vec3 n_next = {pos_x[backbone_segments[1].n_idx], pos_y[backbone_segments[1].n_idx], pos_z[backbone_segments[1].n_idx]};
     phi = 0.0f;
     psi = math::dihedral_angle(n, ca, c, n_next);
     dst[0] = {phi, psi};

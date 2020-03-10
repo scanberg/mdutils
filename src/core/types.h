@@ -42,7 +42,7 @@ struct Range {
 		end -= val;
 		return *this;
 	}
-    constexpr i64 ext() const { return i64(end - beg); }
+    constexpr T ext() const { return end - beg; }
 };
 
 template <typename T>
@@ -63,4 +63,9 @@ constexpr Range<T> operator+(const Range<T>& range, T val) {
 template <typename T>
 constexpr Range<T> operator-(const Range<T>& range, T val) {
 	return { range.x - val, range.y - val };
+}
+
+template <typename T>
+constexpr bool ranges_overlap(const Range<T>& a, const Range<T>& b) {
+    return (a.beg < b.end && b.beg < a.end);
 }

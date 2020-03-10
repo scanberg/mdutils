@@ -16,11 +16,7 @@ struct TrajectoryFrame {
     i32 index = 0;
     f32 time = 0;
     mat3 box = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-    struct {
-        float* x = nullptr;
-        float* y = nullptr;
-        float* z = nullptr;
-    } atom_position;
+    soa_vec3 atom_position{};
 };
 
 struct MoleculeTrajectory {
@@ -35,11 +31,7 @@ struct MoleculeTrajectory {
     Array<TrajectoryFrame> frame_buffer{};
 
     // This is the position data of the full trajectory
-    struct {
-        float* x = nullptr;
-        float* y = nullptr;
-        float* z = nullptr;
-    } position_data;
+    soa_vec3 position_data{};
 
     // These are the offsets for each frame inside the file on disk.
     //Array<i64> frame_offsets{};

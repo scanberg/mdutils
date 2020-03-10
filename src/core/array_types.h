@@ -251,19 +251,28 @@ struct DynamicArray : Array<T> {
         this->count += arr.count;
     }
 
+    /*
     void append(Array<T> arr) noexcept {
         if (this->count + arr.count >= m_capacity) {
             reserve(grow_capacity(this->count + arr.count));
         }
         memcpy(this->end(), arr.ptr, arr.count * sizeof(T));
         this->count += arr.count;
-    }
+    }*/
 
     T& push_back(const T& item) noexcept {
         if (this->count == m_capacity) {
             reserve(grow_capacity(this->count + 1));
         }
         memcpy(this->ptr + this->count, &item, sizeof(T));
+        this->count++;
+        return this->back();
+    }
+
+    T& allocate_back() noexcept {
+        if (this->count == m_capacity) {
+            reserve(grow_capacity(this->count + 1));
+        }
         this->count++;
         return this->back();
     }

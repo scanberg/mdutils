@@ -1,7 +1,6 @@
 #pragma once
 
 #include <core/types.h>
-#include <core/array_types.h>
 #include <core/vector_types.h>
 #include <core/string_utils.h>
 #include <mol/element.h>
@@ -10,30 +9,28 @@ using Label = StringBuffer<8>;
 using AtomIdx = i32;
 using ResIdx = i32;
 using ChainIdx = i32;
-using SeqIdx = i32;
+using SegIdx = i32;
 using BondIdx = i32;
 
 using AtomRange = Range<AtomIdx>;
 using ResRange = Range<ResIdx>;
-using ChainRange = Range<ChainIdx>;
+using SegRange = Range<SegIdx>;
 using BondRange = Range<BondIdx>;
 
-enum class SecondaryStructure : u8 {
-    Undefined,
-    Coil = Undefined,
-    Sheet,
-    Helix
-};
+using BackboneSequence = ResRange;
+using HydrogenBondAcceptor = AtomIdx;
+
+enum class SecondaryStructure : u8 { Undefined, Coil = Undefined, Sheet, Helix };
 
 struct Bond {
     AtomIdx idx[2] = {0, 0};
 };
 
 struct BackboneSegment {
-    AtomIdx ca_idx = -1;
-    AtomIdx n_idx = -1;
-    AtomIdx c_idx = -1;
-    AtomIdx o_idx = -1;
+    AtomIdx ca_idx = 0;
+    AtomIdx n_idx = 0;
+    AtomIdx c_idx = 0;
+    AtomIdx o_idx = 0;
 };
 
 struct BackboneAngle {
@@ -42,22 +39,19 @@ struct BackboneAngle {
     operator vec2() const { return {phi, psi}; };
 };
 
-using BackboneSequence = ResRange;
-
 struct HydrogenBondDonor {
     AtomIdx donor_idx = 0;
     AtomIdx hydro_idx = 0;
 };
 
-using HydrogenBondAcceptor = AtomIdx;
-
+/*
 struct Residue {
     Label name{};
     ResIdx id = -1;
     // ChainIdx chain_idx = -1;
     // SeqIdx sequence_idx = -1;
 
-    AtomRange atom_range;
+    AtomRange atom_range{};
 
     struct {
         // Covalent bonds for a residue
@@ -78,12 +72,13 @@ struct Sequence {
 };
 
 struct Chain : Sequence {
-    Label id {};
+    Label id{};
 };
+*/
 
 // Interface to access molecular data
 struct MoleculeStructure {
-    // SOA Layout for Atom data
+    // SOA Layout for atom data
     struct {
         // Aligned data
         i64 count = 0;
@@ -92,11 +87,6 @@ struct MoleculeStructure {
             float* y = nullptr;
             float* z = nullptr;
         } position;
-        struct {
-            float* x = nullptr;
-            float* y = nullptr;
-            float* z = nullptr;
-        } velocity;
         float* radius = nullptr;
         float* mass = nullptr;
 
@@ -105,31 +95,108 @@ struct MoleculeStructure {
         Label* label = nullptr;
         ResIdx* res_idx = nullptr;
         ChainIdx* chain_idx = nullptr;
-        SeqIdx* seq_idx = nullptr;
-
+        //SeqIdx* seq_idx = nullptr;
     } atom;
 
+    struct {
+        i64 count = 0;
+        Bond* bond = nullptr;
+    } covalent_bond;
+
+    /*
     Array<Bond> covalent_bonds{};
     Array<Residue> residues{};
     Array<Chain> chains{};
     Array<Sequence> sequences{};
+    */
 
+    // SOA layout for residue data
     struct {
+        i64 count = 0;
+        ResIdx* id = nullptr;
+        Label* name = nullptr;
+        AtomRange* atom_range = nullptr;
+        struct {
+            // External bonds are implicitly given by the range in complete but not in internal
+            // Bonds to previous residue in chain is given by: [complete.beg, internal.beg]
+            // Bonds to next residue in chain is given by: [internal.end, complete.end]
+            BondRange* complete = nullptr;
+            BondRange* intra = nullptr;
+        } bond;
+    } residue;
+
+    // Chains represent connected residues (through covalent bonds) and are usually defined as a single character starting from 'A'
+    struct {
+        i64 count = 0;
+        Label* id = nullptr;
+        ResRange* residue_range = nullptr;
+    } chain;
+
+    // Backbone represents
+    struct {
+        struct {
+            i64 count = 0;
+            BackboneSegment* segment = nullptr;
+            BackboneAngle* angle = nullptr;
+            SecondaryStructure* secondary_structure = nullptr;
+        } segment;
+
+        struct {
+            i64 count = 0;
+            SegRange* segment_range = nullptr;
+        } sequence;
+
+        /*
         // Segments and angles should match in length and if not zero, they should match the number of residues
         Array<BackboneSegment> segments{};
         Array<SecondaryStructure> secondary_structures{};
         Array<BackboneAngle> angles{};
         Array<BackboneSequence> sequences{};
+        */
     } backbone;
 
     struct {
-        Array<HydrogenBondDonor> donors{};
-        Array<HydrogenBondAcceptor> acceptors{};
+        struct {
+            i64 count = 0;
+            HydrogenBondDonor* data = nullptr;
+        } donor;
+        struct {
+            i64 count = 0;
+            HydrogenBondAcceptor* data = nullptr;
+        } acceptor;
     } hydrogen_bond;
 
     operator bool() const { return atom.count > 0; }
 };
 
+inline vec3 get_atom_position(const MoleculeStructure& mol, AtomIdx i) {
+    ASSERT(0 <= i && i <= mol.atom.count);
+    return { mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i] };
+}
+
+inline i64 get_residue_atom_count(const MoleculeStructure& mol, ResIdx i) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return mol.residue.atom_range[i].ext();
+}
+
+inline soa_vec3 get_residue_positions(MoleculeStructure& mol, ResIdx i) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return {mol.atom.position.x + mol.residue.atom_range->beg, mol.atom.position.y + mol.residue.atom_range->beg,
+            mol.atom.position.z + mol.residue.atom_range->beg};
+}
+
+inline const soa_vec3 get_residue_positions(const MoleculeStructure& mol, ResIdx i) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return {mol.atom.position.x + mol.residue.atom_range->beg, mol.atom.position.y + mol.residue.atom_range->beg,
+            mol.atom.position.z + mol.residue.atom_range->beg};
+}
+
+inline const Element* get_residue_elements(const MoleculeStructure& mol, ResIdx i) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return mol.atom.element + mol.residue.atom_range->beg;
+}
+
+/*
 // General accessors
 inline Array<Residue> get_residues(MoleculeStructure& mol) { return mol.residues; }
 inline Array<const Residue> get_residues(const MoleculeStructure& mol) { return mol.residues; }
@@ -139,6 +206,7 @@ inline Array<Bond> get_covalent_bonds(MoleculeStructure& mol) { return mol.coval
 inline Array<const Bond> get_covalent_bonds(const MoleculeStructure& mol) { return mol.covalent_bonds; }
 
 // Single atom access
+// @PERFORMANCE: Avoid this function
 inline vec3 get_position_xyz(const MoleculeStructure& mol, AtomIdx idx) {
     ASSERT(0 <= idx && idx < mol.atom.count);
     return {mol.atom.position.x[idx], mol.atom.position.y[idx], mol.atom.position.z[idx]};
@@ -150,13 +218,6 @@ inline Array<float> get_positions_y(MoleculeStructure& mol) { return Array<float
 inline Array<const float> get_positions_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.y, mol.atom.count); }
 inline Array<float> get_positions_z(MoleculeStructure& mol) { return Array<float>(mol.atom.position.z, mol.atom.count); }
 inline Array<const float> get_positions_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.z, mol.atom.count); }
-
-inline Array<float> get_velocities_x(MoleculeStructure& mol) { return Array<float>(mol.atom.velocity.x, mol.atom.count); }
-inline Array<const float> get_velocities_x(const MoleculeStructure& mol) { return Array<const float>(mol.atom.velocity.x, mol.atom.count); }
-inline Array<float> get_velocities_y(MoleculeStructure& mol) { return Array<float>(mol.atom.velocity.y, mol.atom.count); }
-inline Array<const float> get_velocities_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.velocity.y, mol.atom.count); }
-inline Array<float> get_velocities_z(MoleculeStructure& mol) { return Array<float>(mol.atom.velocity.z, mol.atom.count); }
-inline Array<const float> get_velocities_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.velocity.z, mol.atom.count); }
 
 inline Array<float> get_radii(MoleculeStructure& mol) { return Array<float>(mol.atom.radius, mol.atom.count); }
 
@@ -198,6 +259,7 @@ inline Sequence get_sequence(const MoleculeStructure& mol, SeqIdx idx) {
     ASSERT(0 <= idx && idx < mol.sequences.count);
     return mol.sequences[idx];
 }
+*/
 
 /*
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, const Chain& chain) {
@@ -213,6 +275,7 @@ inline Array<const BackboneSegment> get_backbone(const MoleculeStructure& mol, c
 }
 */
 
+/*
 inline Array<Residue> get_residues(MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
 inline Array<const Residue> get_residues(const MoleculeStructure& mol, const Chain& chain) { return mol.residues.subarray(chain.res_range); }
 
@@ -239,8 +302,49 @@ inline Array<Bond> get_internal_bonds(MoleculeStructure& mol, const Residue& res
 inline Array<const Bond> get_internal_bonds(const MoleculeStructure& mol, const Residue& res) {
     return mol.covalent_bonds.subarray(res.bond_idx.beg_internal, res.bond_idx.end_internal - res.bond_idx.beg_internal);
 }
+*/
 
-bool init_molecule_structure(MoleculeStructure* mol, i32 num_atoms, i32 num_bonds, i32 num_residues, i32 num_chains, i32 num_sequences,
-                             i32 num_backbone_segments = 0, i32 num_backbone_sequences = 0, i32 num_hydrogen_bond_donors = 0,
-                             i32 num_hydrogen_bond_acceptors = 0);
+struct AtomDescriptor {
+    float x, y, z;
+    ResIdx residue_index;
+    Label label;
+    Element element;
+};
+
+struct ResidueDescriptor {
+    Label name;
+    AtomRange atom_range;
+    ResIdx id;
+};
+
+struct ChainDescriptor {
+    Label id;
+    ResRange residue_range;
+};
+
+struct SecondaryStructureDescriptor {
+    SecondaryStructure type;
+    ResRange residue_range;
+};
+
+using BondDescriptor = Bond;
+
+struct MoleculeStructureDescriptor {
+    i32 num_atoms = 0;
+    AtomDescriptor* atoms = nullptr;
+
+    i32 num_residues = 0;
+    ResidueDescriptor* residues = nullptr;
+
+    i32 num_chains = 0;
+    ChainDescriptor* chains = nullptr;
+
+    i32 num_bonds = 0;
+    BondDescriptor* bonds = nullptr;
+
+    i32 num_secondary_structures = 0;
+    SecondaryStructureDescriptor* secondary_structures = nullptr;
+};
+
+bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDescriptor& desc);
 void free_molecule_structure(MoleculeStructure* mol);

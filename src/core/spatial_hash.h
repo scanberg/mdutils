@@ -92,6 +92,9 @@ void for_each_within(const Frame& frame, vec3 coord, float radius, Callback cb) 
 
 Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext);
 void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext);
+inline void compute_frame(Frame* frame, const soa_vec3& in_positions, i64 count, const vec3& cell_ext) {
+    return compute_frame(frame, in_positions.x, in_positions.y, in_positions.z, count, cell_ext);
+}
 
 Frame compute_frame(const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);
 void compute_frame(Frame* frame, const float* pos_x, const float* pos_y, const float* pos_z, i64 count, const vec3& cell_ext, const vec3& min_box, const vec3& max_box);

@@ -84,6 +84,12 @@ using dmat2x2 = glm::tmat2x2<double>;
 using dmat3x3 = glm::tmat3x3<double>;
 using dmat4x4 = glm::tmat4x4<double>;
 
+struct soa_vec3 {
+    float* x;
+    float* y;
+    float* z;
+};
+
 #ifndef HAS_VECTOR_TEMPLATE_INSTANTIATION
 extern template struct glm::vec<2, float, glm::packed_highp>;
 extern template struct glm::vec<3, float, glm::packed_highp>;

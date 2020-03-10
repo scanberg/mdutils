@@ -30,6 +30,8 @@ inline CStringView extract_next_model(CStringView& pdb_string) {
     return {};
 }
 
+inline void extract_label(Label* label, CStringView line) { *label = trim(line.substr(12, 4)); }
+
 inline void extract_position(float* x, float* y, float* z, CStringView line) {
     // SLOW 🐢
     // sscanf(line.substr(30).ptr, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
@@ -133,33 +135,11 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     ASSERT(mol);
     free_molecule_structure(mol);
 
-    DynamicArray<float> pos_x;
-    DynamicArray<float> pos_y;
-    DynamicArray<float> pos_z;
-    DynamicArray<Label> labels;
-    DynamicArray<Element> elements;
-    DynamicArray<ResIdx> residue_indices;
-    DynamicArray<float> occupancies;
-    DynamicArray<float> temp_factors;
-    DynamicArray<Residue> residues;
-    DynamicArray<Chain> chains;
-    DynamicArray<Range<ResIdx>> helices;
-    DynamicArray<Range<ResIdx>> sheets;
-
-    constexpr auto atom_reserve_size = 4096;
-    constexpr auto residue_reserve_size = 128;
-    constexpr auto chain_reserve_size = 16;
-
-    pos_x.reserve(atom_reserve_size);
-    pos_y.reserve(atom_reserve_size);
-    pos_z.reserve(atom_reserve_size);
-    labels.reserve(atom_reserve_size);
-    elements.reserve(atom_reserve_size);
-    residue_indices.reserve(atom_reserve_size);
-    occupancies.reserve(atom_reserve_size);
-    temp_factors.reserve(atom_reserve_size);
-    residues.reserve(residue_reserve_size);
-    chains.reserve(chain_reserve_size);
+    DynamicArray<AtomDescriptor> atoms;
+    DynamicArray<ResidueDescriptor> residues;
+    DynamicArray<ChainDescriptor> chains;
+    DynamicArray<BondDescriptor> bonds;
+    DynamicArray<SecondaryStructureDescriptor> secondary_structures;
 
     int current_res_id = -1;
     char current_chain_id = -1;
@@ -168,71 +148,52 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     CStringView line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
-            vec3 pos;
-            extract_position(&pos.x, &pos.y, &pos.z, line);
-            pos_x.push_back(pos.x);
-            pos_y.push_back(pos.y);
-            pos_z.push_back(pos.z);
-
-            labels.push_back(trim(line.substr(12, 4)));
-
-            if (line.size() > 60) {
-                const auto [occupancy, success] = to_float(line.substr(54, 6));
-                occupancies.push_back(success ? occupancy : 0.0f);
-            }
-            if (line.size() > 66) {
-                const auto [temp, success] = to_float(line.substr(60, 6));
-                temp_factors.push_back(success ? temp : 0.0f);
-            }
-
-            Element elem;
-            extract_element(&elem, line);
-            elements.push_back(elem);
+            AtomDescriptor& atom = atoms.allocate_back();
+            extract_position(&atom.x, &atom.y, &atom.z, line);
+            extract_label(&atom.label, line);
+            extract_element(&atom.element, line);
 
             int res_id = to_int(line.substr(22, 4));
             char chain_id = line[21];
 
             // New Chain
             if (current_chain_id != chain_id && chain_id != ' ') {
-                current_chain_id = chain_id;
-                Chain chain;
-                chain.res_range = {(ResIdx)residues.size(), (ResIdx)residues.size()};
-                chain.atom_range = {num_atoms, num_atoms};
+                ChainDescriptor& chain = chains.allocate_back();
                 chain.id = chain_id;
-                chains.push_back(chain);
+                chain.residue_range = {(ResIdx)residues.size(), (ResIdx)residues.size()};
+                current_chain_id = chain_id;
             }
 
             // New Residue
             if (res_id != current_res_id) {
-                current_res_id = res_id;
-                Residue res{};
+                ResidueDescriptor& res = residues.allocate_back();
                 res.name = trim(line.substr(17, 3));
                 res.id = res_id;
-                // res.chain_idx = (ChainIdx)(chains.size() - 1);
                 res.atom_range = {num_atoms, num_atoms};
-                residues.push_back(res);
+                current_res_id = res_id;
+
                 if (chains.size() > 0) {
-                    chains.back().res_range.end++;
+                    chains.back().residue_range.end++;
                 }
             }
-            if (residues.size() > 0) residues.back().atom_range.end++;
-            if (chains.size() > 0) chains.back().atom_range.end++;
 
-            residue_indices.push_back((ResIdx)(residues.size() - 1));
+            if (residues.size() > 0) residues.back().atom_range.end++;
             num_atoms++;
+            /* } else if (compare_n(line, "BOND", 4)) { */
         } else if (compare_n(line, "HELIX", 5)) {
-            Range<ResIdx> helix;
-            extract_helix_residue_indices(&helix.beg, &helix.end, line);
-            helices.push_back(helix);
-        } else if (compare_n(line, "SHEET", 5)) { 
-            Range<ResIdx> sheet;
-            extract_sheet_residue_indices(&sheet.beg, &sheet.end, line);
-            sheets.push_back(sheet);
+            SecondaryStructureDescriptor& ss = secondary_structures.allocate_back();
+            ss.type = SecondaryStructure::Helix;
+            extract_helix_residue_indices(&ss.residue_range.beg, &ss.residue_range.end, line);
+        } else if (compare_n(line, "SHEET", 5)) {
+            SecondaryStructureDescriptor& ss = secondary_structures.allocate_back();
+            ss.type = SecondaryStructure::Sheet;
+            extract_sheet_residue_indices(&ss.residue_range.beg, &ss.residue_range.end, line);
         } else if (compare_n(line, "ENDMDL", 6) || compare_n(line, "END", 3)) {
             break;
         }
     }
 
+    /*
     auto masses = compute_atom_masses(elements);
     auto radii = compute_atom_radii(elements);
     auto covalent_bonds = compute_covalent_bonds(residues, pos_x.data(), pos_y.data(), pos_z.data(), elements.data(), num_atoms);
@@ -241,10 +202,21 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
     auto donors = hydrogen_bond::compute_donors(elements, residue_indices, residues, covalent_bonds);
     auto acceptors = hydrogen_bond::compute_acceptors(elements);
+    */
 
-    init_molecule_structure(mol, num_atoms, (i32)covalent_bonds.size(), (i32)residues.size(), (i32)chains.size(), (i32)sequences.size(),
-                            (i32)backbone_segments.size(), (i32)backbone_sequences.size(), (i32)donors.size(), (i32)acceptors.size());
+    MoleculeStructureDescriptor desc {};
+    desc.num_atoms = atoms.size();
+    desc.atoms = atoms.data();
+    desc.num_residues = residues.size();
+    desc.residues = residues.data();
+    desc.num_chains = chains.size();
+    desc.chains = chains.data();
+    desc.num_secondary_structures = secondary_structures.size();
+    desc.secondary_structures = secondary_structures.data();
 
+    init_molecule_structure(mol, desc);
+
+    /*
     for (i32 i = 0; i < num_atoms; i++) {
         mol->atom.res_idx[i] = -1;
         mol->atom.chain_idx[i] = -1;
@@ -267,9 +239,6 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     memcpy(mol->atom.position.x, pos_x.data(), pos_x.size_in_bytes());
     memcpy(mol->atom.position.y, pos_y.data(), pos_y.size_in_bytes());
     memcpy(mol->atom.position.z, pos_z.data(), pos_z.size_in_bytes());
-    memset(mol->atom.velocity.x, 0, num_atoms * sizeof(float));
-    memset(mol->atom.velocity.y, 0, num_atoms * sizeof(float));
-    memset(mol->atom.velocity.z, 0, num_atoms * sizeof(float));
     memcpy(mol->atom.radius, radii.data(), num_atoms * sizeof(float));
     memcpy(mol->atom.mass, masses.data(), num_atoms * sizeof(float));
     memcpy(mol->atom.element, elements.data(), elements.size_in_bytes());
@@ -290,6 +259,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
         compute_backbone_angles(mol->backbone.angles.data(), segments.data(), mol->atom.position.x, mol->atom.position.y, mol->atom.position.z,
                                 segments.size());
     }
+    */
 
     return true;
 }
@@ -406,9 +376,7 @@ static bool generate_cache(CStringView filename) {
     constexpr CStringView pattern = "\nMODEL ";
     DynamicArray<FrameBytes> frame_bytes;
 
-    for_each_pattern_found_in_file(filename, pattern, [&frame_bytes](i64 offset) {
-        frame_bytes.push_back({(u64)offset, 0});
-    });
+    for_each_pattern_found_in_file(filename, pattern, [&frame_bytes](i64 offset) { frame_bytes.push_back({(u64)offset, 0}); });
 
     fseeki64(file, 0, SEEK_END);
     const u64 file_size = (u64)ftelli64(file);
@@ -450,7 +418,7 @@ bool read_trajectory_num_frames(i32* num_frames, CStringView filename) {
         *num_frames = nframes;
         return true;
     }
-    
+
     return false;
 }
 
