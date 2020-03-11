@@ -32,6 +32,16 @@ inline const TrajectoryFrame& get_trajectory_frame(const MoleculeTrajectory& tra
     return traj.frame_buffer.ptr[frame_index];
 }
 
+inline soa_vec3 get_trajectory_positions(MoleculeTrajectory& traj, int frame_index) {
+    ASSERT(0 <= frame_index && frame_index < traj.num_frames);
+    return traj.frame_buffer.ptr[frame_index].atom_position;
+}
+
+inline const soa_vec3 get_trajectory_positions(const MoleculeTrajectory& traj, int frame_index) {
+    ASSERT(0 <= frame_index && frame_index < traj.num_frames);
+    return traj.frame_buffer.ptr[frame_index].atom_position;
+}
+
 inline Array<float> get_trajectory_position_x(MoleculeTrajectory& traj, int frame_index) {
     ASSERT(-1 < frame_index && frame_index < traj.num_frames);
     return {traj.frame_buffer.ptr[frame_index].atom_position.x, traj.num_atoms};

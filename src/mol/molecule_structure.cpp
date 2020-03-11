@@ -1,6 +1,7 @@
 #include "molecule_structure.h"
 #include <core/spatial_hash.h>
 #include <mol/molecule_utils.h>
+#include <mol/hydrogen_bond.h>
 
 // 64-byte alignment for 512-bit vectorization (AVX512 and beyond!)
 #define ALIGNMENT 64
@@ -92,12 +93,12 @@ struct BackboneData {
 
 static BackboneData compute_backbone(const MoleculeStructure& mol) {
     constexpr i32 min_atom_count = 4;  // Must contain at least 4 atoms to be considered as an amino acid.
-    
-    BackboneData data {};
-    BackboneSequence seq {};
-    
+
+    BackboneData data{};
+    BackboneSequence seq{};
+
     for (i64 ri = 0; ri < mol.residue.count; ri++) {
-        BackboneSegment seg {};
+        BackboneSegment seg{};
         if (mol.residue.atom_range[ri].ext() >= min_atom_count) {
             // find atoms
             for (i32 i = mol.residue.atom_range[ri].beg; i < mol.residue.atom_range[ri].end; i++) {
@@ -123,8 +124,7 @@ static BackboneData compute_backbone(const MoleculeStructure& mol) {
         if (valid_segment(seg)) {
             data.segments.push_back(seg);
             seq.end++;
-        }
-        else {
+        } else {
             if (seq.ext() > 1) {
                 data.sequences.push_back(seq);
             }
@@ -212,17 +212,21 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
     }
 
     if (desc.num_chains > 0) {
-        const i64 mem_size = desc.num_chains * (sizeof(Label) + sizeof(ResRange));
+        const i64 mem_size = desc.num_chains * (sizeof(Label) + sizeof(AtomRange) + sizeof(ResRange));
         void* mem = MALLOC(mem_size);
         memset(mem, 0, mem_size);
 
         mol->chain.count = desc.num_chains;
         mol->chain.id = (Label*)mem;
-        mol->chain.residue_range = (ResRange*)(mol->chain.id + desc.num_chains);
+        mol->chain.atom_range = (AtomRange*)(mol->chain.id + desc.num_chains);
+        mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + desc.num_chains);
         if (desc.chains) {
             for (i32 i = 0; i < desc.num_chains; i++) {
                 mol->chain.id[i] = desc.chains[i].id;
                 mol->chain.residue_range[i] = desc.chains[i].residue_range;
+                auto res_range = desc.chains[i].residue_range;
+                if (res_range.ext() > 0)
+                    mol->chain.atom_range[i] = {mol->residue.atom_range[res_range.beg].beg, mol->residue.atom_range[res_range.end - 1].end};
             }
         }
     } else if (mol->residue.count > 0) {
@@ -279,6 +283,19 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
 
     if (desc.num_secondary_structures > 0) {
         // TODO: Implement configurations of secondary structure onto backbone
+    }
+
+    {
+        auto acc = hydrogen_bond::compute_acceptors(mol->atom.element, mol->atom.count);
+        auto don = hydrogen_bond::compute_donors(*mol);
+        const i64 mem_size = acc.size_in_bytes() + don.size_in_bytes();
+        void* mem = MALLOC(mem_size);
+        mol->hydrogen_bond.donor.count = don.size();
+        mol->hydrogen_bond.donor.data = (HydrogenBondDonor*)mem;
+        memcpy(mol->hydrogen_bond.donor.data, don.data(), don.size_in_bytes());
+        mol->hydrogen_bond.acceptor.count = acc.size();
+        mol->hydrogen_bond.acceptor.data = (HydrogenBondAcceptor*)(mol->hydrogen_bond.donor.data + don.size());
+        memcpy(mol->hydrogen_bond.acceptor.data, acc.data(), acc.size_in_bytes());
     }
 
     return true;

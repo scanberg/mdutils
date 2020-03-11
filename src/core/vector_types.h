@@ -85,10 +85,14 @@ using dmat3x3 = glm::tmat3x3<double>;
 using dmat4x4 = glm::tmat4x4<double>;
 
 struct soa_vec3 {
-    float* x;
-    float* y;
-    float* z;
+    float* __restrict x;
+    float* __restrict y;
+    float* __restrict z;
 };
+
+soa_vec3 operator+(const soa_vec3& in, i64 offset) {
+    return {in.x + offset, in.y + offset, in.z + offset};
+}
 
 #ifndef HAS_VECTOR_TEMPLATE_INSTANTIATION
 extern template struct glm::vec<2, float, glm::packed_highp>;

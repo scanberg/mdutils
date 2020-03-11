@@ -38,11 +38,11 @@ inline SIMD_TYPE_F de_periodize(const SIMD_TYPE_F pos, const SIMD_TYPE_F ref_pos
     return res;
 }
 
-void translate_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const vec3& translation) {
+void translate_ref(soa_vec3 in_out, i64 count, const vec3& translation) {
     for (i64 i = 0; i < count; i++) {
-        in_out_x[i] += translation.x;
-        in_out_y[i] += translation.y;
-        in_out_z[i] += translation.z;
+        in_out.x[i] += translation.x;
+        in_out.y[i] += translation.y;
+        in_out.z[i] += translation.z;
     }
 }
 
@@ -64,9 +64,9 @@ void translate(soa_vec3 in_out, i64 count, const vec3& translation) {
             p_y = simd::add(p_y, t_y);
             p_z = simd::add(p_z, t_z);
 
-            SIMD_STORE(in_out[0] + i, p_x);
-            SIMD_STORE(in_out[1] + i, p_y);
-            SIMD_STORE(in_out[2] + i, p_z);
+            SIMD_STORE(in_out.x + i, p_x);
+            SIMD_STORE(in_out.y + i, p_y);
+            SIMD_STORE(in_out.z + i, p_z);
         }
     }
 
@@ -77,41 +77,72 @@ void translate(soa_vec3 in_out, i64 count, const vec3& translation) {
     }
 }
 
-void transform_ref(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const mat4& transformation, float w_comp) {
+void translate(soa_vec3 out, const soa_vec3 in, i64 count, const vec3& translation) {
+    i64 i = 0;
+
+    const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    if (simd_count > 0) {
+        SIMD_TYPE_F t_x = SIMD_SET_F(translation.x);
+        SIMD_TYPE_F t_y = SIMD_SET_F(translation.y);
+        SIMD_TYPE_F t_z = SIMD_SET_F(translation.z);
+
+        for (; i < simd_count; i += SIMD_WIDTH) {
+            SIMD_TYPE_F p_x = SIMD_LOAD_F(in.x + i);
+            SIMD_TYPE_F p_y = SIMD_LOAD_F(in.y + i);
+            SIMD_TYPE_F p_z = SIMD_LOAD_F(in.z + i);
+
+            p_x = simd::add(p_x, t_x);
+            p_y = simd::add(p_y, t_y);
+            p_z = simd::add(p_z, t_z);
+
+            SIMD_STORE(out.x + i, p_x);
+            SIMD_STORE(out.y + i, p_y);
+            SIMD_STORE(out.z + i, p_z);
+        }
+    }
+
+    for (; i < count; i++) {
+        out.x[i] += translation.x;
+        out.y[i] += translation.y;
+        out.z[i] += translation.z;
+    }
+}
+
+void transform_ref(soa_vec3 in_out, i64 count, const mat4& transformation, float w_comp) {
     for (i64 i = 0; i < count; i++) {
-        vec4 v = {in_out_x[i], in_out_y[i], in_out_z[i], w_comp};
+        vec4 v = {in_out.x[i], in_out.y[i], in_out.z[i], w_comp};
         v = transformation * v;
-        in_out_x[i] = v.x;
-        in_out_y[i] = v.y;
-        in_out_z[i] = v.z;
+        in_out.x[i] = v.x;
+        in_out.y[i] = v.y;
+        in_out.z[i] = v.z;
     }
 }
 
-void transform(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, const mat4& transformation, float w_comp) {
-    const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
-    const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
-    const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
+void transform(soa_vec3 in_out, i64 count, const mat4& M, float w_comp) {
+    const SIMD_TYPE_F m11 = SIMD_SET_F(M[0][0]);
+    const SIMD_TYPE_F m12 = SIMD_SET_F(M[0][1]);
+    const SIMD_TYPE_F m13 = SIMD_SET_F(M[0][2]);
 
-    const SIMD_TYPE_F m21 = SIMD_SET_F(transformation[1][0]);
-    const SIMD_TYPE_F m22 = SIMD_SET_F(transformation[1][1]);
-    const SIMD_TYPE_F m23 = SIMD_SET_F(transformation[1][2]);
+    const SIMD_TYPE_F m21 = SIMD_SET_F(M[1][0]);
+    const SIMD_TYPE_F m22 = SIMD_SET_F(M[1][1]);
+    const SIMD_TYPE_F m23 = SIMD_SET_F(M[1][2]);
 
-    const SIMD_TYPE_F m31 = SIMD_SET_F(transformation[2][0]);
-    const SIMD_TYPE_F m32 = SIMD_SET_F(transformation[2][1]);
-    const SIMD_TYPE_F m33 = SIMD_SET_F(transformation[2][2]);
+    const SIMD_TYPE_F m31 = SIMD_SET_F(M[2][0]);
+    const SIMD_TYPE_F m32 = SIMD_SET_F(M[2][1]);
+    const SIMD_TYPE_F m33 = SIMD_SET_F(M[2][2]);
 
-    const SIMD_TYPE_F m41 = SIMD_SET_F(transformation[3][0]);
-    const SIMD_TYPE_F m42 = SIMD_SET_F(transformation[3][1]);
-    const SIMD_TYPE_F m43 = SIMD_SET_F(transformation[3][2]);
+    const SIMD_TYPE_F m41 = SIMD_SET_F(M[3][0]);
+    const SIMD_TYPE_F m42 = SIMD_SET_F(M[3][1]);
+    const SIMD_TYPE_F m43 = SIMD_SET_F(M[3][2]);
 
     const SIMD_TYPE_F w = SIMD_SET_F(w_comp);
 
     i64 i = 0;
     const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     for (; i < simd_count; i += SIMD_WIDTH) {
-        const SIMD_TYPE_F x = SIMD_LOAD_F(in_out_x + i);
-        const SIMD_TYPE_F y = SIMD_LOAD_F(in_out_y + i);
-        const SIMD_TYPE_F z = SIMD_LOAD_F(in_out_z + i);
+        const SIMD_TYPE_F x = SIMD_LOAD_F(in_out.x + i);
+        const SIMD_TYPE_F y = SIMD_LOAD_F(in_out.y + i);
+        const SIMD_TYPE_F z = SIMD_LOAD_F(in_out.z + i);
 
         const SIMD_TYPE_F m11x = simd::mul(m11, x);
         const SIMD_TYPE_F m21y = simd::mul(m21, y);
@@ -132,47 +163,47 @@ void transform(float* in_out_x, float* in_out_y, float* in_out_z, i64 count, con
         const SIMD_TYPE_F res_y = simd::add(simd::add(m12x, m22y), simd::add(m32z, m42w));
         const SIMD_TYPE_F res_z = simd::add(simd::add(m13x, m23y), simd::add(m33z, m43w));
 
-        SIMD_STORE(in_out_x + i, res_x);
-        SIMD_STORE(in_out_y + i, res_y);
-        SIMD_STORE(in_out_z + i, res_z);
+        SIMD_STORE(in_out.x + i, res_x);
+        SIMD_STORE(in_out.y + i, res_y);
+        SIMD_STORE(in_out.z + i, res_z);
     }
 
     for (; i < count; i++) {
-        const float x = in_out_x[i];
-        const float y = in_out_y[i];
-        const float z = in_out_z[i];
+        const float x = in_out.x[i];
+        const float y = in_out.y[i];
+        const float z = in_out.z[i];
 
-        in_out_x[i] = x * transformation[0][0] + y * transformation[1][0] + z * transformation[2][0] + w_comp * transformation[3][0];
-        in_out_y[i] = x * transformation[0][1] + y * transformation[1][1] + z * transformation[2][1] + w_comp * transformation[3][1];
-        in_out_z[i] = x * transformation[0][2] + y * transformation[1][2] + z * transformation[2][2] + w_comp * transformation[3][2];
+        in_out.x[i] = x * M[0][0] + y * M[1][0] + z * M[2][0] + w_comp * M[3][0];
+        in_out.y[i] = x * M[0][1] + y * M[1][1] + z * M[2][1] + w_comp * M[3][1];
+        in_out.z[i] = x * M[0][2] + y * M[1][2] + z * M[2][2] + w_comp * M[3][2];
     }
 }
 
-void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_y, float* in_z, i64 count, const mat4& transformation, float w_comp) {
-    const SIMD_TYPE_F m11 = SIMD_SET_F(transformation[0][0]);
-    const SIMD_TYPE_F m12 = SIMD_SET_F(transformation[0][1]);
-    const SIMD_TYPE_F m13 = SIMD_SET_F(transformation[0][2]);
+void transform(soa_vec3 out, const soa_vec3 in, i64 count, const mat4& M, float w_comp) {
+    const SIMD_TYPE_F m11 = SIMD_SET_F(M[0][0]);
+    const SIMD_TYPE_F m12 = SIMD_SET_F(M[0][1]);
+    const SIMD_TYPE_F m13 = SIMD_SET_F(M[0][2]);
 
-    const SIMD_TYPE_F m21 = SIMD_SET_F(transformation[1][0]);
-    const SIMD_TYPE_F m22 = SIMD_SET_F(transformation[1][1]);
-    const SIMD_TYPE_F m23 = SIMD_SET_F(transformation[1][2]);
+    const SIMD_TYPE_F m21 = SIMD_SET_F(M[1][0]);
+    const SIMD_TYPE_F m22 = SIMD_SET_F(M[1][1]);
+    const SIMD_TYPE_F m23 = SIMD_SET_F(M[1][2]);
 
-    const SIMD_TYPE_F m31 = SIMD_SET_F(transformation[2][0]);
-    const SIMD_TYPE_F m32 = SIMD_SET_F(transformation[2][1]);
-    const SIMD_TYPE_F m33 = SIMD_SET_F(transformation[2][2]);
+    const SIMD_TYPE_F m31 = SIMD_SET_F(M[2][0]);
+    const SIMD_TYPE_F m32 = SIMD_SET_F(M[2][1]);
+    const SIMD_TYPE_F m33 = SIMD_SET_F(M[2][2]);
 
-    const SIMD_TYPE_F m41 = SIMD_SET_F(transformation[3][0]);
-    const SIMD_TYPE_F m42 = SIMD_SET_F(transformation[3][1]);
-    const SIMD_TYPE_F m43 = SIMD_SET_F(transformation[3][2]);
+    const SIMD_TYPE_F m41 = SIMD_SET_F(M[3][0]);
+    const SIMD_TYPE_F m42 = SIMD_SET_F(M[3][1]);
+    const SIMD_TYPE_F m43 = SIMD_SET_F(M[3][2]);
 
     const SIMD_TYPE_F w = SIMD_SET_F(w_comp);
 
     i64 i = 0;
     const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     for (; i < simd_count; i += SIMD_WIDTH) {
-        const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
-        const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
-        const SIMD_TYPE_F z = SIMD_LOAD_F(in_z + i);
+        const SIMD_TYPE_F x = SIMD_LOAD_F(in.x + i);
+        const SIMD_TYPE_F y = SIMD_LOAD_F(in.y + i);
+        const SIMD_TYPE_F z = SIMD_LOAD_F(in.z + i);
 
         const SIMD_TYPE_F m11x = simd::mul(m11, x);
         const SIMD_TYPE_F m21y = simd::mul(m21, y);
@@ -193,32 +224,49 @@ void transform(float* out_x, float* out_y, float* out_z, float* in_x, float* in_
         const SIMD_TYPE_F res_y = simd::add(simd::add(m12x, m22y), simd::add(m32z, m42w));
         const SIMD_TYPE_F res_z = simd::add(simd::add(m13x, m23y), simd::add(m33z, m43w));
 
-        SIMD_STORE(out_x + i, res_x);
-        SIMD_STORE(out_y + i, res_y);
-        SIMD_STORE(out_z + i, res_z);
+        SIMD_STORE(out.x + i, res_x);
+        SIMD_STORE(out.y + i, res_y);
+        SIMD_STORE(out.z + i, res_z);
     }
 
     for (; i < count; i++) {
-        const float x = in_x[i];
-        const float y = in_y[i];
-        const float z = in_z[i];
+        const float x = in.x[i];
+        const float y = in.y[i];
+        const float z = in.z[i];
 
-        out_x[i] = x * transformation[0][0] + y * transformation[1][0] + z * transformation[2][0] + w_comp * transformation[3][0];
-        out_y[i] = x * transformation[0][1] + y * transformation[1][1] + z * transformation[2][1] + w_comp * transformation[3][1];
-        out_z[i] = x * transformation[0][2] + y * transformation[1][2] + z * transformation[2][2] + w_comp * transformation[3][2];
+        out.x[i] = x * M[0][0] + y * M[1][0] + z * M[2][0] + w_comp * M[3][0];
+        out.y[i] = x * M[0][1] + y * M[1][1] + z * M[2][1] + w_comp * M[3][1];
+        out.z[i] = x * M[0][2] + y * M[1][2] + z * M[2][2] + w_comp * M[3][2];
     }
 }
 
-void homogeneous_transform(float* pos_x, float* pos_y, float* pos_z, i64 count, const mat4& transformation) {
+void homogeneous_transform(soa_vec3 in_out, i64 count, const mat4& M, float w_comp) {
     for (i64 i = 0; i < count; i++) {
-        const vec4 p = transformation * vec4(pos_x[i], pos_y[i], pos_z[i], 1.0f);
-        pos_x[i] = p.x / p.w;
-        pos_y[i] = p.y / p.w;
-        pos_z[i] = p.z / p.w;
+        float& x = in_out.x[i];
+        float& y = in_out.y[i];
+        float& z = in_out.z[i];
+
+        const float w_scl = 1.0f / (x * M[0][3] + y * M[1][3] + z * M[2][3] + w_comp * M[3][3]);
+        in_out.z[i] = (x * M[0][0] + y * M[1][0] + z * M[2][0] + w_comp * M[3][0]) * w_scl;
+        in_out.y[i] = (x * M[0][1] + y * M[1][1] + z * M[2][1] + w_comp * M[3][1]) * w_scl;
+        in_out.z[i] = (x * M[0][2] + y * M[1][2] + z * M[2][2] + w_comp * M[3][2]) * w_scl;
     }
 }
 
-AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, i64 count) {
+void homogeneous_transform(soa_vec3 out, const soa_vec3 in, i64 count, const mat4& M, float w_comp) {
+    for (i64 i = 0; i < count; i++) {
+        const float x = in.x[i];
+        const float y = in.y[i];
+        const float z = in.z[i];
+
+        const float w_scl = 1.0f / (x * M[0][3] + y * M[1][3] + z * M[2][3] + w_comp * M[3][3]);
+        out.z[i] = (x * M[0][0] + y * M[1][0] + z * M[2][0] + w_comp * M[3][0]) * w_scl;
+        out.y[i] = (x * M[0][1] + y * M[1][1] + z * M[2][1] + w_comp * M[3][1]) * w_scl;
+        out.z[i] = (x * M[0][2] + y * M[1][2] + z * M[2][2] + w_comp * M[3][2]) * w_scl;
+    }
+}
+
+AABB compute_aabb(const soa_vec3 in_pos, i64 count) {
     if (count == 0) {
         return {};
     }
@@ -227,9 +275,9 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, i64 c
 
     i64 i = 0;
     if (count > SIMD_WIDTH) {  // @NOTE: There is probably some number where this makes most sense
-        SIMD_TYPE_F min_x = SIMD_LOAD_F(in_x);
-        SIMD_TYPE_F min_y = SIMD_LOAD_F(in_y);
-        SIMD_TYPE_F min_z = SIMD_LOAD_F(in_z);
+        SIMD_TYPE_F min_x = SIMD_LOAD_F(in_pos.x);
+        SIMD_TYPE_F min_y = SIMD_LOAD_F(in_pos.y);
+        SIMD_TYPE_F min_z = SIMD_LOAD_F(in_pos.z);
 
         SIMD_TYPE_F max_x = min_x;
         SIMD_TYPE_F max_y = min_y;
@@ -238,9 +286,9 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, i64 c
         i += SIMD_WIDTH;
         const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
-            const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
-            const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
-            const SIMD_TYPE_F z = SIMD_LOAD_F(in_z + i);
+            const SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x + i);
+            const SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y + i);
+            const SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z + i);
 
             min_x = simd::min(min_x, x);
             min_y = simd::min(min_y, y);
@@ -256,7 +304,7 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, i64 c
     }
 
     for (; i < count; i++) {
-        const vec3 p = {in_x[i], in_y[i], in_z[i]};
+        const vec3 p = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
         aabb.min = math::min(aabb.min, p);
         aabb.max = math::max(aabb.max, p);
     }
@@ -264,7 +312,7 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, i64 c
     return aabb;
 }
 
-AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const float* in_r, i64 count) {
+AABB compute_aabb(const soa_vec3 in_pos, const float in_r[], i64 count) {
     if (count == 0) {
         return {};
     }
@@ -273,9 +321,9 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const
 
     i64 i = 0;
     if (count > SIMD_WIDTH) {  // @NOTE: There is probably some number where this makes most sense
-        SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
-        SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
-        SIMD_TYPE_F z = SIMD_LOAD_F(in_z);
+        SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x);
+        SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y);
+        SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z);
         SIMD_TYPE_F r = SIMD_LOAD_F(in_r);
 
         SIMD_TYPE_F min_x = simd::sub(x, r);
@@ -289,9 +337,9 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const
         i += SIMD_WIDTH;
         const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
-            x = SIMD_LOAD_F(in_x + i);
-            y = SIMD_LOAD_F(in_y + i);
-            z = SIMD_LOAD_F(in_z + i);
+            x = SIMD_LOAD_F(in_pos.x + i);
+            y = SIMD_LOAD_F(in_pos.y + i);
+            z = SIMD_LOAD_F(in_pos.z + i);
             r = SIMD_LOAD_F(in_r + i);
 
             min_x = simd::min(min_x, simd::sub(x, r));
@@ -308,7 +356,7 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const
     }
 
     for (; i < count; i++) {
-        const vec3 p = {in_x[i], in_y[i], in_z[i]};
+        const vec3 p = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
         aabb.min = math::min(aabb.min, p);
         aabb.max = math::max(aabb.max, p);
     }
@@ -316,23 +364,23 @@ AABB compute_aabb(const float* in_x, const float* in_y, const float* in_z, const
     return aabb;
 }
 
-vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, i64 count) {
+vec3 compute_com(const soa_vec3 in_pos, i64 count) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
+    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
 
     vec3 sum{0};
     i64 i = 0;
 
     if (count > SIMD_WIDTH) {
         const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
-        SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
-        SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
-        SIMD_TYPE_F z = SIMD_LOAD_F(in_z);
+        SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x);
+        SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y);
+        SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z);
         i += SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
-            x = simd::add(x, SIMD_LOAD_F(in_x + i));
-            y = simd::add(y, SIMD_LOAD_F(in_y + i));
-            z = simd::add(z, SIMD_LOAD_F(in_z + i));
+            x = simd::add(x, SIMD_LOAD_F(in_pos.x + i));
+            y = simd::add(y, SIMD_LOAD_F(in_pos.y + i));
+            z = simd::add(z, SIMD_LOAD_F(in_pos.z + i));
         }
         sum.x = simd::horizontal_add(x);
         sum.y = simd::horizontal_add(y);
@@ -340,16 +388,16 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, i64 co
     }
 
     for (; i < count; i++) {
-        sum.x += in_x[i];
-        sum.y += in_y[i];
-        sum.z += in_z[i];
+        sum.x += in_pos.x[i];
+        sum.y += in_pos.y[i];
+        sum.z += in_pos.z[i];
     }
     return sum / (float)count;
 }
 
-vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count) {
+vec3 compute_com(const soa_vec3 in_pos, const float in_m[], i64 count) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
+    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
 
     vec3 vec_sum{0, 0, 0};
     float mass_sum = 0.0f;
@@ -358,15 +406,15 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const 
     const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     if (simd_count > SIMD_WIDTH) {
         SIMD_TYPE_F m = SIMD_LOAD_F(in_m);
-        SIMD_TYPE_F x = simd::mul(SIMD_LOAD_F(in_x), m);
-        SIMD_TYPE_F y = simd::mul(SIMD_LOAD_F(in_y), m);
-        SIMD_TYPE_F z = simd::mul(SIMD_LOAD_F(in_z), m);
+        SIMD_TYPE_F x = simd::mul(SIMD_LOAD_F(in_pos.x), m);
+        SIMD_TYPE_F y = simd::mul(SIMD_LOAD_F(in_pos.y), m);
+        SIMD_TYPE_F z = simd::mul(SIMD_LOAD_F(in_pos.z), m);
         i += SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
             const SIMD_TYPE_F mass = SIMD_LOAD_F(in_m + i);
-            x = simd::add(x, simd::mul(SIMD_LOAD_F(in_x + i), mass));
-            y = simd::add(y, simd::mul(SIMD_LOAD_F(in_y + i), mass));
-            z = simd::add(z, simd::mul(SIMD_LOAD_F(in_z + i), mass));
+            x = simd::add(x, simd::mul(SIMD_LOAD_F(in_pos.x + i), mass));
+            y = simd::add(y, simd::mul(SIMD_LOAD_F(in_pos.y + i), mass));
+            z = simd::add(z, simd::mul(SIMD_LOAD_F(in_pos.z + i), mass));
             m = simd::add(m, mass);
         }
         vec_sum.x = simd::horizontal_add(x);
@@ -377,25 +425,25 @@ vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const 
 
     for (; i < count; i++) {
         const float mass = in_m[i];
-        vec_sum.x += in_x[i] * mass;
-        vec_sum.y += in_y[i] * mass;
-        vec_sum.z += in_z[i] * mass;
+        vec_sum.x += in_pos.x[i] * mass;
+        vec_sum.y += in_pos.y[i] * mass;
+        vec_sum.z += in_pos.z[i] * mass;
         mass_sum += mass;
     }
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count, const mat3& box) {
+vec3 compute_com_periodic_ref(const soa_vec3 in_pos, const float in_m[], i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
+    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
 
     const vec3 box_ext = box * vec3(1.0f);
 
     float mass_sum = in_m[0];
-    vec3 vec_sum = vec3(in_x[0], in_y[0], in_z[0]) * in_m[0];
+    vec3 vec_sum = vec3(in_pos.x[0], in_pos.y[0], in_pos.z[0]) * in_m[0];
 
     for (i64 i = 1; i < count; i++) {
-        const vec3 pos = {in_x[i], in_y[i], in_z[i]};
+        const vec3 pos = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
         const float mass = in_m[i];
         const vec3 com = vec_sum / mass_sum;
         vec_sum += de_periodize(pos, com, box_ext) * mass;
@@ -404,9 +452,9 @@ vec3 compute_com_periodic_ref(const float* in_x, const float* in_y, const float*
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_z, const float* in_m, i64 count, const mat3& box) {
+vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_m[], i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
+    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
 
     const vec3 box_ext = box * vec3(1.0f);
 
@@ -421,17 +469,17 @@ vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_
         const SIMD_TYPE_F box_ext_z = SIMD_SET_F(box[2][2]);
 
         SIMD_TYPE_F m_sum = SIMD_LOAD_F(in_m);
-        SIMD_TYPE_F x_sum = simd::mul(SIMD_LOAD_F(in_x), m_sum);
-        SIMD_TYPE_F y_sum = simd::mul(SIMD_LOAD_F(in_y), m_sum);
-        SIMD_TYPE_F z_sum = simd::mul(SIMD_LOAD_F(in_z), m_sum);
+        SIMD_TYPE_F x_sum = simd::mul(SIMD_LOAD_F(in_pos.x), m_sum);
+        SIMD_TYPE_F y_sum = simd::mul(SIMD_LOAD_F(in_pos.y), m_sum);
+        SIMD_TYPE_F z_sum = simd::mul(SIMD_LOAD_F(in_pos.z), m_sum);
 
         i += SIMD_WIDTH;
 
         for (; i < simd_count; i += SIMD_WIDTH) {
             const SIMD_TYPE_F m = SIMD_LOAD_F(in_m + i);
-            const SIMD_TYPE_F x = SIMD_LOAD_F(in_x + i);
-            const SIMD_TYPE_F y = SIMD_LOAD_F(in_y + i);
-            const SIMD_TYPE_F z = SIMD_LOAD_F(in_z + i);
+            const SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x + i);
+            const SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y + i);
+            const SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z + i);
 
             const SIMD_TYPE_F x_com = simd::div(x_sum, m_sum);
             const SIMD_TYPE_F y_com = simd::div(y_sum, m_sum);
@@ -473,7 +521,7 @@ vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_
 
     for (; i < count; i++) {
         const float mass = in_m[i];
-        const vec3 pos = {in_x[i], in_y[i], in_z[i]};
+        const vec3 pos = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
         const vec3 com = vec_sum / mass_sum;
         vec_sum.x += de_periodize(pos.x, com.x, box_ext.x) * mass;
         vec_sum.y += de_periodize(pos.y, com.y, box_ext.y) * mass;
@@ -484,30 +532,14 @@ vec3 compute_com_periodic(const float* in_x, const float* in_y, const float* in_
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com(const float* in_x, const float* in_y, const float* in_z, const Element* in_element, i64 count) {
-    if (count == 0) return {0, 0, 0};
-    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
-
-    vec3 v_sum{0};
-    float m_sum = 0.0f;
-    for (i32 i = 0; i < count; i++) {
-        const vec3 v = {in_x[i], in_y[i], in_z[i]};
-        const float m = element::atomic_mass(in_element[i]);
-        v_sum += v * m;
-        m_sum += m;
-    }
-
-    return v_sum / m_sum;
-}
-
-mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, const float* mass, i64 count, const vec3& com) {
+mat3 compute_covariance_matrix(const soa_vec3 in_pos, const float mass[], i64 count, const vec3& com) {
     mat3 A{0};
     float mass_sum = 0.0f;
     for (i64 i = 0; i < count; i++) {
         // @TODO: Vectorize...
-        const float qx = x[i] - com.x;
-        const float qy = y[i] - com.y;
-        const float qz = z[i] - com.z;
+        const float qx = in_pos.x[i] - com.x;
+        const float qy = in_pos.y[i] - com.y;
+        const float qz = in_pos.z[i] - com.z;
         const float m = mass[i];
         mass_sum += m;
 
@@ -526,9 +558,9 @@ mat3 compute_covariance_matrix(const float* x, const float* y, const float* z, c
 }
 
 #define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
-EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float* in_z, const float* in_mass, i64 count) {
-    const vec3 com = compute_com(in_x, in_y, in_z, count);
-    const mat3 M = compute_covariance_matrix(in_x, in_y, in_z, in_mass, count, com);
+EigenFrame compute_eigen_frame(const soa_vec3 in_pos, const float in_mass[], i64 count) {
+    const vec3 com = compute_com(in_pos, count);
+    const mat3 M = compute_covariance_matrix(in_pos, in_mass, count, com);
     mat3 U, S, V;
     svd(ARGS(M), ARGS(U), ARGS(S), ARGS(V));
     const mat3 Ut = glm::transpose(U);
@@ -560,7 +592,7 @@ EigenFrame compute_eigen_frame(const float* in_x, const float* in_y, const float
 }
 #undef ARGS
 
-void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
+void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range) {
     ASSERT(dynamic);
     if (!dynamic->operator bool()) {
         LOG_ERROR("Dynamic is not valid.");
@@ -569,142 +601,59 @@ void recenter_trajectory(MoleculeDynamic* dynamic, Bitfield atom_mask) {
 
     const auto& mol = dynamic->molecule;
     auto& traj = dynamic->trajectory;
-
-    i64 count = bitfield::number_of_bits_set(atom_mask);
-    void* mem = TMP_MALLOC(count * sizeof(float) * 4);
-    defer { TMP_FREE(mem); };
-    float* x = (float*)mem + 0 * count;
-    float* y = (float*)mem + 1 * count;
-    float* z = (float*)mem + 2 * count;
-    float* m = (float*)mem + 3 * count;
-
-    bitfield::gather_masked(m, mol.atom.mass, atom_mask);
+    const i64 count = range.ext();
+    const float* mass = mol.atom.mass + range.beg;
 
     for (auto& frame : traj.frame_buffer) {
-        bitfield::gather_masked(x, frame.atom_position.x, atom_mask);
-        bitfield::gather_masked(y, frame.atom_position.y, atom_mask);
-        bitfield::gather_masked(z, frame.atom_position.z, atom_mask);
-        const vec3 com = compute_com_periodic(x, y, z, m, count, frame.box);
+        const soa_vec3 range_pos = frame.atom_position + range.beg;
+        const vec3 com = compute_com_periodic(range_pos, mass, count, frame.box);
         const vec3 translation = frame.box * vec3(0.5f) - com;
-        translate(frame.atom_position.x, frame.atom_position.y, frame.atom_position.z, mol.atom.count, translation);
-        apply_pbc(frame.atom_position.x, frame.atom_position.y, frame.atom_position.z, mol.atom.mass, mol.sequences, frame.box);
+        translate(frame.atom_position, mol.atom.count, translation);
+        apply_pbc(frame.atom_position, mol.atom.mass, mol.residue.atom_range, mol.residue.count, frame.box);
     }
 }
 
-// clang-format off
-void linear_interpolation_scalar(float* out_x, float* out_y, float* out_z,
-                                 const float* in_x0, const float* in_y0, const float* in_z0,
-                                 const float* in_x1, const float* in_y1, const float* in_z1,
-                                 i64 count, float t)
-// clang-format on
-{
+void linear_interpolation_ref(soa_vec3 out, const soa_vec3 in[2], i64 count, float t) {
     for (i64 i = 0; i < count; i++) {
-        out_x[i] = in_x0[i] * (1.0f - t) + in_x1[i] * t;
-        out_y[i] = in_y0[i] * (1.0f - t) + in_y1[i] * t;
-        out_z[i] = in_z0[i] * (1.0f - t) + in_z1[i] * t;
+        out.x[i] = in[0].x[i] * (1.0f - t) + in[1].x[i] * t;
+        out.y[i] = in[0].y[i] * (1.0f - t) + in[1].y[i] * t;
+        out.z[i] = in[0].z[i] * (1.0f - t) + in[1].z[i] * t;
     }
 }
 
-// clang-format off
-void linear_interpolation(float* out_x, float* out_y, float* out_z,
-                          const float* in_x0, const float* in_y0, const float* in_z0,
-                          const float* in_x1, const float* in_y1, const float* in_z1,
-                          i64 count, float t)
-// clang-format on
-{
+void linear_interpolation(soa_vec3 out, const soa_vec3 in[2], i64 count, float t) {
     for (i64 i = 0; i < count; i += SIMD_WIDTH) {
-        const SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
-        const SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
-        const SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
+        const SIMD_TYPE_F x0 = SIMD_LOAD_F(in[0].x + i);
+        const SIMD_TYPE_F y0 = SIMD_LOAD_F(in[0].y + i);
+        const SIMD_TYPE_F z0 = SIMD_LOAD_F(in[0].z + i);
 
-        const SIMD_TYPE_F x1 = SIMD_LOAD_F(in_x1 + i);
-        const SIMD_TYPE_F y1 = SIMD_LOAD_F(in_y1 + i);
-        const SIMD_TYPE_F z1 = SIMD_LOAD_F(in_z1 + i);
+        const SIMD_TYPE_F x1 = SIMD_LOAD_F(in[1].x + i);
+        const SIMD_TYPE_F y1 = SIMD_LOAD_F(in[1].y + i);
+        const SIMD_TYPE_F z1 = SIMD_LOAD_F(in[1].z + i);
 
         const SIMD_TYPE_F x = simd::lerp(x0, x1, t);
         const SIMD_TYPE_F y = simd::lerp(y0, y1, t);
         const SIMD_TYPE_F z = simd::lerp(z0, z1, t);
 
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
+        simd::store(out.x + i, x);
+        simd::store(out.y + i, y);
+        simd::store(out.z + i, z);
     }
 }
 
-// clang-format off
-void linear_interpolation_128(float* out_x, float* out_y, float* out_z,
-                              const float* in_x0, const float* in_y0, const float* in_z0,
-                              const float* in_x1, const float* in_y1, const float* in_z1,
-                              i64 count, float t)
-// clang-format on
-{
-    for (i64 i = 0; i < count; i += 4) {
-        const __m128 x0 = simd::load_f128(in_x0 + i);
-        const __m128 y0 = simd::load_f128(in_y0 + i);
-        const __m128 z0 = simd::load_f128(in_z0 + i);
-
-        const __m128 x1 = simd::load_f128(in_x1 + i);
-        const __m128 y1 = simd::load_f128(in_y1 + i);
-        const __m128 z1 = simd::load_f128(in_z1 + i);
-
-        const __m128 x = simd::lerp(x0, x1, t);
-        const __m128 y = simd::lerp(y0, y1, t);
-        const __m128 z = simd::lerp(z0, z1, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-
-#ifdef __AVX__
-// clang-format off
-void linear_interpolation_256(float* out_x, float* out_y, float* out_z,
-                              const float* in_x0, const float* in_y0, const float* in_z0,
-                              const float* in_x1, const float* in_y1, const float* in_z1,
-                              i64 count, float t)
-// clang-format on
-{
-    for (i64 i = 0; i < count; i += 8) {
-        const __m256 x0 = simd::load_f256(in_x0 + i);
-        const __m256 y0 = simd::load_f256(in_y0 + i);
-        const __m256 z0 = simd::load_f256(in_z0 + i);
-
-        const __m256 x1 = simd::load_f256(in_x1 + i);
-        const __m256 y1 = simd::load_f256(in_y1 + i);
-        const __m256 z1 = simd::load_f256(in_z1 + i);
-
-        const __m256 x = simd::lerp(x0, x1, t);
-        const __m256 y = simd::lerp(y0, y1, t);
-        const __m256 z = simd::lerp(z0, z1, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-#endif
-
-// clang-format off
-void linear_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
-                                     const float* in_x0, const float* in_y0, const float* in_z0,
-                                     const float* in_x1, const float* in_y1, const float* in_z1,
-                                     i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
-
+void linear_interpolation_pbc_ref(soa_vec3 out, const soa_vec3 in[2], i64 count, float t, const mat3& sim_box) {
     const float box_ext_x = sim_box[0][0];
     const float box_ext_y = sim_box[1][1];
     const float box_ext_z = sim_box[2][2];
 
     for (i64 i = 0; i < count; i++) {
-        float x0 = in_x0[i];
-        float y0 = in_y0[i];
-        float z0 = in_z0[i];
+        float x0 = in[0].x[i];
+        float y0 = in[0].y[i];
+        float z0 = in[0].z[i];
 
-        float x1 = in_x1[i];
-        float y1 = in_y1[i];
-        float z1 = in_z1[i];
+        float x1 = in[1].x[i];
+        float y1 = in[1].x[i];
+        float z1 = in[1].x[i];
 
         x1 = de_periodize(x1, x0, box_ext_x);
         y1 = de_periodize(y1, y0, box_ext_y);
@@ -714,31 +663,25 @@ void linear_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
         const float y = y0 * (1.0f - t) + y1 * t;
         const float z = z0 * (1.0f - t) + z1 * t;
 
-        out_x[i] = x;
-        out_y[i] = y;
-        out_z[i] = z;
+        out.x[i] = x;
+        out.y[i] = y;
+        out.z[i] = z;
     }
 }
 
-// clang-format off
-void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
-                              const float* in_x0, const float* in_y0, const float* in_z0,
-                              const float* in_x1, const float* in_y1, const float* in_z1,
-                              i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
+void linear_interpolation_pbc(soa_vec3 out, const soa_vec3 in[2], i64 count, float t, const mat3& sim_box) {
     const SIMD_TYPE_F box_ext_x = SIMD_SET_F(sim_box[0][0]);
     const SIMD_TYPE_F box_ext_y = SIMD_SET_F(sim_box[1][1]);
     const SIMD_TYPE_F box_ext_z = SIMD_SET_F(sim_box[2][2]);
 
     for (i64 i = 0; i < count; i += SIMD_WIDTH) {
-        SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
-        SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
-        SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
+        SIMD_TYPE_F x0 = SIMD_LOAD_F(in[0].x + i);
+        SIMD_TYPE_F y0 = SIMD_LOAD_F(in[0].y + i);
+        SIMD_TYPE_F z0 = SIMD_LOAD_F(in[0].z + i);
 
-        SIMD_TYPE_F x1 = SIMD_LOAD_F(in_x1 + i);
-        SIMD_TYPE_F y1 = SIMD_LOAD_F(in_y1 + i);
-        SIMD_TYPE_F z1 = SIMD_LOAD_F(in_z1 + i);
+        SIMD_TYPE_F x1 = SIMD_LOAD_F(in[1].x + i);
+        SIMD_TYPE_F y1 = SIMD_LOAD_F(in[1].y + i);
+        SIMD_TYPE_F z1 = SIMD_LOAD_F(in[1].z + i);
 
         x1 = de_periodize(x1, x0, box_ext_x);
         y1 = de_periodize(y1, y0, box_ext_y);
@@ -748,222 +691,60 @@ void linear_interpolation_pbc(float* out_x, float* out_y, float* out_z,
         const SIMD_TYPE_F y = simd::lerp(y0, y1, t);
         const SIMD_TYPE_F z = simd::lerp(z0, z1, t);
 
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
+        simd::store(out.x + i, x);
+        simd::store(out.y + i, y);
+        simd::store(out.z + i, z);
     }
 }
 
-/*
 // clang-format off
-void linear_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
-                                  const float* in_x0, const float* in_y0, const float* in_z0,
-                                  const float* in_x1, const float* in_y1, const float* in_z1,
-                                  i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
-    const __m128 box_ext_x = simd::set_f128(sim_box[0][0]);
-    const __m128 box_ext_y = simd::set_f128(sim_box[1][1]);
-    const __m128 box_ext_z = simd::set_f128(sim_box[2][2]);
-
-    for (i64 i = 0; i < count; i += 4) {
-        const __m128 x0 = simd::load_f128(in_x0 + i);
-        const __m128 y0 = simd::load_f128(in_y0 + i);
-        const __m128 z0 = simd::load_f128(in_z0 + i);
-
-        __m128 x1 = simd::load_f128(in_x1 + i);
-        __m128 y1 = simd::load_f128(in_y1 + i);
-        __m128 z1 = simd::load_f128(in_z1 + i);
-
-        x1 = de_periodize(x1, x0, box_ext_x);
-        y1 = de_periodize(y1, y0, box_ext_y);
-        z1 = de_periodize(z1, z0, box_ext_z);
-
-        const __m128 x = simd::lerp(x0, x1, t);
-        const __m128 y = simd::lerp(y0, y1, t);
-        const __m128 z = simd::lerp(z0, z1, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-
-#ifdef __AVX__
-// clang-format off
-void linear_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
-                                  const float* in_x0, const float* in_y0, const float* in_z0,
-                                  const float* in_x1, const float* in_y1, const float* in_z1,
-                                  i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
-    const __m256 box_ext_x = simd::set_f256(sim_box[0][0]);
-    const __m256 box_ext_y = simd::set_f256(sim_box[1][1]);
-    const __m256 box_ext_z = simd::set_f256(sim_box[2][2]);
-
-    for (i64 i = 0; i < count; i += 8) {
-        const __m256 x0 = simd::load_f256(in_x0 + i);
-        const __m256 y0 = simd::load_f256(in_y0 + i);
-        const __m256 z0 = simd::load_f256(in_z0 + i);
-
-        __m256 x1 = simd::load_f256(in_x1 + i);
-        __m256 y1 = simd::load_f256(in_y1 + i);
-        __m256 z1 = simd::load_f256(in_z1 + i);
-
-        x1 = de_periodize(x1, x0, box_ext_x);
-        y1 = de_periodize(y1, y0, box_ext_y);
-        z1 = de_periodize(z1, z0, box_ext_z);
-
-        const __m256 x = simd::lerp(x0, x1, t);
-        const __m256 y = simd::lerp(y0, y1, t);
-        const __m256 z = simd::lerp(z0, z1, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-#endif
-*/
-
-// clang-format off
-void cubic_interpolation(float* out_x, float* out_y, float* out_z,
-                         const float* in_x0, const float* in_y0, const float* in_z0,
-                         const float* in_x1, const float* in_y1, const float* in_z1,
-                         const float* in_x2, const float* in_y2, const float* in_z2,
-                         const float* in_x3, const float* in_y3, const float* in_z3,
-                         i64 count, float t)
-// clang-format on
-{
+void cubic_interpolation(soa_vec3 out, const soa_vec3 in[4], i64 count, float t) {
     for (i64 i = 0; i < count; i += SIMD_WIDTH) {
-        const SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
-        const SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
-        const SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
-
-        const SIMD_TYPE_F x1 = SIMD_LOAD_F(in_x1 + i);
-        const SIMD_TYPE_F y1 = SIMD_LOAD_F(in_y1 + i);
-        const SIMD_TYPE_F z1 = SIMD_LOAD_F(in_z1 + i);
-
-        const SIMD_TYPE_F x2 = SIMD_LOAD_F(in_x2 + i);
-        const SIMD_TYPE_F y2 = SIMD_LOAD_F(in_y2 + i);
-        const SIMD_TYPE_F z2 = SIMD_LOAD_F(in_z2 + i);
-
-        const SIMD_TYPE_F x3 = SIMD_LOAD_F(in_x3 + i);
-        const SIMD_TYPE_F y3 = SIMD_LOAD_F(in_y3 + i);
-        const SIMD_TYPE_F z3 = SIMD_LOAD_F(in_z3 + i);
+        const SIMD_TYPE_F x0 = SIMD_LOAD_F(in[0].x + i);
+        const SIMD_TYPE_F y0 = SIMD_LOAD_F(in[0].y + i);
+        const SIMD_TYPE_F z0 = SIMD_LOAD_F(in[0].z + i);
+                                           
+        const SIMD_TYPE_F x1 = SIMD_LOAD_F(in[1].x + i);
+        const SIMD_TYPE_F y1 = SIMD_LOAD_F(in[1].y + i);
+        const SIMD_TYPE_F z1 = SIMD_LOAD_F(in[1].z + i);
+                                    
+        const SIMD_TYPE_F x2 = SIMD_LOAD_F(in[2].x + i);
+        const SIMD_TYPE_F y2 = SIMD_LOAD_F(in[2].y + i);
+        const SIMD_TYPE_F z2 = SIMD_LOAD_F(in[2].z + i);
+                                        
+        const SIMD_TYPE_F x3 = SIMD_LOAD_F(in[3].x + i);
+        const SIMD_TYPE_F y3 = SIMD_LOAD_F(in[3].y + i);
+        const SIMD_TYPE_F z3 = SIMD_LOAD_F(in[3].z + i);
 
         const SIMD_TYPE_F x = simd::cubic_spline(x0, x1, x2, x3, t);
         const SIMD_TYPE_F y = simd::cubic_spline(y0, y1, y2, y3, t);
         const SIMD_TYPE_F z = simd::cubic_spline(z0, z1, z2, z3, t);
 
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
+        simd::store(out.x + i, x);
+        simd::store(out.y + i, y);
+        simd::store(out.z + i, z);
     }
 }
 
-/*
-// clang-format off
-void cubic_interpolation_128(float* out_x, float* out_y, float* out_z,
-                             const float* in_x0, const float* in_y0, const float* in_z0,
-                             const float* in_x1, const float* in_y1, const float* in_z1,
-                             const float* in_x2, const float* in_y2, const float* in_z2,
-                             const float* in_x3, const float* in_y3, const float* in_z3,
-                             i64 count, float t)
-// clang-format on
-{
-    for (i64 i = 0; i < count; i += 4) {
-        const __m128 x0 = simd::load_f128(in_x0 + i);
-        const __m128 y0 = simd::load_f128(in_y0 + i);
-        const __m128 z0 = simd::load_f128(in_z0 + i);
-
-        const __m128 x1 = simd::load_f128(in_x1 + i);
-        const __m128 y1 = simd::load_f128(in_y1 + i);
-        const __m128 z1 = simd::load_f128(in_z1 + i);
-
-        const __m128 x2 = simd::load_f128(in_x2 + i);
-        const __m128 y2 = simd::load_f128(in_y2 + i);
-        const __m128 z2 = simd::load_f128(in_z2 + i);
-
-        const __m128 x3 = simd::load_f128(in_x3 + i);
-        const __m128 y3 = simd::load_f128(in_y3 + i);
-        const __m128 z3 = simd::load_f128(in_z3 + i);
-
-        const __m128 x = simd::cubic_spline(x0, x1, x2, x3, t);
-        const __m128 y = simd::cubic_spline(y0, y1, y2, y3, t);
-        const __m128 z = simd::cubic_spline(z0, z1, z2, z3, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-
-#ifdef __AVX__
-// clang-format off
-void cubic_interpolation_256(float* out_x, float* out_y, float* out_z,
-                             const float* in_x0, const float* in_y0, const float* in_z0,
-                             const float* in_x1, const float* in_y1, const float* in_z1,
-                             const float* in_x2, const float* in_y2, const float* in_z2,
-                             const float* in_x3, const float* in_y3, const float* in_z3,
-                             i64 count, float t)
-// clang-format on
-{
-    for (i64 i = 0; i < count; i += 8) {
-        const __m256 x0 = simd::load_f256(in_x0 + i);
-        const __m256 y0 = simd::load_f256(in_y0 + i);
-        const __m256 z0 = simd::load_f256(in_z0 + i);
-
-        const __m256 x1 = simd::load_f256(in_x1 + i);
-        const __m256 y1 = simd::load_f256(in_y1 + i);
-        const __m256 z1 = simd::load_f256(in_z1 + i);
-
-        const __m256 x2 = simd::load_f256(in_x2 + i);
-        const __m256 y2 = simd::load_f256(in_y2 + i);
-        const __m256 z2 = simd::load_f256(in_z2 + i);
-
-        const __m256 x3 = simd::load_f256(in_x3 + i);
-        const __m256 y3 = simd::load_f256(in_y3 + i);
-        const __m256 z3 = simd::load_f256(in_z3 + i);
-
-        const __m256 x = simd::cubic_spline(x0, x1, x2, x3, t);
-        const __m256 y = simd::cubic_spline(y0, y1, y2, y3, t);
-        const __m256 z = simd::cubic_spline(z0, z1, z2, z3, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-#endif
-*/
-// clang-format off
-void cubic_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
-                                    const float* in_x0, const float* in_y0, const float* in_z0,
-                                    const float* in_x1, const float* in_y1, const float* in_z1,
-                                    const float* in_x2, const float* in_y2, const float* in_z2,
-                                    const float* in_x3, const float* in_y3, const float* in_z3,
-                                    i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
+void cubic_interpolation_pbc_ref(soa_vec3 out, const soa_vec3 in[4], i64 count, float t, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
 
     for (i64 i = 0; i < count; i++) {
-        float x0 = in_x0[i];
-        float y0 = in_y0[i];
-        float z0 = in_z0[i];
+        float x0 = in[0].x[i];
+        float y0 = in[0].y[i];
+        float z0 = in[0].z[i];
 
-        float x1 = in_x1[i];
-        float y1 = in_y1[i];
-        float z1 = in_z1[i];
+        float x1 = in[1].x[i];
+        float y1 = in[1].y[i];
+        float z1 = in[1].z[i];
 
-        float x2 = in_x2[i];
-        float y2 = in_y2[i];
-        float z2 = in_z2[i];
+        float x2 = in[2].x[i];
+        float y2 = in[2].y[i];
+        float z2 = in[2].z[i];
 
-        float x3 = in_x3[i];
-        float y3 = in_y3[i];
-        float z3 = in_z3[i];
+        float x3 = in[3].x[i];
+        float y3 = in[3].y[i];
+        float z3 = in[3].z[i];
 
         x0 = de_periodize(x0, x1, box_ext.x);
         x2 = de_periodize(x2, x1, box_ext.x);
@@ -981,41 +762,33 @@ void cubic_interpolation_pbc_scalar(float* out_x, float* out_y, float* out_z,
         const float y = math::cubic_spline(y0, y1, y2, y3, t);
         const float z = math::cubic_spline(z0, z1, z2, z3, t);
 
-        out_x[i] = x;
-        out_y[i] = y;
-        out_z[i] = z;
+        out.x[i] = x;
+        out.y[i] = y;
+        out.z[i] = z;
     }
 }
 
-// clang-format off
-void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z,
-                             const float* in_x0, const float* in_y0, const float* in_z0,
-                             const float* in_x1, const float* in_y1, const float* in_z1,
-                             const float* in_x2, const float* in_y2, const float* in_z2,
-                             const float* in_x3, const float* in_y3, const float* in_z3,
-                             i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
+void cubic_interpolation_pbc(soa_vec3 out, const soa_vec3 in[4], i64 count, float t, const mat3& sim_box) {
     const SIMD_TYPE_F box_ext_x = SIMD_SET_F(sim_box[0][0]);
     const SIMD_TYPE_F box_ext_y = SIMD_SET_F(sim_box[1][1]);
     const SIMD_TYPE_F box_ext_z = SIMD_SET_F(sim_box[2][2]);
 
     for (i64 i = 0; i < count; i += SIMD_WIDTH) {
-        const SIMD_TYPE_F x0 = SIMD_LOAD_F(in_x0 + i);
-        const SIMD_TYPE_F y0 = SIMD_LOAD_F(in_y0 + i);
-        const SIMD_TYPE_F z0 = SIMD_LOAD_F(in_z0 + i);
+        const SIMD_TYPE_F x0 = SIMD_LOAD_F(in[0].x + i);
+        const SIMD_TYPE_F y0 = SIMD_LOAD_F(in[0].y + i);
+        const SIMD_TYPE_F z0 = SIMD_LOAD_F(in[0].z + i);
 
-        const SIMD_TYPE_F x1 = SIMD_LOAD_F(in_x1 + i);
-        const SIMD_TYPE_F y1 = SIMD_LOAD_F(in_y1 + i);
-        const SIMD_TYPE_F z1 = SIMD_LOAD_F(in_z1 + i);
+        const SIMD_TYPE_F x1 = SIMD_LOAD_F(in[1].x + i);
+        const SIMD_TYPE_F y1 = SIMD_LOAD_F(in[1].y + i);
+        const SIMD_TYPE_F z1 = SIMD_LOAD_F(in[1].z + i);
 
-        const SIMD_TYPE_F x2 = SIMD_LOAD_F(in_x2 + i);
-        const SIMD_TYPE_F y2 = SIMD_LOAD_F(in_y2 + i);
-        const SIMD_TYPE_F z2 = SIMD_LOAD_F(in_z2 + i);
+        const SIMD_TYPE_F x2 = SIMD_LOAD_F(in[2].x + i);
+        const SIMD_TYPE_F y2 = SIMD_LOAD_F(in[2].y + i);
+        const SIMD_TYPE_F z2 = SIMD_LOAD_F(in[2].z + i);
 
-        const SIMD_TYPE_F x3 = SIMD_LOAD_F(in_x3 + i);
-        const SIMD_TYPE_F y3 = SIMD_LOAD_F(in_y3 + i);
-        const SIMD_TYPE_F z3 = SIMD_LOAD_F(in_z3 + i);
+        const SIMD_TYPE_F x3 = SIMD_LOAD_F(in[3].x + i);
+        const SIMD_TYPE_F y3 = SIMD_LOAD_F(in[3].y + i);
+        const SIMD_TYPE_F z3 = SIMD_LOAD_F(in[3].z + i);
 
         const SIMD_TYPE_F dp_x0 = de_periodize(x0, x1, box_ext_x);
         const SIMD_TYPE_F dp_x2 = de_periodize(x2, x1, box_ext_x);
@@ -1033,222 +806,40 @@ void cubic_interpolation_pbc(float* out_x, float* out_y, float* out_z,
         const SIMD_TYPE_F y = simd::cubic_spline(dp_y0, y1, dp_y2, dp_y3, t);
         const SIMD_TYPE_F z = simd::cubic_spline(dp_z0, z1, dp_z2, dp_z3, t);
 
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
+        simd::store(out.x + i, x);
+        simd::store(out.y + i, y);
+        simd::store(out.z + i, z);
     }
 }
 
-/*
-// clang-format off
-void cubic_interpolation_pbc_128(float* out_x, float* out_y, float* out_z,
-                                 const float* in_x0, const float* in_y0, const float* in_z0,
-                                 const float* in_x1, const float* in_y1, const float* in_z1,
-                                 const float* in_x2, const float* in_y2, const float* in_z2,
-                                 const float* in_x3, const float* in_y3, const float* in_z3,
-                                 i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
-    const __m128 box_ext_x = simd::set_f128(sim_box[0][0]);
-    const __m128 box_ext_y = simd::set_f128(sim_box[1][1]);
-    const __m128 box_ext_z = simd::set_f128(sim_box[2][2]);
-
-    for (i64 i = 0; i < count; i += 4) {
-        const __m128 x0 = simd::load_f128(in_x0 + i);
-        const __m128 y0 = simd::load_f128(in_y0 + i);
-        const __m128 z0 = simd::load_f128(in_z0 + i);
-
-        const __m128 x1 = simd::load_f128(in_x1 + i);
-        const __m128 y1 = simd::load_f128(in_y1 + i);
-        const __m128 z1 = simd::load_f128(in_z1 + i);
-
-        const __m128 x2 = simd::load_f128(in_x2 + i);
-        const __m128 y2 = simd::load_f128(in_y2 + i);
-        const __m128 z2 = simd::load_f128(in_z2 + i);
-
-        const __m128 x3 = simd::load_f128(in_x3 + i);
-        const __m128 y3 = simd::load_f128(in_y3 + i);
-        const __m128 z3 = simd::load_f128(in_z3 + i);
-
-        const __m128 dp_x0 = de_periodize(x0, x1, box_ext_x);
-        const __m128 dp_x2 = de_periodize(x2, x1, box_ext_x);
-        const __m128 dp_x3 = de_periodize(x3, dp_x2, box_ext_x);
-
-        const __m128 dp_y0 = de_periodize(y0, y1, box_ext_y);
-        const __m128 dp_y2 = de_periodize(y2, y1, box_ext_y);
-        const __m128 dp_y3 = de_periodize(y3, dp_y2, box_ext_y);
-
-        const __m128 dp_z0 = de_periodize(z0, z1, box_ext_z);
-        const __m128 dp_z2 = de_periodize(z2, z1, box_ext_z);
-        const __m128 dp_z3 = de_periodize(z3, dp_z2, box_ext_z);
-
-        const __m128 x = simd::cubic_spline(dp_x0, x1, dp_x2, dp_x3, t);
-        const __m128 y = simd::cubic_spline(dp_y0, y1, dp_y2, dp_y3, t);
-        const __m128 z = simd::cubic_spline(dp_z0, z1, dp_z2, dp_z3, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-
-#ifdef __AVX__
-// clang-format off
-void cubic_interpolation_pbc_256(float* out_x, float* out_y, float* out_z,
-                                 const float* in_x0, const float* in_y0, const float* in_z0,
-                                 const float* in_x1, const float* in_y1, const float* in_z1,
-                                 const float* in_x2, const float* in_y2, const float* in_z2,
-                                 const float* in_x3, const float* in_y3, const float* in_z3,
-                                 i64 count, float t, const mat3& sim_box)
-// clang-format on
-{
-    const __m256 box_ext_x = simd::set_f256(sim_box[0][0]);
-    const __m256 box_ext_y = simd::set_f256(sim_box[1][1]);
-    const __m256 box_ext_z = simd::set_f256(sim_box[2][2]);
-
-    for (i64 i = 0; i < count; i += 8) {
-        __m256 x0 = simd::load_f256(in_x0 + i);
-        __m256 y0 = simd::load_f256(in_y0 + i);
-        __m256 z0 = simd::load_f256(in_z0 + i);
-
-        __m256 x1 = simd::load_f256(in_x1 + i);
-        __m256 y1 = simd::load_f256(in_y1 + i);
-        __m256 z1 = simd::load_f256(in_z1 + i);
-
-        __m256 x2 = simd::load_f256(in_x2 + i);
-        __m256 y2 = simd::load_f256(in_y2 + i);
-        __m256 z2 = simd::load_f256(in_z2 + i);
-
-        __m256 x3 = simd::load_f256(in_x3 + i);
-        __m256 y3 = simd::load_f256(in_y3 + i);
-        __m256 z3 = simd::load_f256(in_z3 + i);
-
-        const __m256 dp_x0 = de_periodize(x0, x1, box_ext_x);
-        const __m256 dp_x2 = de_periodize(x2, x1, box_ext_x);
-        const __m256 dp_x3 = de_periodize(x3, dp_x2, box_ext_x);
-
-        const __m256 dp_y0 = de_periodize(y0, y1, box_ext_y);
-        const __m256 dp_y2 = de_periodize(y2, y1, box_ext_y);
-        const __m256 dp_y3 = de_periodize(y3, dp_y2, box_ext_y);
-
-        const __m256 dp_z0 = de_periodize(z0, z1, box_ext_z);
-        const __m256 dp_z2 = de_periodize(z2, z1, box_ext_z);
-        const __m256 dp_z3 = de_periodize(z3, dp_z2, box_ext_z);
-
-        const __m256 x = simd::cubic_spline(dp_x0, x1, dp_x2, dp_x3, t);
-        const __m256 y = simd::cubic_spline(dp_y0, y1, dp_y2, dp_y3, t);
-        const __m256 z = simd::cubic_spline(dp_z0, z1, dp_z2, dp_z3, t);
-
-        simd::store(out_x + i, x);
-        simd::store(out_y + i, y);
-        simd::store(out_z + i, z);
-    }
-}
-
-#endif
-*/
-
-void apply_pbc(float* x, float* y, float* z, const float* mass, i64 count, const mat3& sim_box) {
+void apply_pbc(soa_vec3 in_out, const float in_mass[], i64 count, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
-    const vec3 com = compute_com_periodic(x, y, z, mass, count, sim_box);
+    const vec3 com = compute_com_periodic(in_out, in_mass, count, sim_box);
     const vec3 com_dp = math::fract(com * one_over_box_ext) * box_ext;
 
     for (i64 i = 0; i < count; i++) {
-        x[i] = de_periodize(x[i], com_dp.x, box_ext.x);
-        y[i] = de_periodize(y[i], com_dp.y, box_ext.y);
-        z[i] = de_periodize(z[i], com_dp.z, box_ext.z);
+        in_out.x[i] = de_periodize(in_out.x[i], com_dp.x, box_ext.x);
+        in_out.y[i] = de_periodize(in_out.y[i], com_dp.y, box_ext.y);
+        in_out.z[i] = de_periodize(in_out.z[i], com_dp.z, box_ext.z);
     }
 }
 
-void apply_pbc(float* x, float* y, float* z, const float* mass, const AtomRange* sequences, i64 num_sequences, const mat3& sim_box) {
+void apply_pbc(soa_vec3 in_out, const float in_mass[], const AtomRange in_sequences[], i64 num_sequences, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
 
     for (i64 i = 0; i < num_sequences; i++) {
-        const i64 offset = sequences[i].atom_range.beg;
-        const i64 size = sequences[i].atom_range.ext();
-        float* seq_x = x + offset;
-        float* seq_y = y + offset;
-        float* seq_z = z + offset;
-        const float* seq_mass = mass + offset;
-        apply_pbc(seq_x, seq_y, seq_z, seq_mass, size, sim_box);
+        const i64 offset = in_sequences[i].beg;
+        const i64 size = in_sequences[i].ext();
+        soa_vec3 seq_pos = in_out + offset;
+        const float* seq_mass = in_mass + offset;
+        apply_pbc(seq_pos, seq_mass, size, sim_box);
     }
 }
 
-bool valid_segment(const BackboneSegment& segment) { return segment.ca_idx != 0 && segment.c_idx != 0 && segment.n_idx != 0 && segment.o_idx != 0; }
-
-i64 compute_covalent_bonds(DynamicArray<Bond>* dst_bond, const soa_vec3 in_position, const Element in_element[], i64 count) {
-    ASSERT(dst_bond);
-
-    const i64 start_size = dst_bond->size();
-    constexpr float max_covelent_bond_length = 4.0f;
-    spatialhash::Frame frame = spatialhash::compute_frame(in_position.x, in_position.y, in_position.z, count, vec3(max_covelent_bond_length));
-
-    for (int i = 0; i < count; i++) {
-        const vec3& pos_xyz = {in_position.x[i], in_position.y[i], in_position.z[i]};
-        spatialhash::for_each_within(frame, pos_xyz, max_covelent_bond_length, [dst_bond, in_position, in_element, i](int j, const vec3& atom_j_pos) {
-            (void)atom_j_pos;
-            if (i == j) return;
-            bool has_bond = covelent_bond_heuristic(in_position.x[i], in_position.y[i], in_position.z[i], in_element[i], in_position.x[j],
-                                                    in_position.y[j], in_position.z[j], in_element[j]);
-            if (i < j && has_bond) {
-                dst_bond->push_back({{i, j}});
-            }
-        });
-    }
-
-    return dst_bond->size() - start_size;
-}
-
-DynamicArray<ResRange> compute_sequences() {
-    DynamicArray<Sequence> seq;
-
-    seq.push_back({{0, 1}, residues[0].atom_range});
-    for (ResIdx i = 0; i < (ResIdx)residues.size() - 1; i++) {
-        if (has_covalent_bond(residues[i], residues[i + 1])) {
-            seq.back().res_range.end++;
-            seq.back().atom_range.end = residues[i + 1].atom_range.end;
-        } else {
-            seq.push_back({{i + 1, i + 2}, residues[i + 1].atom_range});
-        }
-    }
-
-    return seq;
-}
-
-DynamicArray<BackboneSequence> compute_backbone_sequences(Array<const BackboneSegment> segments, Array<const Residue> residues) {
-    if (segments.count == 0) return {};
-    ASSERT(segments.count == residues.count);
-
-    DynamicArray<BackboneSequence> bb_sequences;
-    for (ResIdx i = 0; i < (ResIdx)residues.size(); i++) {
-        if (valid_segment(segments[i])) {
-            bb_sequences.push_back({i, i + 1});
-            while (i < (ResIdx)residues.size() - 1 && valid_segment(segments[i + 1]) && has_covalent_bond(residues[i], residues[i + 1])) {
-                bb_sequences.back().end++;
-                i++;
-            }
-        }
-    }
-
-    return bb_sequences;
-}
-
-
-/*
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> backbone, const float* pos_x, const float* pos_y,
-                                                    const float* pos_z) {
-    if (backbone.count == 0) return {};
-    DynamicArray<BackboneAngle> angles(backbone.count);
-    compute_backbone_angles(angles, backbone, pos_x, pos_y, pos_z);
-    return angles;
-}
-*/
-
-void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone_segments, const float* pos_x, const float* pos_y, const float* pos_z,
-                             i64 num_segments) {
+void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, const BackboneSegment backbone_segments[], i64 num_segments) {
     ASSERT(dst);
     ASSERT(backbone_segments);
     float phi = 0, psi = 0;
@@ -1258,28 +849,28 @@ void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone
     }
 
     ASSERT(valid_segment(backbone_segments[0]));
-    vec3 n = {pos_x[backbone_segments[0].n_idx], pos_y[backbone_segments[0].n_idx], pos_z[backbone_segments[0].n_idx]};
-    vec3 ca = {pos_x[backbone_segments[0].ca_idx], pos_y[backbone_segments[0].ca_idx], pos_z[backbone_segments[0].ca_idx]};
-    vec3 c = {pos_x[backbone_segments[0].c_idx], pos_y[backbone_segments[0].c_idx], pos_z[backbone_segments[0].c_idx]};
+    vec3 n =  { in_pos.x[backbone_segments[0].n_idx],  in_pos.y[backbone_segments[0].n_idx],  in_pos.z[backbone_segments[0].n_idx]  };
+    vec3 ca = { in_pos.x[backbone_segments[0].ca_idx], in_pos.y[backbone_segments[0].ca_idx], in_pos.z[backbone_segments[0].ca_idx] };
+    vec3 c =  { in_pos.x[backbone_segments[0].c_idx],  in_pos.y[backbone_segments[0].c_idx],  in_pos.z[backbone_segments[0].c_idx]  };
 
     vec3 c_prev = c;
-    vec3 n_next = {pos_x[backbone_segments[1].n_idx], pos_y[backbone_segments[1].n_idx], pos_z[backbone_segments[1].n_idx]};
+    vec3 n_next = {in_pos.x[backbone_segments[1].n_idx], in_pos.y[backbone_segments[1].n_idx], in_pos.z[backbone_segments[1].n_idx]};
     phi = 0.0f;
     psi = math::dihedral_angle(n, ca, c, n_next);
-    dst[0] = {phi, psi};
+    out_angle[0] = {phi, psi};
 
     for (i64 i = 1; i < num_segments - 1; i++) {
         ASSERT(valid_segment(backbone_segments[i]));
 
         c_prev = c;
         n = n_next;
-        ca = {pos_x[backbone_segments[i].ca_idx], pos_y[backbone_segments[i].ca_idx], pos_z[backbone_segments[i].ca_idx]};
-        c = {pos_x[backbone_segments[i].c_idx], pos_y[backbone_segments[i].c_idx], pos_z[backbone_segments[i].c_idx]};
-        n_next = {pos_x[backbone_segments[i + 1].n_idx], pos_y[backbone_segments[i + 1].n_idx], pos_z[backbone_segments[i + 1].n_idx]};
+        ca = {in_pos.x[backbone_segments[i].ca_idx], in_pos.y[backbone_segments[i].ca_idx], in_pos.z[backbone_segments[i].ca_idx]};
+        c = {in_pos.x[backbone_segments[i].c_idx], in_pos.y[backbone_segments[i].c_idx], in_pos.z[backbone_segments[i].c_idx]};
+        n_next = {in_pos.x[backbone_segments[i + 1].n_idx], in_pos.y[backbone_segments[i + 1].n_idx], in_pos.z[backbone_segments[i + 1].n_idx]};
 
         phi = math::dihedral_angle(c_prev, n, ca, c);
         psi = math::dihedral_angle(n, ca, c, n_next);
-        dst[i] = {phi, psi};
+        out_angle[i] = {phi, psi};
     }
 
     auto N = num_segments - 1;
@@ -1287,62 +878,32 @@ void compute_backbone_angles(BackboneAngle* dst, const BackboneSegment* backbone
 
     c_prev = c;
     n = n_next;
-    ca = {pos_x[backbone_segments[N].ca_idx], pos_y[backbone_segments[N].ca_idx], pos_z[backbone_segments[N].ca_idx]};
-    c = {pos_x[backbone_segments[N].c_idx], pos_y[backbone_segments[N].c_idx], pos_z[backbone_segments[N].c_idx]};
+    ca = {in_pos.x[backbone_segments[N].ca_idx], in_pos.y[backbone_segments[N].ca_idx], in_pos.z[backbone_segments[N].ca_idx]};
+    c = {in_pos.x[backbone_segments[N].c_idx], in_pos.y[backbone_segments[N].c_idx], in_pos.z[backbone_segments[N].c_idx]};
 
     phi = math::dihedral_angle(c_prev, n, ca, c);
     psi = 0.0f;
-    dst[N] = {phi, psi};
+    out_angle[N] = {phi, psi};
 }
 
-/*
-DynamicArray<BackboneAngle> compute_backbone_angles(Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences,
-                                                    const float* pos_x, const float* pos_y, const float* pos_z) {
-    if (segments.size() == 0) return {};
-    DynamicArray<BackboneAngle> angles(segments.count);
-    compute_backbone_angles(angles, segments, sequences, pos_x, pos_y, pos_z);
-    return angles;
-}
-
-
-void compute_backbone_angles(BackboneAngle dst, Array<const BackboneSegment> segments, Array<const BackboneSequence> sequences,
-                             const float* pos_x, const float* pos_y, const float* pos_z) {
-    for (const auto& seq : sequences) {
-        compute_backbone_angles(dst.subarray(seq.beg, seq.end - seq.beg), segments.subarray(seq.beg, seq.end - seq.beg), pos_x, pos_y, pos_z);
-    }
-}
-*/
-
-DynamicArray<float> compute_atom_radii(Array<const Element> elements) {
-    DynamicArray<float> radii(elements.size(), 0);
-    compute_atom_radii(radii.data(), elements.data(), radii.size());
-    return radii;
-}
-
-void compute_atom_radii(float* out_radius, const Element* element, i64 count) {
+void compute_atom_radius(float out_radius[], const Element in_element[], i64 count) {
     for (i64 i = 0; i < count; i++) {
-        out_radius[i] = element::vdw_radius(element[i]);
+        out_radius[i] = element::vdw_radius(in_element[i]);
     }
 }
 
-DynamicArray<float> compute_atom_masses(Array<const Element> elements) {
-    DynamicArray<float> mass(elements.size(), 0);
-    compute_atom_radii(mass.data(), elements.data(), mass.size());
-    return mass;
-}
-
-void compute_atom_masses(float* out_mass, const Element* element, i64 count) {
+void compute_atom_mass(float out_mass[], const Element in_element[], i64 count) {
     for (i64 i = 0; i < count; i++) {
-        out_mass[i] = element::vdw_radius(element[i]);
+        out_mass[i] = element::vdw_radius(in_element[i]);
     }
 }
 
-bool is_amino_acid(const Residue& res) { return get_amino_acid_from_string(res.name) != AminoAcid::Unknown; }
+bool is_amino_acid(const Label& res_label) { return get_amino_acid_from_string(res_label) != AminoAcid::Unknown; }
 
 static constexpr CStringView dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
-bool is_dna(const Residue& res) {
+bool is_dna(const Label& res_label) {
     for (auto dna_res : dna_residues) {
-        if (compare(res.name, dna_res)) return true;
+        if (compare(res_label, dna_res)) return true;
     }
     return false;
 }
@@ -1350,7 +911,7 @@ bool is_dna(const Residue& res) {
 DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol) {
     DynamicArray<Label> types = {};
     Label cur_lbl = {};
-    for (const auto& res : mol.residues) {
+    for (const auto& res : mol.residue.name) {
         if (res.name != cur_lbl) {
             types.push_back(res.name);
         }

@@ -31,6 +31,7 @@ struct BackboneSegment {
     AtomIdx n_idx = 0;
     AtomIdx c_idx = 0;
     AtomIdx o_idx = 0;
+    ResIdx res_idx = 0;
 };
 
 struct BackboneAngle {
@@ -82,11 +83,7 @@ struct MoleculeStructure {
     struct {
         // Aligned data
         i64 count = 0;
-        struct {
-            float* x = nullptr;
-            float* y = nullptr;
-            float* z = nullptr;
-        } position;
+        soa_vec3 position = {nullptr, nullptr, nullptr};
         float* radius = nullptr;
         float* mass = nullptr;
 
@@ -129,6 +126,7 @@ struct MoleculeStructure {
     struct {
         i64 count = 0;
         Label* id = nullptr;
+        AtomRange* atom_range = nullptr;
         ResRange* residue_range = nullptr;
     } chain;
 
@@ -174,6 +172,15 @@ inline vec3 get_atom_position(const MoleculeStructure& mol, AtomIdx i) {
     return { mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i] };
 }
 
+inline Array<float> get_radii(MoleculeStructure& mol) { return Array<float>(mol.atom.radius, mol.atom.count); }
+inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.element, mol.atom.count); }
+inline Array<const Element> get_elements(const MoleculeStructure& mol) { return Array<const Element>(mol.atom.element, mol.atom.count); }
+inline Array<Label> get_labels(MoleculeStructure& mol) { return Array<Label>(mol.atom.label, mol.atom.count); }
+inline Array<const Label> get_labels(const MoleculeStructure& mol) { return Array<const Label>(mol.atom.label, mol.atom.count); }
+inline Array<ResIdx> get_residue_indices(MoleculeStructure& mol) { return Array<ResIdx>(mol.atom.res_idx, mol.atom.count); }
+inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return Array<const ResIdx>(mol.atom.res_idx, mol.atom.count); }
+
+
 inline i64 get_residue_atom_count(const MoleculeStructure& mol, ResIdx i) {
     ASSERT(0 <= i && i < mol.residue.count);
     return mol.residue.atom_range[i].ext();
@@ -185,15 +192,41 @@ inline soa_vec3 get_residue_positions(MoleculeStructure& mol, ResIdx i) {
             mol.atom.position.z + mol.residue.atom_range->beg};
 }
 
-inline const soa_vec3 get_residue_positions(const MoleculeStructure& mol, ResIdx i) {
+inline soa_vec3 get_residue_positions(MoleculeStructure& mol, ResIdx i) {
     ASSERT(0 <= i && i < mol.residue.count);
     return {mol.atom.position.x + mol.residue.atom_range->beg, mol.atom.position.y + mol.residue.atom_range->beg,
             mol.atom.position.z + mol.residue.atom_range->beg};
 }
 
-inline const Element* get_residue_elements(const MoleculeStructure& mol, ResIdx i) {
+inline Array<Label> get_residue_ids(MoleculeStructure& mol) {
     ASSERT(0 <= i && i < mol.residue.count);
-    return mol.atom.element + mol.residue.atom_range->beg;
+    return {mol.residue.id, mol.residue.count};
+}
+
+inline Array<const Label> get_residue_ids(const MoleculeStructure& mol) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return {mol.residue.id, mol.residue.count};
+}
+
+inline Array<Element> get_residue_elements(MoleculeStructure& mol, ResIdx i) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return {mol.atom.element + mol.residue.atom_range[i].beg, mol.residue.atom_range[i].ext()};
+}
+
+inline Array<BackboneSegment> get_backbone_segments(MoleculeStructure& mol, BackboneSequence seq) {
+    return {mol.backbone.segment.segment + seq.beg, seq.ext()};
+}
+
+inline Array<const BackboneSegment> get_backbone_segments(const MoleculeStructure& mol, BackboneSequence seq) {
+    return {mol.backbone.segment.segment + seq.beg, seq.ext()};
+}
+
+inline Array<BackboneAngle> get_backbone_angles(MoleculeStructure& mol, BackboneSequence seq) {
+    return {mol.backbone.segment.angle + seq.beg, seq.ext()};
+}
+
+inline const Array<BackboneSequence> get_backbone_sequences(const MoleculeStructure& mol) {
+    return {mol.backbone.sequence.segment_range, mol.backbone.sequence.count};
 }
 
 /*
@@ -218,15 +251,6 @@ inline Array<float> get_positions_y(MoleculeStructure& mol) { return Array<float
 inline Array<const float> get_positions_y(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.y, mol.atom.count); }
 inline Array<float> get_positions_z(MoleculeStructure& mol) { return Array<float>(mol.atom.position.z, mol.atom.count); }
 inline Array<const float> get_positions_z(const MoleculeStructure& mol) { return Array<const float>(mol.atom.position.z, mol.atom.count); }
-
-inline Array<float> get_radii(MoleculeStructure& mol) { return Array<float>(mol.atom.radius, mol.atom.count); }
-
-inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.element, mol.atom.count); }
-inline Array<const Element> get_elements(const MoleculeStructure& mol) { return Array<const Element>(mol.atom.element, mol.atom.count); }
-inline Array<Label> get_labels(MoleculeStructure& mol) { return Array<Label>(mol.atom.label, mol.atom.count); }
-inline Array<const Label> get_labels(const MoleculeStructure& mol) { return Array<const Label>(mol.atom.label, mol.atom.count); }
-inline Array<ResIdx> get_residue_indices(MoleculeStructure& mol) { return Array<ResIdx>(mol.atom.res_idx, mol.atom.count); }
-inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return Array<const ResIdx>(mol.atom.res_idx, mol.atom.count); }
 
 // Backbone accessors
 inline Array<BackboneSegment> get_backbone(MoleculeStructure& mol, BackboneSequence seq) {
