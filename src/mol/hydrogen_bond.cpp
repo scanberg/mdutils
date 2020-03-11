@@ -34,7 +34,7 @@ DynamicArray<HydrogenBondDonor> compute_donors(const MoleculeStructure& mol) {
 // This essentially just a filter on atom element which extracts Oxygen and Nitrogen
 DynamicArray<HydrogenBondAcceptor> compute_acceptors(const Element in_element[], i64 count) {
     DynamicArray<HydrogenBondAcceptor> acceptors;
-    for (i64 i = 0; i < (count; i++) {
+    for (i64 i = 0; i < count; i++) {
         if (in_element[i] == Element::O || in_element[i] == Element::N || in_element[i] == Element::F) {
             acceptors.push_back(i);
         }
@@ -64,7 +64,7 @@ DynamicArray<HydrogenBond> compute_bonds(Array<const HydrogenBondDonor> donors, 
         acceptor_idx[i] = acceptors[i];
     }
 
-    spatialhash::Frame frame = spatialhash::compute_frame(acceptor_pos_x, acceptor_pos_y, acceptor_pos_z, num_acceptors, vec3(dist_cutoff));
+    spatialhash::Frame frame = spatialhash::compute_frame(acceptor_pos_x.data(), acceptor_pos_y.data(), acceptor_pos_z.data(), num_acceptors, vec3(dist_cutoff));
     for (const auto& don : donors) {
         const vec3 donor_pos_xyz = {in_position.x[don.donor_idx], in_position.y[don.donor_idx], in_position.z[don.donor_idx]};
         const vec3 hydro_pos_xyz = {in_position.x[don.hydro_idx], in_position.y[don.hydro_idx], in_position.z[don.hydro_idx]};

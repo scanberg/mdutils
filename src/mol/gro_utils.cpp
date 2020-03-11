@@ -44,9 +44,8 @@ inline void extract_residue_data(Label* name, int* id, CStringView line) {
     *id = to_int(line.substr(0, 5));
 }
 
-inline void extract_atom_data(Label* label, int* id, CStringView line) {
+inline void extract_atom_label(Label* label, CStringView line) {
     *label = trim(line.substr(10, 5));
-    *id = to_int(line.substr(15, 5));
 }
 
 inline void extract_position_data(float* x, float* y, float* z, CStringView line, int width) {
@@ -55,7 +54,7 @@ inline void extract_position_data(float* x, float* y, float* z, CStringView line
     *z = str_to_float(line.substr(20 + 2 * width, width)) * 10.0f;
 }
 
-inline void extract_box_ext_data(float* x, float* y float* z, CStringView line) {
+inline void extract_box_ext_data(float* x, float* y, float* z, CStringView line) {
     *x = str_to_float(line.substr(0, 8));
     *y = str_to_float(line.substr(10, 8));
     *z = str_to_float(line.substr(20, 8));
@@ -89,8 +88,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
         line = extract_line(gro_string);
         
         AtomDescriptor& atom = atoms.allocate_back();
-        extract_atom_data(atom.label, &atom_idx, line);
-        extract_position_data(&atom.position.x, &atom.position.y, &atom.position.z, line, format.pos_width);
+        extract_atom_label(&atom.label, line);
+        extract_position_data(&atom.x, &atom.y, &atom.z, line, format.pos_width);
         
         int res_id = to_int(line.substr(0, 5));
         if (cur_res != res_id) { 

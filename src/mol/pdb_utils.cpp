@@ -16,10 +16,10 @@
 namespace pdb {
 
 inline CStringView extract_next_model(CStringView& pdb_string) {
-    CStringView beg_mdl = find_string(pdb_string, "\nMODEL ");
+    CStringView beg_mdl = find_pattern_in_string(pdb_string, "\nMODEL ");
     if (beg_mdl) {
         CStringView tmp_mdl = {beg_mdl.end(), pdb_string.end() - beg_mdl.end()};
-        CStringView end_mdl = find_string(tmp_mdl, "\nENDMDL");  // @NOTE: The more characters as a search pattern, the merrier
+        CStringView end_mdl = find_pattern_in_string(tmp_mdl, "\nENDMDL");  // @NOTE: The more characters as a search pattern, the merrier
         if (end_mdl) {
             // @NOTE: Only modify pdb_string if we found a complete model block.
             pdb_string = {end_mdl.end(), pdb_string.end() - end_mdl.end()};
@@ -453,7 +453,7 @@ bool read_trajectory_simulation_box(mat3* sim_box, CStringView filename) {
         char* buf = (char*)TMP_MALLOC(buf_size);
         ASSERT(buf);
         const i64 bytes_read = fread(buf, 1, buf_size, file);
-        CStringView line = find_string({buf, bytes_read}, "CRYST1");
+        CStringView line = find_pattern_in_string({buf, bytes_read}, "CRYST1");
         if (line) {
             line.count = 54;
             extract_simulation_box(sim_box, line);

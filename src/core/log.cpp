@@ -1,4 +1,6 @@
-#include <core/log.h>
+#include "core/log.h"
+
+#include <core/array_types.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>

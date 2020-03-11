@@ -102,7 +102,7 @@ struct Array {
     constexpr bool empty() const noexcept { return count == 0; }
 
     constexpr operator bool() const noexcept { return ptr != nullptr && count > 0; }
-    constexpr operator T*() const noexcept { return ptr; }
+    //constexpr operator T*() const noexcept { return ptr; }
 
     constexpr const T& operator[](i64 i) const noexcept {
         ASSERT(i < count);

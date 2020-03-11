@@ -364,23 +364,23 @@ AABB compute_aabb(const soa_vec3 in_pos, const float in_r[], i64 count) {
     return aabb;
 }
 
-vec3 compute_com(const soa_vec3 in_pos, i64 count) {
+vec3 compute_com(const float in_x[], const float in_y[], const float in_z[], i64 count) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
+    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
     vec3 sum{0};
     i64 i = 0;
 
     if (count > SIMD_WIDTH) {
         const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
-        SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x);
-        SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y);
-        SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z);
+        SIMD_TYPE_F x = SIMD_LOAD_F(in_x);
+        SIMD_TYPE_F y = SIMD_LOAD_F(in_y);
+        SIMD_TYPE_F z = SIMD_LOAD_F(in_z);
         i += SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
-            x = simd::add(x, SIMD_LOAD_F(in_pos.x + i));
-            y = simd::add(y, SIMD_LOAD_F(in_pos.y + i));
-            z = simd::add(z, SIMD_LOAD_F(in_pos.z + i));
+            x = simd::add(x, SIMD_LOAD_F(in_x + i));
+            y = simd::add(y, SIMD_LOAD_F(in_y + i));
+            z = simd::add(z, SIMD_LOAD_F(in_z + i));
         }
         sum.x = simd::horizontal_add(x);
         sum.y = simd::horizontal_add(y);
@@ -388,16 +388,16 @@ vec3 compute_com(const soa_vec3 in_pos, i64 count) {
     }
 
     for (; i < count; i++) {
-        sum.x += in_pos.x[i];
-        sum.y += in_pos.y[i];
-        sum.z += in_pos.z[i];
+        sum.x += in_x[i];
+        sum.y += in_y[i];
+        sum.z += in_z[i];
     }
     return sum / (float)count;
 }
 
-vec3 compute_com(const soa_vec3 in_pos, const float in_m[], i64 count) {
+vec3 compute_com(const float in_x[], const float in_y[], const float in_z[], const float in_m[], i64 count) {
     if (count == 0) return vec3(0);
-    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
+    if (count == 1) return {in_x[0], in_y[0], in_z[0]};
 
     vec3 vec_sum{0, 0, 0};
     float mass_sum = 0.0f;
@@ -406,15 +406,15 @@ vec3 compute_com(const soa_vec3 in_pos, const float in_m[], i64 count) {
     const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
     if (simd_count > SIMD_WIDTH) {
         SIMD_TYPE_F m = SIMD_LOAD_F(in_m);
-        SIMD_TYPE_F x = simd::mul(SIMD_LOAD_F(in_pos.x), m);
-        SIMD_TYPE_F y = simd::mul(SIMD_LOAD_F(in_pos.y), m);
-        SIMD_TYPE_F z = simd::mul(SIMD_LOAD_F(in_pos.z), m);
+        SIMD_TYPE_F x = simd::mul(SIMD_LOAD_F(in_x), m);
+        SIMD_TYPE_F y = simd::mul(SIMD_LOAD_F(in_y), m);
+        SIMD_TYPE_F z = simd::mul(SIMD_LOAD_F(in_z), m);
         i += SIMD_WIDTH;
         for (; i < simd_count; i += SIMD_WIDTH) {
             const SIMD_TYPE_F mass = SIMD_LOAD_F(in_m + i);
-            x = simd::add(x, simd::mul(SIMD_LOAD_F(in_pos.x + i), mass));
-            y = simd::add(y, simd::mul(SIMD_LOAD_F(in_pos.y + i), mass));
-            z = simd::add(z, simd::mul(SIMD_LOAD_F(in_pos.z + i), mass));
+            x = simd::add(x, simd::mul(SIMD_LOAD_F(in_x + i), mass));
+            y = simd::add(y, simd::mul(SIMD_LOAD_F(in_y + i), mass));
+            z = simd::add(z, simd::mul(SIMD_LOAD_F(in_z + i), mass));
             m = simd::add(m, mass);
         }
         vec_sum.x = simd::horizontal_add(x);
@@ -425,9 +425,9 @@ vec3 compute_com(const soa_vec3 in_pos, const float in_m[], i64 count) {
 
     for (; i < count; i++) {
         const float mass = in_m[i];
-        vec_sum.x += in_pos.x[i] * mass;
-        vec_sum.y += in_pos.y[i] * mass;
-        vec_sum.z += in_pos.z[i] * mass;
+        vec_sum.x += in_x[i] * mass;
+        vec_sum.y += in_y[i] * mass;
+        vec_sum.z += in_z[i] * mass;
         mass_sum += mass;
     }
     return vec_sum / mass_sum;
@@ -827,9 +827,6 @@ void apply_pbc(soa_vec3 in_out, const float in_mass[], i64 count, const mat3& si
 }
 
 void apply_pbc(soa_vec3 in_out, const float in_mass[], const AtomRange in_sequences[], i64 num_sequences, const mat3& sim_box) {
-    const vec3 box_ext = sim_box * vec3(1.0f);
-    const vec3 one_over_box_ext = 1.0f / box_ext;
-
     for (i64 i = 0; i < num_sequences; i++) {
         const i64 offset = in_sequences[i].beg;
         const i64 size = in_sequences[i].ext();
@@ -840,7 +837,7 @@ void apply_pbc(soa_vec3 in_out, const float in_mass[], const AtomRange in_sequen
 }
 
 void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, const BackboneSegment backbone_segments[], i64 num_segments) {
-    ASSERT(dst);
+    ASSERT(out_angle);
     ASSERT(backbone_segments);
     float phi = 0, psi = 0;
 
@@ -911,9 +908,9 @@ bool is_dna(const Label& res_label) {
 DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol) {
     DynamicArray<Label> types = {};
     Label cur_lbl = {};
-    for (const auto& res : mol.residue.name) {
-        if (res.name != cur_lbl) {
-            types.push_back(res.name);
+    for (const auto& name : get_residue_names(mol)) {
+        if (name != cur_lbl) {
+            types.push_back(name);
         }
     }
     return types;
@@ -921,8 +918,8 @@ DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol) {
 
 DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name) {
     DynamicArray<ResIdx> residues;
-    for (ResIdx i = 0; i < (ResIdx)mol.residues.size(); i++) {
-        if (mol.residues[i].name == name) {
+    for (ResIdx i = 0; i < (ResIdx)mol.residue.count; i++) {
+        if (mol.residue.name[i] == name) {
             residues.push_back(i);
         }
     }

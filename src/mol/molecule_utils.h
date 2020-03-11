@@ -37,8 +37,11 @@ void homogeneous_transform(soa_vec3 out, const soa_vec3 in, i64 count, const mat
 AABB compute_aabb(const soa_vec3 in_pos, i64 count);
 AABB compute_aabb(const soa_vec3 in_pos, const float in_radius[], i64 count);
 
-vec3 compute_com(const soa_vec3 in_pos, i64 count);
-vec3 compute_com(const soa_vec3 in_pos, const float in_mass[], i64 count);
+vec3 compute_com(const float in_x[], const float in_y[], const float in_z[], i64 count);
+inline vec3 compute_com(const soa_vec3& in_pos, i64 count) { return compute_com(in_pos.x, in_pos.y, in_pos.z, count); }
+
+vec3 compute_com(const float in_x[], const float in_y[], const float in_z[], const float in_mass[], i64 count);
+inline vec3 compute_com(const soa_vec3& in_pos, const float in_mass[], i64 count) { return compute_com(in_pos.x, in_pos.y, in_pos.z, in_mass, count); }
 
 vec3 compute_com_periodic(const soa_vec3 in_position, const float in_mass[], i64 count, const mat3& box);
 vec3 compute_com_periodic_ref(const soa_vec3 in_position, const float in_mass[], i64 count, const mat3& box);

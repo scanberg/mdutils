@@ -167,6 +167,11 @@ StringView allocate_and_read_textfile(CStringView filename);
 // If no matching pattern is found, -1 is returned
 i64 find_pattern_in_file(CStringView filename, CStringView pattern);
 
+// Attempts to find a pattern inside a target string
+// Returns empty CString if pattern is not found
+// Otherwise it returns the CString pointing to the location of the pattern inside target and has the size of the pattern.
+CStringView find_pattern_in_string(CStringView string, CStringView pattern);
+
 template <typename Func>
 bool for_each_pattern_found_in_file(CStringView filename, CStringView pattern, Func func) {
     FILE* file = fopen(filename, "rb");
@@ -185,7 +190,7 @@ bool for_each_pattern_found_in_file(CStringView filename, CStringView pattern, F
     i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
 
     CStringView str = {buf, (i64)bytes_read};
-    while (CStringView match = find_string(str, pattern)) {
+    while (CStringView match = find_pattern_in_string(str, pattern)) {
         func((i64)(match.beg() - buf));
         str = {match.end(), str.end()};
     }
@@ -198,7 +203,7 @@ bool for_each_pattern_found_in_file(CStringView filename, CStringView pattern, F
         file_pos += chunk_size;
 
         str = {buf, (i64)bytes_read};
-        while (CStringView match = find_string(str, pattern)) {
+        while (CStringView match = find_pattern_in_string(str, pattern)) {
             func(file_pos + (i64)(match.beg() - buf));
             str = {match.end(), str.end()};
         }
@@ -233,11 +238,6 @@ void convert_backslashes(StringView str);
 
 CStringView extract_parentheses(CStringView str);
 CStringView extract_parentheses_contents(CStringView str);
-
-// Attempts to find a pattern inside a target string
-// Returns empty CString if pattern is not found
-// Otherwise it returns the CString pointing to the location of the pattern inside target and has the size of the pattern.
-CStringView find_string(CStringView target, CStringView pattern);
 
 // Tokenizes a string into shorter strings based on some delimiter
 DynamicArray<CStringView> tokenize(CStringView str, char delimiter = ' ');

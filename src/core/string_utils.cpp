@@ -264,7 +264,7 @@ i64 find_pattern_in_file(CStringView filename, CStringView pattern) {
     i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
 
     CStringView str = {buf, (i64)bytes_read};
-    if (CStringView match = find_string(str, pattern)) {
+    if (CStringView match = find_pattern_in_string(str, pattern)) {
         return (i64)(match.beg() - buf);
     }
 
@@ -276,7 +276,7 @@ i64 find_pattern_in_file(CStringView filename, CStringView pattern) {
         byte_offset += chunk_size;
 
         str = {buf, (i64)bytes_read};
-        if (CStringView match = find_string(str, pattern)) {
+        if (CStringView match = find_pattern_in_string(str, pattern)) {
             return byte_offset + (i64)(match.beg() - buf);
         }
     }
@@ -302,7 +302,7 @@ DynamicArray<i64> find_patterns_in_file(CStringView filename, CStringView patter
     i64 bytes_read = (i64)fread(buf, 1, buf_size, file);
 
     CStringView str = {buf, (i64)bytes_read};
-    while (CStringView match = find_string(str, pattern)) {
+    while (CStringView match = find_pattern_in_string(str, pattern)) {
         offsets.push_back((i64)(match.beg() - buf));
         str = {match.end(), str.end()};
     }
@@ -315,7 +315,7 @@ DynamicArray<i64> find_patterns_in_file(CStringView filename, CStringView patter
         byte_offset += chunk_size;
 
         str = {buf, (i64)bytes_read};
-        while (CStringView match = find_string(str, pattern)) {
+        while (CStringView match = find_pattern_in_string(str, pattern)) {
             offsets.push_back(byte_offset + (i64)(match.beg() - buf));
             str = {match.end(), str.end()};
         }
@@ -521,7 +521,7 @@ CStringView extract_parentheses_contents(CStringView str) {
     return {p.beg() + 1, p.end() - 1};
 }
 
-CStringView find_string(CStringView target, CStringView pattern) {
+CStringView find_pattern_in_string(CStringView target, CStringView pattern) {
     if (pattern.count == 0 || target.count < pattern.count) return {};
 
     char* ptr = Railgun_Trolldom((char*)target.cstr(), (char*)pattern.cstr(), (u32)target.size_in_bytes(), (u32)pattern.size_in_bytes());

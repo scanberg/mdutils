@@ -1,6 +1,6 @@
 #pragma once
 
-#include "string_utils.h"
+#include "string_types.h"
 
 #define LOG_NOTE(...) logging::record(logging::Severity::Note, __VA_ARGS__);
 #define LOG_WARNING(...) logging::record(logging::Severity::Warning, __VA_ARGS__);

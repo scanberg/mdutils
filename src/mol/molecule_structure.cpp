@@ -81,7 +81,7 @@ static DynamicArray<Bond> compute_covalent_bonds(MoleculeStructure& mol) {
 template <i64 N>
 static bool match(const Label& lbl, const char (&cstr)[N]) {
     for (i64 i = 0; i < N; i++) {
-        if (tolower(lbl[i]) != tolower(cstr[i])) return false;
+        if (to_lower(lbl[i]) != to_lower(cstr[i])) return false;
     }
     return true;
 }
@@ -128,7 +128,7 @@ static BackboneData compute_backbone(const MoleculeStructure& mol) {
             if (seq.ext() > 1) {
                 data.sequences.push_back(seq);
             }
-            seq = {data.segments.size(), 0};
+            seq = {(SegIdx)data.segments.size(), 0};
         }
     }
     if (seq.ext() > 1) {
@@ -240,7 +240,7 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
                 if (range.ext() > 1) {
                     seq.push_back(range);
                 }
-                range = {i + 1, i + 2};
+                range = {(ResIdx)i + 1, (ResIdx)i + 2};
             }
         }
 

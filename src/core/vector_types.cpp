@@ -1,5 +1,3 @@
-#pragma once
-
 #define HAS_VECTOR_TEMPLATE_INSTANTIATION
 #include "vector_types.h"
 

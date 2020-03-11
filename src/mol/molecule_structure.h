@@ -180,6 +180,21 @@ inline Array<const Label> get_labels(const MoleculeStructure& mol) { return Arra
 inline Array<ResIdx> get_residue_indices(MoleculeStructure& mol) { return Array<ResIdx>(mol.atom.res_idx, mol.atom.count); }
 inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return Array<const ResIdx>(mol.atom.res_idx, mol.atom.count); }
 
+inline Array<Label> get_residue_names(MoleculeStructure& mol) {
+    return {mol.residue.name, mol.residue.count};
+}
+
+inline Array<const Label> get_residue_names(const MoleculeStructure& mol) {
+    return {mol.residue.name, mol.residue.count};
+}
+
+inline Array<ResIdx> get_reisidue_ids(MoleculeStructure& mol) {
+    return {mol.residue.id, mol.residue.count};
+}
+
+inline Array<const ResIdx> get_reisidue_ids(const MoleculeStructure& mol) {
+    return {mol.residue.id, mol.residue.count};
+}
 
 inline i64 get_residue_atom_count(const MoleculeStructure& mol, ResIdx i) {
     ASSERT(0 <= i && i < mol.residue.count);
@@ -188,30 +203,24 @@ inline i64 get_residue_atom_count(const MoleculeStructure& mol, ResIdx i) {
 
 inline soa_vec3 get_residue_positions(MoleculeStructure& mol, ResIdx i) {
     ASSERT(0 <= i && i < mol.residue.count);
-    return {mol.atom.position.x + mol.residue.atom_range->beg, mol.atom.position.y + mol.residue.atom_range->beg,
-            mol.atom.position.z + mol.residue.atom_range->beg};
+    return mol.atom.position + mol.residue.atom_range->beg;
 }
 
-inline soa_vec3 get_residue_positions(MoleculeStructure& mol, ResIdx i) {
+inline const soa_vec3 get_residue_positions(const MoleculeStructure& mol, ResIdx i) {
     ASSERT(0 <= i && i < mol.residue.count);
-    return {mol.atom.position.x + mol.residue.atom_range->beg, mol.atom.position.y + mol.residue.atom_range->beg,
-            mol.atom.position.z + mol.residue.atom_range->beg};
-}
-
-inline Array<Label> get_residue_ids(MoleculeStructure& mol) {
-    ASSERT(0 <= i && i < mol.residue.count);
-    return {mol.residue.id, mol.residue.count};
-}
-
-inline Array<const Label> get_residue_ids(const MoleculeStructure& mol) {
-    ASSERT(0 <= i && i < mol.residue.count);
-    return {mol.residue.id, mol.residue.count};
+    return mol.atom.position + mol.residue.atom_range->beg;
 }
 
 inline Array<Element> get_residue_elements(MoleculeStructure& mol, ResIdx i) {
     ASSERT(0 <= i && i < mol.residue.count);
     return {mol.atom.element + mol.residue.atom_range[i].beg, mol.residue.atom_range[i].ext()};
 }
+
+inline Array<const Element> get_residue_elements(const MoleculeStructure& mol, ResIdx i) {
+    ASSERT(0 <= i && i < mol.residue.count);
+    return {mol.atom.element + mol.residue.atom_range[i].beg, mol.residue.atom_range[i].ext()};
+}
+
 
 inline Array<BackboneSegment> get_backbone_segments(MoleculeStructure& mol, BackboneSequence seq) {
     return {mol.backbone.segment.segment + seq.beg, seq.ext()};
