@@ -39,22 +39,26 @@ inline LineFormat get_format(CStringView line) {
     return fmt;
 }
 
-inline void extract_residue_data(char* name, int* id, CStringView line) {
-    const auto trim_name = trim(line.substr(5, 5));
-    memcpy(name, trim_name.beg(), trim_name.size_in_bytes());
+inline void extract_residue_data(Label* name, int* id, CStringView line) {
+    *name = trim(line.substr(5, 5));
     *id = to_int(line.substr(0, 5));
 }
 
-inline void extract_atom_data(char* name, int* id, CStringView line) {
-    const auto trim_name = trim(line.substr(10, 5));
-    memcpy(name, trim_name.beg(), trim_name.size_in_bytes());
+inline void extract_atom_data(Label* label, int* id, CStringView line) {
+    *label = trim(line.substr(10, 5));
     *id = to_int(line.substr(15, 5));
 }
 
 inline void extract_position_data(float* x, float* y, float* z, CStringView line, int width) {
-    *x = str_to_float(line.substr(20 + 0 * width, width));
-    *y = str_to_float(line.substr(20 + 1 * width, width));
-    *z = str_to_float(line.substr(20 + 2 * width, width));
+    *x = str_to_float(line.substr(20 + 0 * width, width)) * 10.0f; // nm -> Å
+    *y = str_to_float(line.substr(20 + 1 * width, width)) * 10.0f;
+    *z = str_to_float(line.substr(20 + 2 * width, width)) * 10.0f;
+}
+
+inline void extract_box_ext_data(float* x, float* y float* z, CStringView line) {
+    *x = str_to_float(line.substr(0, 8));
+    *y = str_to_float(line.substr(10, 8));
+    *z = str_to_float(line.substr(20, 8));
 }
 
 bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
@@ -67,144 +71,47 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
         return false;
     }
 
-    i64 mem_size = (sizeof(float) * (3 + 3 + 1 + 1) + sizeof(Label) + sizeof(Element) + sizeof(ResIdx)) * num_atoms;
-    void* mem = TMP_MALLOC(mem_size);
-    defer { TMP_FREE(mem); };
-    memset(mem, 0, mem_size);
-
-    float* atom_pos_x = (float*)mem;
-    float* atom_pos_y = (float*)(atom_pos_x + num_atoms);
-    float* atom_pos_z = (float*)(atom_pos_y + num_atoms);
-    float* atom_vel_x = (float*)(atom_pos_z + num_atoms);
-    float* atom_vel_y = (float*)(atom_vel_x + num_atoms);
-    float* atom_vel_z = (float*)(atom_vel_y + num_atoms);
-    float* atom_radius = (float*)(atom_vel_z + num_atoms);
-    float* atom_mass = (float*)(atom_radius + num_atoms);
-    Label* atom_label = (Label*)(atom_mass + num_atoms);
-    Element* atom_element = (Element*)(atom_label + num_atoms);
-    ResIdx* atom_res_idx = (ResIdx*)(atom_element + num_atoms);
-
-    DynamicArray<Residue> residues;
-
     const LineFormat format = get_format(peek_line(gro_string));
     if (format.pos_width == -1) {
         LOG_ERROR("Could not identify internal line format of gro file!");
         return false;
     }
+
+    DynamicArray<AtomDescriptor> atoms;
+    DynamicArray<ResidueDescriptor> residues;
+    atoms.reserve(num_atoms);
+
     int res_count = 0;
     int cur_res = -1;
     CStringView line;
 
     for (int i = 0; i < num_atoms; ++i) {
-        float pos[3] = {0, 0, 0};
-        float vel[3] = {0, 0, 0};
-        int atom_idx, res_id;
-        char atom_name[8] = {};
-        char res_name[8] = {};
-
         line = extract_line(gro_string);
-        // @NOTE: Avoid using sscanf since it on GCC uses strlen in the back and is slow.
-
-        extract_residue_data(res_name, &res_id, line);
-        extract_atom_data(atom_name, &atom_idx, line);
-        extract_position_data(&pos[0], &pos[1], &pos[2], line, format.pos_width);
-
-        if (cur_res != res_id) {
-            cur_res = res_id;
-            res_count = (int)residues.size();
-            CStringView res_name_trim = trim(CStringView(res_name));
-            Residue res{};
-            res.name = res_name_trim;
+        
+        AtomDescriptor& atom = atoms.allocate_back();
+        extract_atom_data(atom.label, &atom_idx, line);
+        extract_position_data(&atom.position.x, &atom.position.y, &atom.position.z, line, format.pos_width);
+        
+        int res_id = to_int(line.substr(0, 5));
+        if (cur_res != res_id) { 
+            ResidueDescriptor& res = residues.allocate_back();
+            res.name = trim(line.substr(5, 5));
             res.id = res_id;
-            // res.chain_idx = 0;
             res.atom_range = {i, i};
-            residues.push_back(res);
+            cur_res = res_id;
         }
+
+        atoms.back().residue_index = (ResIdx)residues.size();
         residues.back().atom_range.end++;
-
-        CStringView atom_name_trim = trim(CStringView(atom_name));
-        CStringView element_str = atom_name_trim;
-
-        if (is_amino_acid(residues.back())) {
-            // If we have an amino acid, we can assume its an organic element with just one letter. C/N/H/O?
-            element_str = element_str.substr(0, 1);
-        }
-        Element elem = get_element_from_string(element_str);
-
-        // Convert from nm to ångström
-        atom_pos_x[i] = pos[0] * 10.f;
-        atom_pos_y[i] = pos[1] * 10.f;
-        atom_pos_z[i] = pos[2] * 10.f;
-        atom_vel_x[i] = vel[0] * 10.f;
-        atom_vel_y[i] = vel[1] * 10.f;
-        atom_vel_z[i] = vel[2] * 10.f;
-
-        atom_label[i] = atom_name_trim;
-        atom_element[i] = elem;
-        atom_res_idx[i] = res_count;
     }
 
-    vec3 box{};
-    line = extract_line(gro_string);
-    sscanf(line.cstr(), "%8f %8f %8f", &box.x, &box.y, &box.z);
+    MoleculeStructureDescriptor desc;
+    desc.num_atoms = atoms.size();
+    desc.atoms = atoms.data();
+    desc.num_residues = residues.size();
+    desc.residues = residues.data();
 
-    // Convert from nm to ångström
-    box *= 10.f;
-
-    compute_atom_radii(atom_radius, atom_element, num_atoms);
-    compute_atom_masses(atom_mass, atom_element, num_atoms);
-    auto covalent_bonds = compute_covalent_bonds(residues, atom_pos_x, atom_pos_y, atom_pos_z, atom_element, num_atoms);
-    auto backbone_segments = compute_backbone_segments(residues, {atom_label, num_atoms});
-    auto backbone_sequences = compute_backbone_sequences(backbone_segments, residues);
-    auto sequences = compute_sequences(residues);
-    auto donors = hydrogen_bond::compute_donors({atom_element, num_atoms}, {atom_res_idx, num_atoms}, residues, covalent_bonds);
-    auto acceptors = hydrogen_bond::compute_acceptors({atom_element, num_atoms});
-
-    init_molecule_structure(mol, num_atoms, (i32)covalent_bonds.size(), (i32)residues.size(), 0, (i32)sequences.size(), (i32)backbone_segments.size(), (i32)backbone_sequences.size(),
-                            (i32)donors.size(), (i32)acceptors.size());
-
-    for (i32 i = 0; i < num_atoms; i++) {
-        mol->atom.res_idx[i] = -1;
-        mol->atom.chain_idx[i] = -1;
-        mol->atom.seq_idx[i] = -1;
-    }
-
-    for (SeqIdx seq_idx = 0; seq_idx < (SeqIdx)sequences.size(); seq_idx++) {
-        for (AtomIdx i = sequences[seq_idx].atom_range.beg; i != sequences[seq_idx].atom_range.end; i++) {
-            mol->atom.seq_idx[i] = seq_idx;
-        }
-    }
-
-    // Copy data into molecule
-    memcpy(mol->atom.position.x, atom_pos_x, sizeof(float) * num_atoms);
-    memcpy(mol->atom.position.y, atom_pos_y, sizeof(float) * num_atoms);
-    memcpy(mol->atom.position.z, atom_pos_z, sizeof(float) * num_atoms);
-
-    memcpy(mol->atom.velocity.x, atom_vel_x, sizeof(float) * num_atoms);
-    memcpy(mol->atom.velocity.y, atom_vel_y, sizeof(float) * num_atoms);
-    memcpy(mol->atom.velocity.z, atom_vel_z, sizeof(float) * num_atoms);
-
-    memcpy(mol->atom.radius, atom_radius, sizeof(float) * num_atoms);
-    memcpy(mol->atom.mass, atom_mass, sizeof(float) * num_atoms);
-
-    memcpy(mol->atom.element, atom_element, sizeof(Element) * num_atoms);
-    memcpy(mol->atom.label, atom_label, sizeof(Label) * num_atoms);
-    memcpy(mol->atom.res_idx, atom_res_idx, sizeof(ResIdx) * num_atoms);
-
-    memcpy(mol->residues.data(), residues.data(), residues.size_in_bytes());
-    memcpy(mol->sequences.data(), sequences.data(), sequences.size_in_bytes());
-    memcpy(mol->covalent_bonds.data(), covalent_bonds.data(), covalent_bonds.size_in_bytes());
-    memcpy(mol->backbone.segments.data(), backbone_segments.data(), backbone_segments.size_in_bytes());
-    memcpy(mol->backbone.sequences.data(), backbone_sequences.data(), backbone_sequences.size_in_bytes());
-    memcpy(mol->hydrogen_bond.donors.data(), donors.data(), donors.size_in_bytes());
-    memcpy(mol->hydrogen_bond.acceptors.data(), acceptors.data(), acceptors.size_in_bytes());
-
-    for (const auto& bb_seq : mol->backbone.sequences) {
-        auto segments = get_backbone(*mol, bb_seq);
-        compute_backbone_angles(mol->backbone.angles.data(), segments.data(), atom_pos_x, atom_pos_y, atom_pos_z, segments.size());
-    }
-
-    return true;
+    return init_molecule_structure(mol, desc);
 }
 
 }  // namespace gro

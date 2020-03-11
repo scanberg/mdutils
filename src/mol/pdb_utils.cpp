@@ -143,8 +143,6 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
 
     int current_res_id = -1;
     char current_chain_id = -1;
-    int num_atoms = 0;
-    mat3 box(1);
     CStringView line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
@@ -169,7 +167,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
                 ResidueDescriptor& res = residues.allocate_back();
                 res.name = trim(line.substr(17, 3));
                 res.id = res_id;
-                res.atom_range = {num_atoms, num_atoms};
+                res.atom_range = {(AtomIdx)atoms.size(), (AtomIdx)atoms.size()};
                 current_res_id = res_id;
 
                 if (chains.size() > 0) {
@@ -177,8 +175,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
                 }
             }
 
-            if (residues.size() > 0) residues.back().atom_range.end++;
-            num_atoms++;
+            atoms.back().residue_index = (ResIdx)residues.size();
+            residues.back().atom_range.end++;
             /* } else if (compare_n(line, "BOND", 4)) { */
         } else if (compare_n(line, "HELIX", 5)) {
             SecondaryStructureDescriptor& ss = secondary_structures.allocate_back();
