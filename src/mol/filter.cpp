@@ -386,10 +386,10 @@ bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stor
                                             }});
 
         context->filter_commands.push_back({"resname", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
-                                                for (int i = 0; i < args.count; i++) {
-                                                    for (i64 i = 0; i < ctx.mol.residue.count; i++) {
-                                                        if (compare(args[i], ctx.mol.residue.name[i])) {
-                                                            bitfield::set_range(mask, ctx.mol.residue.atom_range[i]);
+                                                for (i64 i = 0; i < args.count; i++) {
+                                                    for (i64 j = 0; j < ctx.mol.residue.count; j++) {
+                                                        if (compare(args[i], ctx.mol.residue.name[j])) {
+                                                            bitfield::set_range(mask, ctx.mol.residue.atom_range[j]);
                                                         }
                                                     }
                                                 }
