@@ -92,7 +92,7 @@ struct soa_vec3 {
     float* __restrict z;
 };
 
-soa_vec3 operator+(const soa_vec3& in, i64 offset) {
+inline soa_vec3 operator+(const soa_vec3& in, i64 offset) {
     return {in.x + offset, in.y + offset, in.z + offset};
 }
 
