@@ -2,6 +2,7 @@
 #include <core/spatial_hash.h>
 #include <mol/molecule_utils.h>
 #include <mol/hydrogen_bond.h>
+#include <mol/element_utils.h>
 
 // 64-byte alignment for 512-bit vectorization (AVX512 and beyond!)
 #define ALIGNMENT 64
@@ -97,42 +98,46 @@ static BackboneData compute_backbone(const MoleculeStructure& mol) {
     BackboneData data{};
     BackboneSequence seq{};
 
-    for (i64 ri = 0; ri < mol.residue.count; ri++) {
-        BackboneSegment seg{};
-        if (mol.residue.atom_range[ri].ext() >= min_atom_count) {
-            // find atoms
-            for (i32 i = mol.residue.atom_range[ri].beg; i < mol.residue.atom_range[ri].end; i++) {
-                const auto& lbl = mol.atom.label[i];
-                if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
-                if (seg.n_idx == -1 && match(lbl, "N")) seg.n_idx = i;
-                if (seg.c_idx == -1 && match(lbl, "C")) seg.c_idx = i;
-                if (seg.o_idx == -1 && match(lbl, "O")) seg.o_idx = i;
-            }
-
-            // Could not match "O"
-            if (seg.o_idx == -1) {
-                // Pick first atom containing O after C atom
-                for (i32 i = seg.c_idx; i < mol.residue.atom_range[ri].end; i++) {
+    for (i64 ci = 0; ci < mol.chain.count; ci++) {
+        for (i64 ri = mol.chain.residue_range[ci].beg; ri < mol.chain.residue_range[ci].end; ri++) {
+            BackboneSegment seg = {-1, -1, -1, -1, ri};
+            if (mol.residue.atom_range[ri].ext() >= min_atom_count) {
+                // find atoms
+                for (i32 i = mol.residue.atom_range[ri].beg; i < mol.residue.atom_range[ri].end; i++) {
                     const auto& lbl = mol.atom.label[i];
-                    if (lbl[0] == 'o' || lbl[0] == 'O') {
-                        seg.o_idx = i;
-                        break;
+                    if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
+                    if (seg.n_idx  == -1 && match(lbl, "N"))  seg.n_idx  = i;
+                    if (seg.c_idx  == -1 && match(lbl, "C"))  seg.c_idx  = i;
+                    if (seg.o_idx  == -1 && match(lbl, "O"))  seg.o_idx  = i;
+                }
+
+                // Could not match "O"
+                if (seg.o_idx == -1) {
+                    // Pick first atom containing O after C atom
+                    for (i32 i = seg.c_idx; i < mol.residue.atom_range[ri].end; i++) {
+                        const auto& lbl = mol.atom.label[i];
+                        if (lbl[0] == 'o' || lbl[0] == 'O') {
+                            seg.o_idx = i;
+                            break;
+                        }
                     }
                 }
             }
-        }
-        if (valid_segment(seg)) {
-            data.segments.push_back(seg);
-            seq.end++;
-        } else {
-            if (seq.ext() > 1) {
-                data.sequences.push_back(seq);
+
+            if ((seg.ca_idx != -1) && (seg.n_idx != -1) && (seg.c_idx != -1) && (seg.o_idx != -1) && valid_segment(seg)) {
+                data.segments.push_back(seg);
+                seq.end++;
+            } else {
+                if (seq.ext() > 1) {
+                    data.sequences.push_back(seq);
+                }
+                seq = {(SegIdx)data.segments.size(), (SegIdx)data.segments.size()};
             }
-            seq = {(SegIdx)data.segments.size(), 0};
         }
-    }
-    if (seq.ext() > 1) {
-        data.sequences.push_back(seq);
+        if (seq.ext() > 1) {
+            data.sequences.push_back(seq);
+            seq = {(SegIdx)data.segments.size(), (SegIdx)data.segments.size()};
+        }
     }
 
     return data;
@@ -171,12 +176,17 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
                 mol->atom.position.x[i] = desc.atoms[i].x;
                 mol->atom.position.y[i] = desc.atoms[i].y;
                 mol->atom.position.z[i] = desc.atoms[i].z;
-                // radius
-                // mass
+
                 mol->atom.element[i] = desc.atoms[i].element;
+                if (mol->atom.element[i] == Element::Unknown) {
+                    mol->atom.element[i] = get_element_from_string(desc.atoms[i].label);
+                }
+
+                mol->atom.radius[i] = element::vdw_radius(mol->atom.element[i]);
+                mol->atom.mass[i] = element::atomic_mass(mol->atom.element[i]);
                 mol->atom.label[i] = desc.atoms[i].label;
                 mol->atom.res_idx[i] = desc.atoms[i].residue_index;
-                // chain idx
+                mol->atom.chain_idx[i] = INVALID_CHAIN_IDX;
             }
         }
     }
@@ -203,7 +213,7 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
         }
     }
 
-    // We ignore bonds for now and derive our own
+    // We ignore bonds for now and compute our own
     {
         DynamicArray<Bond> bonds = compute_covalent_bonds(*mol);
         mol->covalent_bond.bond = (Bond*)MALLOC(bonds.size_in_bytes());
@@ -218,18 +228,15 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
 
         mol->chain.count = desc.num_chains;
         mol->chain.id = (Label*)mem;
-        mol->chain.atom_range = (AtomRange*)(mol->chain.id + desc.num_chains);
-        mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + desc.num_chains);
+        mol->chain.atom_range = (AtomRange*)(mol->chain.id + mol->chain.count);
+        mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + mol->chain.count);
         if (desc.chains) {
             for (i32 i = 0; i < desc.num_chains; i++) {
                 mol->chain.id[i] = desc.chains[i].id;
                 mol->chain.residue_range[i] = desc.chains[i].residue_range;
-                auto res_range = desc.chains[i].residue_range;
-                if (res_range.ext() > 0)
-                    mol->chain.atom_range[i] = {mol->residue.atom_range[res_range.beg].beg, mol->residue.atom_range[res_range.end - 1].end};
             }
         }
-    } else if (mol->residue.count > 0) {
+    } else if (desc.num_residues > 0 && desc.residues) {
         // Generate artificial chains for every connected sequence of residues, ignore single residues e.g ext() == 1
         DynamicArray<ResRange> seq;
         ResRange range{0, 1};
@@ -238,47 +245,66 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
                 range.end++;
             } else {
                 if (range.ext() > 1) {
+                    range.end++;
                     seq.push_back(range);
                 }
                 range = {(ResIdx)i + 1, (ResIdx)i + 2};
             }
         }
 
-        const i64 mem_size = seq.size() * (sizeof(Label) + sizeof(ResRange));
+        const i64 mem_size = seq.size() * (sizeof(Label) + sizeof(AtomRange) + sizeof(ResRange));
         void* mem = MALLOC(mem_size);
 
         mol->chain.count = seq.size();
         mol->chain.id = (Label*)mem;
-        mol->chain.residue_range = (ResRange*)(mol->chain.id + desc.num_chains);
+        mol->chain.atom_range = (AtomRange*)(mol->chain.id + mol->chain.count);
+        mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + mol->chain.count);
 
-        // @TODO: Generate proper labels for the sequences
         memset(mol->chain.id, 0, seq.size() * sizeof(Label));
         for (i64 i = 0; i < seq.size(); i++) {
+            if (seq.size() < ('Z' - 'A')) {
+                mol->chain.id[i] = 'A' + i;
+            } else {
+                snprintf(mol->chain.id[i].buffer, Label::MaxSize, "C%i", (int)i);
+            }
             mol->chain.residue_range[i] = seq[i];
+        }
+    }
+
+    // Fix missing info for chains
+    for (i64 i = 0; i < mol->chain.count; i++) {
+        // Compute atom ranges for chains
+        auto rr = mol->chain.residue_range[i];
+        if (rr.ext() > 0)
+            mol->chain.atom_range[i] = {mol->residue.atom_range[rr.beg].beg, mol->residue.atom_range[rr.end - 1].end};
+
+        // Set references atoms to chains
+        for (i64 j = mol->chain.atom_range[i].beg; j < mol->chain.atom_range[i].end; j++) {
+            mol->atom.chain_idx[j] = i;
         }
     }
 
     {
         BackboneData bb_data = compute_backbone(*mol);
-        {
-            const i64 mem_size = bb_data.segments.size() * (sizeof(BackboneSegment) + sizeof(BackboneAngle) + sizeof(SecondaryStructure));
-            void* mem = MALLOC(mem_size);
-            mol->backbone.segment.count = bb_data.segments.size();
-            mol->backbone.segment.segment = (BackboneSegment*)mem;
-            mol->backbone.segment.angle = (BackboneAngle*)(mol->backbone.segment.segment + mol->backbone.segment.count);
-            mol->backbone.segment.secondary_structure = (SecondaryStructure*)(mol->backbone.segment.angle + mol->backbone.segment.count);
 
-            for (i64 i = 0; i < bb_data.segments.size(); i++) {
-                mol->backbone.segment.segment[i] = bb_data.segments[i];
-                mol->backbone.segment.angle[i] = {};
-                mol->backbone.segment.secondary_structure[i] = {};
-            }
+        const i64 mem_size = bb_data.segments.size() * (sizeof(BackboneSegment) + sizeof(BackboneAngle) + sizeof(SecondaryStructure));
+        void* mem = MALLOC(mem_size);
+        mol->backbone.segment.count = bb_data.segments.size();
+        mol->backbone.segment.segment = (BackboneSegment*)mem;
+        mol->backbone.segment.angle = (BackboneAngle*)(mol->backbone.segment.segment + mol->backbone.segment.count);
+        mol->backbone.segment.secondary_structure = (SecondaryStructure*)(mol->backbone.segment.angle + mol->backbone.segment.count);
+
+        for (i64 i = 0; i < bb_data.segments.size(); i++) {
+            mol->backbone.segment.segment[i] = bb_data.segments[i];
+            mol->backbone.segment.angle[i] = {};
+            mol->backbone.segment.secondary_structure[i] = {};
         }
-        {
-            mol->backbone.sequence.segment_range = (SegRange*)MALLOC(bb_data.sequences.size_in_bytes());
-            mol->backbone.sequence.count = bb_data.segments.size();
-            memcpy(mol->backbone.sequence.segment_range, bb_data.sequences.data(), bb_data.sequences.size_in_bytes());
-        }
+
+        compute_backbone_angles(mol->backbone.segment.angle, mol->atom.position, mol->backbone.segment.segment, mol->backbone.segment.count);
+
+        mol->backbone.sequence.segment_range = (SegRange*)MALLOC(bb_data.sequences.size_in_bytes());
+        mol->backbone.sequence.count = bb_data.sequences.size();
+        memcpy(mol->backbone.sequence.segment_range, bb_data.sequences.data(), bb_data.sequences.size_in_bytes());
     }
 
     if (desc.num_secondary_structures > 0) {

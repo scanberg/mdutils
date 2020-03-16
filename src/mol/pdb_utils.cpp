@@ -146,11 +146,6 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     CStringView line;
     while (pdb_string && (line = extract_line(pdb_string))) {
         if (compare_n(line, "ATOM", 4) || compare_n(line, "HETATM", 6)) {
-            AtomDescriptor& atom = atoms.allocate_back();
-            extract_position(&atom.x, &atom.y, &atom.z, line);
-            extract_label(&atom.label, line);
-            extract_element(&atom.element, line);
-
             int res_id = to_int(line.substr(22, 4));
             char chain_id = line[21];
 
@@ -175,7 +170,12 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
                 }
             }
 
-            atoms.back().residue_index = (ResIdx)residues.size();
+            AtomDescriptor& atom = atoms.allocate_back();
+            extract_position(&atom.x, &atom.y, &atom.z, line);
+            extract_label(&atom.label, line);
+            extract_element(&atom.element, line);
+            atom.residue_index = (ResIdx)residues.size() - 1;
+
             residues.back().atom_range.end++;
             /* } else if (compare_n(line, "BOND", 4)) { */
         } else if (compare_n(line, "HELIX", 5)) {

@@ -20,6 +20,8 @@ using BondRange = Range<BondIdx>;
 using BackboneSequence = ResRange;
 using HydrogenBondAcceptor = AtomIdx;
 
+constexpr ChainIdx INVALID_CHAIN_IDX = -1;
+
 enum class SecondaryStructure : u8 { Undefined, Coil = Undefined, Sheet, Helix };
 
 struct Bond {
@@ -171,6 +173,15 @@ inline vec3 get_atom_position(const MoleculeStructure& mol, AtomIdx i) {
     ASSERT(0 <= i && i <= mol.atom.count);
     return { mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i] };
 }
+
+inline Array<float>         get_atom_positions_x(MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.count}; }
+inline Array<const float>   get_atom_positions_x(const MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.count}; }
+
+inline Array<float>         get_atom_positions_y(MoleculeStructure& mol) { return {mol.atom.position.y, mol.atom.count}; }
+inline Array<const float>   get_atom_positions_y(const MoleculeStructure& mol) { return {mol.atom.position.y, mol.atom.count}; }
+
+inline Array<float>         get_atom_positions_z(MoleculeStructure& mol) { return {mol.atom.position.z, mol.atom.count}; }
+inline Array<const float>   get_atom_positions_z(const MoleculeStructure& mol) { return {mol.atom.position.z, mol.atom.count}; }
 
 inline Array<float> get_radii(MoleculeStructure& mol) { return Array<float>(mol.atom.radius, mol.atom.count); }
 inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.element, mol.atom.count); }
