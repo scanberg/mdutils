@@ -409,6 +409,7 @@ int64_t scatter_masked(T* dst_data, const T* src_data, Bitfield mask, int64_t of
 
 template <typename Func>
 void for_each_bit_set(Bitfield mask, Func f, int64_t offset = 0) {
+    ASSERT(mask);
     const int64_t last_blk = detail::num_blocks(mask) - 1;
     for (int64_t blk_idx = 0; blk_idx < last_blk; ++blk_idx) {
         const auto blk = mask.block_ptr[blk_idx];

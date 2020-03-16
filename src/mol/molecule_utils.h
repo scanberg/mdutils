@@ -83,7 +83,8 @@ void apply_pbc(soa_vec3 out_position, const float in_mass[], const AtomRange ran
 void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range);
 
 inline bool valid_segment(const BackboneSegment& seg) {
-    return (seg.ca_idx != 0) && (seg.c_idx != 0) && (seg.n_idx != 0) && (seg.o_idx != 0);
+    return (seg.ca_idx != seg.c_idx) && (seg.ca_idx != seg.n_idx) && (seg.ca_idx != seg.o_idx)
+        && (seg.c_idx != seg.n_idx) && (seg.c_idx != seg.o_idx) && (seg.n_idx != seg.o_idx);
 }
 
 // Computes the dihedral angles within the backbone:

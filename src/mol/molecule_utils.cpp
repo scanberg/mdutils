@@ -452,7 +452,7 @@ vec3 compute_com_periodic_ref(const soa_vec3 in_pos, const float in_m[], i64 cou
     return vec_sum / mass_sum;
 }
 
-vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_m[], i64 count, const mat3& box) {
+vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_mass[], i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
 
@@ -468,7 +468,7 @@ vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_m[], i64 count, 
         const SIMD_TYPE_F box_ext_y = SIMD_SET_F(box[1][1]);
         const SIMD_TYPE_F box_ext_z = SIMD_SET_F(box[2][2]);
 
-        SIMD_TYPE_F m_sum = SIMD_LOAD_F(in_m);
+        SIMD_TYPE_F m_sum = SIMD_LOAD_F(in_mass);
         SIMD_TYPE_F x_sum = simd::mul(SIMD_LOAD_F(in_pos.x), m_sum);
         SIMD_TYPE_F y_sum = simd::mul(SIMD_LOAD_F(in_pos.y), m_sum);
         SIMD_TYPE_F z_sum = simd::mul(SIMD_LOAD_F(in_pos.z), m_sum);
@@ -476,7 +476,7 @@ vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_m[], i64 count, 
         i += SIMD_WIDTH;
 
         for (; i < simd_count; i += SIMD_WIDTH) {
-            const SIMD_TYPE_F m = SIMD_LOAD_F(in_m + i);
+            const SIMD_TYPE_F m = SIMD_LOAD_F(in_mass + i);
             const SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x + i);
             const SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y + i);
             const SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z + i);
@@ -520,7 +520,7 @@ vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_m[], i64 count, 
     }
 
     for (; i < count; i++) {
-        const float mass = in_m[i];
+        const float mass = in_mass[i];
         const vec3 pos = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
         const vec3 com = vec_sum / mass_sum;
         vec_sum.x += de_periodize(pos.x, com.x, box_ext.x) * mass;
@@ -826,13 +826,9 @@ void apply_pbc(soa_vec3 in_out, const float in_mass[], i64 count, const mat3& si
     }
 }
 
-void apply_pbc(soa_vec3 in_out, const float in_mass[], const AtomRange in_sequences[], i64 num_sequences, const mat3& sim_box) {
-    for (i64 i = 0; i < num_sequences; i++) {
-        const i64 offset = in_sequences[i].beg;
-        const i64 size = in_sequences[i].ext();
-        soa_vec3 seq_pos = in_out + offset;
-        const float* seq_mass = in_mass + offset;
-        apply_pbc(seq_pos, seq_mass, size, sim_box);
+void apply_pbc(soa_vec3 in_out_pos, const float in_mass[], const AtomRange in_ranges[], i64 num_ranges, const mat3& sim_box) {
+    for (i64 i = 0; i < num_ranges; i++) {
+        apply_pbc(in_out_pos + in_ranges[i].beg, in_mass + in_ranges[i].beg, in_ranges[i].ext(), sim_box);
     }
 }
 

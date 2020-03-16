@@ -189,9 +189,11 @@ struct CStringView : Array<const char> {
         count = helper::cexpr_strnlen(buf.cstr(), buf.MaxSize);
     }
 
-    constexpr CStringView(const char* cstr) noexcept {
+    template <i64 Length>
+    constexpr CStringView(const char (&cstr)[Length]) noexcept {
         ptr = cstr;
-        count = helper::cexpr_strlen(cstr);
+        count = Length - 1;
+        ASSERT(count >= 0);
     }
 
     constexpr CStringView(const char* cstr, i64 len) noexcept {
@@ -206,11 +208,9 @@ struct CStringView : Array<const char> {
         ASSERT(count >= 0);
     }
 
-    template <i64 Length>
-    constexpr CStringView(const char (&cstr)[Length]) noexcept {
+    constexpr CStringView(const char* cstr) noexcept {
         ptr = cstr;
-        count = Length - 1;
-        ASSERT(count >= 0);
+        count = helper::cexpr_strlen(cstr);
     }
 
     constexpr CStringView substr(i64 _offset, i64 _count = -1) const noexcept {
