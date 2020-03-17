@@ -100,7 +100,7 @@ static BackboneData compute_backbone(const MoleculeStructure& mol) {
 
     for (i64 ci = 0; ci < mol.chain.count; ci++) {
         for (i64 ri = mol.chain.residue_range[ci].beg; ri < mol.chain.residue_range[ci].end; ri++) {
-            BackboneSegment seg = {-1, -1, -1, -1, ri};
+            BackboneSegment seg = {-1, -1, -1, -1, (ResIdx)ri};
             if (mol.residue.atom_range[ri].ext() >= min_atom_count) {
                 // find atoms
                 for (i32 i = mol.residue.atom_range[ri].beg; i < mol.residue.atom_range[ri].end; i++) {
