@@ -170,6 +170,7 @@ struct MoleculeStructure {
 };
 
 inline vec3 get_atom_position(const MoleculeStructure& mol, AtomIdx i) {
+    (void)i;
     ASSERT(0 <= i && i <= mol.atom.count);
     return { mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i] };
 }
@@ -208,16 +209,19 @@ inline Array<const ResIdx> get_reisidue_ids(const MoleculeStructure& mol) {
 }
 
 inline i64 get_residue_atom_count(const MoleculeStructure& mol, ResIdx i) {
+    (void)i;
     ASSERT(0 <= i && i < mol.residue.count);
     return mol.residue.atom_range[i].ext();
 }
 
 inline soa_vec3 get_residue_positions(MoleculeStructure& mol, ResIdx i) {
+    (void)i;
     ASSERT(0 <= i && i < mol.residue.count);
     return mol.atom.position + mol.residue.atom_range->beg;
 }
 
 inline const soa_vec3 get_residue_positions(const MoleculeStructure& mol, ResIdx i) {
+    (void)i;
     ASSERT(0 <= i && i < mol.residue.count);
     return mol.atom.position + mol.residue.atom_range->beg;
 }

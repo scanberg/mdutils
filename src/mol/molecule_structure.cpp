@@ -22,7 +22,7 @@ static DynamicArray<Bond> compute_covalent_bonds(MoleculeStructure& mol) {
     DynamicArray<Bond> bonds;
     spatialhash::Frame frame;
 
-    for (i64 ri = 0; ri < mol.residue.count - 1; ri++) {
+    for (i64 ri = 0; ri < mol.residue.count; ri++) {
         const AtomRange ri_range = mol.residue.atom_range[ri];
 
         if (ri > 0) {
@@ -52,10 +52,11 @@ static DynamicArray<Bond> compute_covalent_bonds(MoleculeStructure& mol) {
                     });
             }
             mol.residue.bond.intra[ri].end = (BondIdx)bonds.size();
+            mol.residue.bond.complete[ri].end = (BondIdx)bonds.size();
         }
 
         // Compute bonds to next
-        {
+        if (ri < mol.residue.count - 1) {
             const i64 rj = ri + 1;
             const AtomRange rj_range = mol.residue.atom_range[rj];
 
@@ -250,6 +251,9 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
                 }
                 range = {(ResIdx)i + 1, (ResIdx)i + 2};
             }
+        }
+        if (range.ext() > 1) {
+            seq.push_back(range);
         }
 
         const i64 mem_size = seq.size() * (sizeof(Label) + sizeof(AtomRange) + sizeof(ResRange));
