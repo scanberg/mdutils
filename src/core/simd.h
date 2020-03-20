@@ -38,6 +38,7 @@
 #define SIMD_ZERO_I simd::zero_i128
 #endif
 #define SIMD_STORE simd::store
+#define SIMD_STORE_ALIGNED simd::store_aligned
 
 #define INLINE inline
 
