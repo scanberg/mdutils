@@ -80,7 +80,6 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
     DynamicArray<ResidueDescriptor> residues;
     atoms.reserve(num_atoms);
 
-    int res_count = 0;
     int cur_res = -1;
     CStringView line;
 
