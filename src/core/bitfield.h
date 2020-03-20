@@ -156,6 +156,28 @@ constexpr void set_range(Bitfield field, Range<Int> range) {
 }
 
 template <typename Int>
+constexpr void clear_range(Bitfield field, Range<Int> range) {
+    const auto beg_blk = detail::block_idx(range.beg);
+    const auto end_blk = detail::block_idx(range.end);
+
+    if (beg_blk == end_blk) {
+        // All bits reside within the same Block
+        const auto bits = (detail::bit_pattern(range.beg) - 1) ^ (detail::bit_pattern(range.end) - 1);
+        field.block_ptr[beg_blk] &= ~bits;
+        return;
+    }
+
+    field.block_ptr[beg_blk] &= (detail::bit_pattern(range.beg) - 1);
+    field.block_ptr[end_blk] &= (~(detail::bit_pattern(range.end) - 1));
+
+    // Set any bits within the inner range of blocks: beg_blk, [inner range], end_blk
+    const i64 size = end_blk - beg_blk - 1;
+    if (size > 0) {
+        memset(field.block_ptr + beg_blk + 1, 0x00, size * sizeof(Bitfield::BlockType));
+    }
+}
+
+template <typename Int>
 constexpr bool any_bit_set_in_range(const Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
@@ -182,8 +204,8 @@ constexpr bool any_bit_set_in_range(const Bitfield field, Range<Int> range) {
 }
 
 constexpr bool any_bit_set(const Bitfield field) {
-    const auto beg_blk_idx = detail::block_idx(0);
-    const auto end_blk_idx = detail::block_idx(field.bit_count);
+    constexpr Bitfield::BlockType beg_blk_idx = 0;
+    const     Bitfield::BlockType end_blk_idx = detail::block_idx(field.bit_count);
 
     if (beg_blk_idx == end_blk_idx) {
         // All bits reside within the same Block
