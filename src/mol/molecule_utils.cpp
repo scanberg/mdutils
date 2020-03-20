@@ -594,7 +594,7 @@ EigenFrame compute_eigen_frame(const soa_vec3 in_pos, const float in_mass[], i64
 
 void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range) {
     ASSERT(dynamic);
-    if (!dynamic->operator bool()) {
+    if (!(*dynamic)) {
         LOG_ERROR("Dynamic is not valid.");
         return;
     }
@@ -604,7 +604,8 @@ void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range) {
     const i64 count = range.ext();
     const float* mass = mol.atom.mass + range.beg;
 
-    for (auto& frame : traj.frame_buffer) {
+    for (i64 i = 0; i < traj.num_frames; i++) {
+        auto& frame = traj.frame_buffer[i];
         const soa_vec3 range_pos = frame.atom_position + range.beg;
         const vec3 com = compute_com_periodic(range_pos, mass, count, frame.box);
         const vec3 translation = frame.box * vec3(0.5f) - com;
@@ -815,11 +816,37 @@ void cubic_interpolation_pbc(soa_vec3 out, const soa_vec3 in[4], i64 count, floa
 void apply_pbc(soa_vec3 in_out, const float in_mass[], i64 count, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
-
+    
     const vec3 com = compute_com_periodic(in_out, in_mass, count, sim_box);
-    const vec3 com_dp = math::fract(com * one_over_box_ext) * box_ext;
+    const vec3 com_dp = apply_pbc(com, sim_box);
 
-    for (i64 i = 0; i < count; i++) {
+    i64 i = 0;
+    const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+    if (simd_count > SIMD_WIDTH) {
+
+        const SIMD_TYPE_F box_ext_x = SIMD_SET_F(box_ext.x);
+        const SIMD_TYPE_F box_ext_y = SIMD_SET_F(box_ext.y);
+        const SIMD_TYPE_F box_ext_z = SIMD_SET_F(box_ext.z);
+
+        const SIMD_TYPE_F com_dp_x = SIMD_SET_F(com_dp.x);
+        const SIMD_TYPE_F com_dp_y = SIMD_SET_F(com_dp.y);
+        const SIMD_TYPE_F com_dp_z = SIMD_SET_F(com_dp.z);
+
+        for (; i < simd_count; i += SIMD_WIDTH) {
+            SIMD_TYPE_F x = SIMD_LOAD_F(in_out.x + i);
+            SIMD_TYPE_F y = SIMD_LOAD_F(in_out.y + i);
+            SIMD_TYPE_F z = SIMD_LOAD_F(in_out.z + i);
+
+            x = de_periodize(x, com_dp_x, box_ext_x);
+            y = de_periodize(y, com_dp_y, box_ext_y);
+            z = de_periodize(z, com_dp_z, box_ext_z);
+
+            SIMD_STORE(in_out.x + i, x);
+            SIMD_STORE(in_out.y + i, y);
+            SIMD_STORE(in_out.z + i, z);
+        }
+    }
+    for (; i < count; i++) {
         in_out.x[i] = de_periodize(in_out.x[i], com_dp.x, box_ext.x);
         in_out.y[i] = de_periodize(in_out.y[i], com_dp.y, box_ext.y);
         in_out.z[i] = de_periodize(in_out.z[i], com_dp.z, box_ext.z);
