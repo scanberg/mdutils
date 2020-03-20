@@ -265,13 +265,17 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
         mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + mol->chain.count);
 
         memset(mol->chain.id, 0, seq.size() * sizeof(Label));
-        for (i64 i = 0; i < seq.size(); i++) {
-            if (seq.size() < ('Z' - 'A')) {
-                mol->chain.id[i] = 'A' + i;
-            } else {
-                snprintf(mol->chain.id[i].buffer, Label::MaxSize, "C%i", (int)i);
+        if (seq.size() < ('Z' - 'A')) {
+            for (i64 i = 0; i < seq.size(); i++) {
+                mol->chain.id[i] = 'A' + (char)i;
+                mol->chain.residue_range[i] = seq[i];
             }
-            mol->chain.residue_range[i] = seq[i];
+        }
+        else {
+            for (i64 i = 0; i < seq.size(); i++) {
+                snprintf(mol->chain.id[i].buffer, Label::MaxSize, "C%i", (int)i);
+                mol->chain.residue_range[i] = seq[i];
+            }
         }
     }
 
@@ -284,7 +288,7 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
 
         // Set references atoms to chains
         for (i64 j = mol->chain.atom_range[i].beg; j < mol->chain.atom_range[i].end; j++) {
-            mol->atom.chain_idx[j] = i;
+            mol->atom.chain_idx[j] = (ChainIdx)i;
         }
     }
 

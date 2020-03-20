@@ -378,19 +378,19 @@ struct SecondaryStructureDescriptor {
 using BondDescriptor = Bond;
 
 struct MoleculeStructureDescriptor {
-    i32 num_atoms = 0;
+    i64 num_atoms = 0;
     AtomDescriptor* atoms = nullptr;
 
-    i32 num_residues = 0;
+    i64 num_residues = 0;
     ResidueDescriptor* residues = nullptr;
 
-    i32 num_chains = 0;
+    i64 num_chains = 0;
     ChainDescriptor* chains = nullptr;
 
-    i32 num_bonds = 0;
+    i64 num_bonds = 0;
     BondDescriptor* bonds = nullptr;
 
-    i32 num_secondary_structures = 0;
+    i64 num_secondary_structures = 0;
     SecondaryStructureDescriptor* secondary_structures = nullptr;
 };
 
