@@ -292,7 +292,7 @@ bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stor
                                                     if (res_size == 3) {
                                                         i32 h_count = 0;
                                                         i32 o_count = 0;
-                                                        for (auto e : get_residue_elements(ctx.mol, i)) {
+                                                        for (auto e : get_residue_elements(ctx.mol, (ResIdx)i)) {
                                                             if (e == Element::H) h_count++;
                                                             if (e == Element::O) o_count++;
                                                         }
@@ -386,10 +386,10 @@ bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stor
                                             }});
 
         context->filter_commands.push_back({"resname", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
-                                                for (i64 i = 0; i < args.count; i++) {
-                                                    for (i64 j = 0; j < ctx.mol.residue.count; j++) {
-                                                        if (compare(args[i], ctx.mol.residue.name[j])) {
-                                                            bitfield::set_range(mask, ctx.mol.residue.atom_range[j]);
+                                                for (const auto& arg : args) {
+                                                    for (i64 i = 0; i < ctx.mol.residue.count; i++) {
+                                                        if (compare(arg, ctx.mol.residue.name[i])) {
+                                                            bitfield::set_range(mask, ctx.mol.residue.atom_range[i]);
                                                         }
                                                     }
                                                 }
@@ -424,9 +424,9 @@ bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stor
                                             }});
 
         context->filter_commands.push_back({"chainid", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
-                                                for (int i = 0; i < args.count; i++) {
+                                                for (const auto& arg : args) {
                                                     for (i64 i = 0; i < ctx.mol.chain.count; i++) {
-                                                        if (compare(args[i], ctx.mol.chain.id[i])) {
+                                                        if (compare(arg, ctx.mol.chain.id[i])) {
                                                             bitfield::set_range(mask, ctx.mol.chain.atom_range[i]);
                                                             break;
                                                         }
@@ -436,9 +436,9 @@ bool filter_uses_selection(CStringView filter, Array<const StoredSelection> stor
                                             }});
 
         context->filter_commands.push_back({"selection", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView> args) {
-                                                for (int i = 0; i < args.count; i++) {
+                                                for (const auto& arg : args) {
                                                     for (const auto& s : ctx.sel) {
-                                                        if (compare(args[i], s.name)) {
+                                                        if (compare(arg, s.name)) {
                                                             bitfield::copy(mask, s.mask);
                                                             break;
                                                         }
