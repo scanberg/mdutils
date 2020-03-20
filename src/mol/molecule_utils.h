@@ -74,10 +74,10 @@ inline vec3 apply_pbc(const vec3& pos) {
 }
 
 // Makes sure that all atomic positions fall inside of the simulation box, otherwise they are periodically transformed to end up within the box
-void apply_pbc(soa_vec3 in_out_position, const float in_mass[], i64 count, const mat3& sim_box);
+void apply_pbc(soa_vec3 in_out_position, i64 count, const mat3& sim_box);
 
 // Ranges correspond to e.g. either chains or residues which shall remain 'uncut' across the periodic boundary.
-void apply_pbc(soa_vec3 out_position, const float in_mass[], const AtomRange range[], i64 num_ranges, const mat3& sim_box);
+void apply_pbc(soa_vec3 out_position, const AtomRange range[], i64 num_ranges, const mat3& sim_box);
 
 // Recenters a trajectory given a range of atoms which define a reference structure to compute a center of mass from
 void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range);

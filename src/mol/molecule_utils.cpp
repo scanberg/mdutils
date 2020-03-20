@@ -433,6 +433,22 @@ vec3 compute_com(const float in_x[], const float in_y[], const float in_z[], con
     return vec_sum / mass_sum;
 }
 
+vec3 compute_com_periodic_ref(const soa_vec3 in_pos, i64 count, const mat3& box) {
+    if (count == 0) return vec3(0);
+    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
+
+    const vec3 box_ext = box * vec3(1.0f);
+
+    vec3 vec_sum = vec3(in_pos.x[0], in_pos.y[0], in_pos.z[0]);
+
+    for (i64 i = 1; i < count; i++) {
+        const vec3 pos = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
+        const vec3 com = vec_sum / (float)i;
+        vec_sum += de_periodize(pos, com, box_ext);
+    }
+    return vec_sum / (float)count;
+}
+
 vec3 compute_com_periodic_ref(const soa_vec3 in_pos, const float in_m[], i64 count, const mat3& box) {
     if (count == 0) return vec3(0);
     if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
@@ -450,6 +466,77 @@ vec3 compute_com_periodic_ref(const soa_vec3 in_pos, const float in_m[], i64 cou
         mass_sum += mass;
     }
     return vec_sum / mass_sum;
+}
+
+vec3 compute_com_periodic(const soa_vec3 in_pos, i64 count, const mat3& box) {
+    if (count == 0) return vec3(0);
+    if (count == 1) return {in_pos.x[0], in_pos.y[0], in_pos.z[0]};
+
+    const vec3 box_ext = box * vec3(1.0f);
+
+    vec3 vec_sum = {0, 0, 0};
+    i64 i = 0;
+
+    if (count > SIMD_WIDTH) {
+        const i64 simd_count = (count / SIMD_WIDTH) * SIMD_WIDTH;
+        const SIMD_TYPE_F box_ext_x = SIMD_SET_F(box[0][0]);
+        const SIMD_TYPE_F box_ext_y = SIMD_SET_F(box[1][1]);
+        const SIMD_TYPE_F box_ext_z = SIMD_SET_F(box[2][2]);
+
+        SIMD_TYPE_F x_sum = SIMD_LOAD_F(in_pos.x);
+        SIMD_TYPE_F y_sum = SIMD_LOAD_F(in_pos.y);
+        SIMD_TYPE_F z_sum = SIMD_LOAD_F(in_pos.z);
+
+        i += SIMD_WIDTH;
+
+        for (; i < simd_count; i += SIMD_WIDTH) {
+            const SIMD_TYPE_F x = SIMD_LOAD_F(in_pos.x + i);
+            const SIMD_TYPE_F y = SIMD_LOAD_F(in_pos.y + i);
+            const SIMD_TYPE_F z = SIMD_LOAD_F(in_pos.z + i);
+
+            const SIMD_TYPE_F sum = SIMD_SET_F((float)(i / SIMD_WIDTH));
+            const SIMD_TYPE_F x_com = simd::div(x_sum, sum);
+            const SIMD_TYPE_F y_com = simd::div(y_sum, sum);
+            const SIMD_TYPE_F z_com = simd::div(z_sum, sum);
+
+            const SIMD_TYPE_F x_dp = de_periodize(x, x_com, box_ext_x);
+            const SIMD_TYPE_F y_dp = de_periodize(y, y_com, box_ext_y);
+            const SIMD_TYPE_F z_dp = de_periodize(z, z_com, box_ext_z);
+
+            x_sum = simd::add(x_sum, x_dp);
+            y_sum = simd::add(y_sum, y_dp);
+            z_sum = simd::add(z_sum, z_dp);
+        }
+
+        // @NOTE: We cannot simply apply a horizontal add to the SIMD-components, we need to deperiodize in between them.
+        alignas(sizeof(SIMD_TYPE_F)) float x[SIMD_WIDTH];
+        alignas(sizeof(SIMD_TYPE_F)) float y[SIMD_WIDTH];
+        alignas(sizeof(SIMD_TYPE_F)) float z[SIMD_WIDTH];
+
+        SIMD_STORE_ALIGNED(x, x_sum);
+        SIMD_STORE_ALIGNED(y, y_sum);
+        SIMD_STORE_ALIGNED(z, z_sum);
+
+        // Each component holds 1 / SIMD_WIDTH of the data
+        const float sum = (float)(i / SIMD_WIDTH);
+        vec_sum = {x[0], y[0], z[0]};
+        for (int j = 1; j < SIMD_WIDTH; j++) {
+            const vec3 com = vec_sum / (float)(j * sum);
+            vec_sum.x += de_periodize(x[j] / sum, com.x, box_ext.x) * sum;
+            vec_sum.y += de_periodize(y[j] / sum, com.y, box_ext.y) * sum;
+            vec_sum.z += de_periodize(z[j] / sum, com.z, box_ext.z) * sum;
+        }
+    }
+
+    for (; i < count; i++) {
+        const vec3 pos = {in_pos.x[i], in_pos.y[i], in_pos.z[i]};
+        const vec3 com = vec_sum / (float)(i);
+        vec_sum.x += de_periodize(pos.x, com.x, box_ext.x);
+        vec_sum.y += de_periodize(pos.y, com.y, box_ext.y);
+        vec_sum.z += de_periodize(pos.z, com.z, box_ext.z);
+    }
+
+    return vec_sum / (float)count;
 }
 
 vec3 compute_com_periodic(const soa_vec3 in_pos, const float in_mass[], i64 count, const mat3& box) {
@@ -602,15 +689,14 @@ void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range) {
     const auto& mol = dynamic->molecule;
     auto& traj = dynamic->trajectory;
     const i64 count = range.ext();
-    const float* mass = mol.atom.mass + range.beg;
 
     for (i64 i = 0; i < traj.num_frames; i++) {
         auto& frame = traj.frame_buffer[i];
         const soa_vec3 range_pos = frame.atom_position + range.beg;
-        const vec3 com = compute_com_periodic(range_pos, mass, count, frame.box);
+        const vec3 com = compute_com_periodic(range_pos, count, frame.box);
         const vec3 translation = frame.box * vec3(0.5f) - com;
-        translate(frame.atom_position, mol.atom.count, translation);
-        apply_pbc(frame.atom_position, mol.atom.mass, mol.residue.atom_range, mol.residue.count, frame.box);
+        translate(frame.atom_position, traj.num_atoms, translation);
+        apply_pbc(frame.atom_position, mol.residue.atom_range, mol.residue.count, frame.box);
     }
 }
 
@@ -813,11 +899,11 @@ void cubic_interpolation_pbc(soa_vec3 out, const soa_vec3 in[4], i64 count, floa
     }
 }
 
-void apply_pbc(soa_vec3 in_out, const float in_mass[], i64 count, const mat3& sim_box) {
+void apply_pbc(soa_vec3 in_out, i64 count, const mat3& sim_box) {
     const vec3 box_ext = sim_box * vec3(1.0f);
     const vec3 one_over_box_ext = 1.0f / box_ext;
     
-    const vec3 com = compute_com_periodic(in_out, in_mass, count, sim_box);
+    const vec3 com = compute_com_periodic(in_out, count, sim_box);
     const vec3 com_dp = apply_pbc(com, sim_box);
 
     i64 i = 0;
@@ -853,9 +939,9 @@ void apply_pbc(soa_vec3 in_out, const float in_mass[], i64 count, const mat3& si
     }
 }
 
-void apply_pbc(soa_vec3 in_out_pos, const float in_mass[], const AtomRange in_ranges[], i64 num_ranges, const mat3& sim_box) {
+void apply_pbc(soa_vec3 in_out_pos, const AtomRange in_ranges[], i64 num_ranges, const mat3& sim_box) {
     for (i64 i = 0; i < num_ranges; i++) {
-        apply_pbc(in_out_pos + in_ranges[i].beg, in_mass + in_ranges[i].beg, in_ranges[i].ext(), sim_box);
+        apply_pbc(in_out_pos + in_ranges[i].beg, in_ranges[i].ext(), sim_box);
     }
 }
 
