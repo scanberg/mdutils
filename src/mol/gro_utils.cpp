@@ -99,7 +99,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
             cur_res = res_id;
         }
 
-        atoms.back().residue_index = (ResIdx)residues.size();
+        atoms.back().residue_index = (ResIdx)residues.size() - 1;
         residues.back().atom_range.end++;
     }
 

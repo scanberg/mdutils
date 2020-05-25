@@ -82,7 +82,7 @@ void apply_pbc(soa_vec3 out_position, const AtomRange range[], i64 num_ranges, c
 // Recenters a trajectory given a range of atoms which define a reference structure to compute a center of mass from
 void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range);
 
-inline bool valid_segment(const BackboneSegment& seg) {
+inline bool valid_backbone_atoms(const BackboneAtoms& seg) {
     return (seg.ca_idx != seg.c_idx) && (seg.ca_idx != seg.n_idx) && (seg.ca_idx != seg.o_idx)
         && (seg.c_idx != seg.n_idx) && (seg.c_idx != seg.o_idx) && (seg.n_idx != seg.o_idx);
 }
@@ -91,7 +91,7 @@ inline bool valid_segment(const BackboneSegment& seg) {
 // phi   = dihedral( C[i-1], N[i],  CA[i],  C[i])
 // psi   = dihedral( N[i],  CA[i],   C[i],  N[i+1])
 // As explained here https://en.wikipedia.org/wiki/Ramachandran_plot.
-void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, const BackboneSegment in_segments[], i64 num_segments);
+void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, const BackboneAtoms in_segments[], i64 num_segments);
 
 void compute_atom_radius(float out_radii[], const Element in_element[], i64 count);
 void compute_atom_mass(float out_mass[], const Element in_element[], i64 count);

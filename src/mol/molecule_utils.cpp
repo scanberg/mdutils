@@ -945,7 +945,7 @@ void apply_pbc(soa_vec3 in_out_pos, const AtomRange in_ranges[], i64 num_ranges,
     }
 }
 
-void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, const BackboneSegment backbone_segments[], i64 num_segments) {
+void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, const BackboneAtoms backbone_segments[], i64 num_segments) {
     ASSERT(out_angle);
     ASSERT(backbone_segments);
     float phi = 0, psi = 0;
@@ -954,7 +954,7 @@ void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, c
         return;
     }
 
-    ASSERT(valid_segment(backbone_segments[0]));
+    ASSERT(valid_backbone_atoms(backbone_segments[0]));
     vec3 n =  { in_pos.x[backbone_segments[0].n_idx],  in_pos.y[backbone_segments[0].n_idx],  in_pos.z[backbone_segments[0].n_idx]  };
     vec3 ca = { in_pos.x[backbone_segments[0].ca_idx], in_pos.y[backbone_segments[0].ca_idx], in_pos.z[backbone_segments[0].ca_idx] };
     vec3 c =  { in_pos.x[backbone_segments[0].c_idx],  in_pos.y[backbone_segments[0].c_idx],  in_pos.z[backbone_segments[0].c_idx]  };
@@ -966,7 +966,7 @@ void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, c
     out_angle[0] = {phi, psi};
 
     for (i64 i = 1; i < num_segments - 1; i++) {
-        ASSERT(valid_segment(backbone_segments[i]));
+        ASSERT(valid_backbone_atoms(backbone_segments[i]));
 
         c_prev = c;
         n = n_next;
@@ -980,7 +980,7 @@ void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, c
     }
 
     auto N = num_segments - 1;
-    ASSERT(valid_segment(backbone_segments[N]));
+    ASSERT(valid_backbone_atoms(backbone_segments[N]));
 
     c_prev = c;
     n = n_next;

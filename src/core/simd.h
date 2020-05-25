@@ -1,7 +1,5 @@
 #pragma once
 
-// https://stackoverflow.com/questions/11228855/header-files-for-x86-simd-intrinsics
-
 #if defined(_MSC_VER)
 /* Microsoft C/C++-compatible compiler */
 #include <intrin.h>
