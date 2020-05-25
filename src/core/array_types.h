@@ -286,12 +286,14 @@ struct DynamicArray : Array<T> {
 
     void reserve(i64 new_capacity) noexcept {
         if (new_capacity < m_capacity) return;
-        T* new_data = (T*)CALLOC(new_capacity, sizeof(T));
+        T* new_data = (T*)REALLOC(this->ptr, new_capacity * sizeof(T));
         ASSERT(new_data);
-        if (this->ptr) {
+        /*if (this->ptr) {
             memcpy(new_data, this->ptr, this->count * sizeof(T));
         }
         FREE(this->ptr);
+        */
+        memset((T*)new_data + m_capacity, 0, (new_capacity - m_capacity) * sizeof(T));
         this->ptr = new_data;
         m_capacity = new_capacity;
     }
