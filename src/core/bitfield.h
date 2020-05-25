@@ -12,7 +12,7 @@ struct Bitfield {
     i64 bit_count = 0;
 
     constexpr i64 size() const { return bit_count; }
-    constexpr i64 size_in_bytes() const { return (bit_count + sizeof(BlockType) - 1) / sizeof(BlockType); }  // @NOTE: round up integer div.
+    constexpr i64 size_in_bytes() const { return ((bit_count + (sizeof(BlockType) * 8) - 1) / (sizeof(BlockType) * 8)) * sizeof(BlockType); }  // @NOTE: round up integer div.
 
     constexpr BlockType* data() { return block_ptr; }
     constexpr BlockType* begin() { return block_ptr; }
@@ -87,8 +87,9 @@ inline void init(Bitfield* field, i64 num_bits) {
     ASSERT(field);
     free(field);
     field->bit_count = num_bits;
-    field->block_ptr = (Bitfield::BlockType*)ALIGNED_MALLOC(field->size_in_bytes(), 16);  // @NOTE: Align to 16 byte to allow for aligned simd load/store
-    memset(field->block_ptr, 0, field->size_in_bytes());
+    const i64 alloc_size = detail::num_blocks(*field) * sizeof(Bitfield::BlockType);
+    field->block_ptr = (Bitfield::BlockType*)ALIGNED_MALLOC(alloc_size, 16);  // @NOTE: Align to 16 byte to allow for aligned simd load/store
+    memset(field->block_ptr, 0, alloc_size);
 }
 
 inline void init(Bitfield* field, Bitfield src) {
@@ -137,60 +138,65 @@ template <typename Int>
 constexpr void set_range(Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
+    const auto beg_mask = ~(detail::bit_pattern(range.beg) - 1);
+    const auto end_mask = (detail::bit_pattern(range.end) - 1);
 
     if (beg_blk == end_blk) {
         // All bits reside within the same Block
-        const auto bits = (detail::bit_pattern(range.beg) - 1) ^ (detail::bit_pattern(range.end) - 1);
-        field.block_ptr[beg_blk] |= bits;
+        const auto mask = beg_mask & end_mask;
+        field.block_ptr[beg_blk] |= mask;
         return;
     }
 
-    field.block_ptr[beg_blk] |= (~(detail::bit_pattern(range.beg) - 1));
-    field.block_ptr[end_blk] |= (detail::bit_pattern(range.end) - 1);
-
+    field.block_ptr[beg_blk] |= beg_mask;
     // Set any bits within the inner range of blocks: beg_blk, [inner range], end_blk
     const i64 size = end_blk - beg_blk - 1;
     if (size > 0) {
         memset(field.block_ptr + beg_blk + 1, 0xFF, size * sizeof(Bitfield::BlockType));
     }
+    field.block_ptr[end_blk] |= end_mask;
 }
 
 template <typename Int>
 constexpr void clear_range(Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
+    const auto beg_mask = ~(detail::bit_pattern(range.beg) - 1);
+    const auto end_mask = (detail::bit_pattern(range.end) - 1);
 
     if (beg_blk == end_blk) {
         // All bits reside within the same Block
-        const auto bits = (detail::bit_pattern(range.beg) - 1) ^ (detail::bit_pattern(range.end) - 1);
-        field.block_ptr[beg_blk] &= ~bits;
+        const auto mask = beg_mask & end_mask;
+        field.block_ptr[beg_blk] &= ~mask;
         return;
     }
 
-    field.block_ptr[beg_blk] &= (detail::bit_pattern(range.beg) - 1);
-    field.block_ptr[end_blk] &= (~(detail::bit_pattern(range.end) - 1));
 
+    field.block_ptr[beg_blk] &= ~beg_mask;
     // Set any bits within the inner range of blocks: beg_blk, [inner range], end_blk
     const i64 size = end_blk - beg_blk - 1;
     if (size > 0) {
         memset(field.block_ptr + beg_blk + 1, 0x00, size * sizeof(Bitfield::BlockType));
     }
+    field.block_ptr[end_blk] &= ~end_mask;
 }
 
 template <typename Int>
 constexpr bool any_bit_set_in_range(const Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
+    const auto beg_mask = ~(detail::bit_pattern(range.beg) - 1);
+    const auto end_mask = (detail::bit_pattern(range.end) - 1);
 
     if (beg_blk == end_blk) {
         // All bits reside within the same Block
-        const auto bit_mask = (detail::bit_pattern(range.beg) - 1) ^ (detail::bit_pattern(range.end) - 1);
-        return (field.block_ptr[beg_blk] & bit_mask) != 0;
+        const auto mask = beg_mask & end_mask;
+        return (field.block_ptr[beg_blk] & mask) != 0;
     }
 
     // Mask out and explicitly check beg and end blocks
-    if ((field.block_ptr[beg_blk] & (~(detail::bit_pattern(range.beg) - 1))) != 0) return true;
-    if ((field.block_ptr[end_blk] & (detail::bit_pattern(range.end) - 1)) != 0) return true;
+    if ((field.block_ptr[beg_blk] & beg_mask) != 0) return true;
+    if ((field.block_ptr[end_blk] & end_mask) != 0) return true;
 
     // memcmp rest
     const i64 size = end_blk - beg_blk - 1;
@@ -209,8 +215,8 @@ constexpr bool any_bit_set(const Bitfield field) {
 
     if (beg_blk_idx == end_blk_idx) {
         // All bits reside within the same Block
-        const auto bit_mask = (detail::bit_pattern(0) - 1) ^ (detail::bit_pattern(field.bit_count) - 1);
-        return (field.block_ptr[beg_blk_idx] & bit_mask) != 0;
+        const auto mask = detail::bit_pattern(field.bit_count) - 1;
+        return (field.block_ptr[beg_blk_idx] & mask) != 0;
     }
 
     for (u64 i = 0; i < end_blk_idx - 1; i++) {
@@ -221,25 +227,36 @@ constexpr bool any_bit_set(const Bitfield field) {
 }
 
 constexpr bool all_bits_set(const Bitfield field) {
-    const u8* p = (const u8*)field.block_ptr;
-    const i64 s = field.size_in_bytes();
-    return (p[0] == 0xFF && !memcmp(p, p + 1, s - 1));
+    const auto beg_blk = 0;
+    const auto end_blk = detail::block_idx(field.size());
+    const auto end_mask = (detail::bit_pattern(field.size()) - 1);
+
+    if (beg_blk == end_blk) {
+        return (field.block_ptr[beg_blk] & end_mask) == end_mask;
+    }
+
+    for (u64 i = 0; i < end_blk - 1; i++) {
+        if (~field.block_ptr[i] != 0) return false;
+    }
+    return (field.block_ptr[end_blk] & end_mask) == end_mask;
 }
 
 template <typename Int>
 constexpr bool all_bits_set_in_range(const Bitfield field, Range<Int> range) {
     const auto beg_blk = detail::block_idx(range.beg);
     const auto end_blk = detail::block_idx(range.end);
+    const auto beg_mask = ~(detail::bit_pattern(range.beg) - 1);
+    const auto end_mask = (detail::bit_pattern(range.end) - 1);
 
     if (beg_blk == end_blk) {
         // All bits reside within the same Block
-        const auto bit_mask = (detail::bit_pattern(range.beg) - 1) ^ (detail::bit_pattern(range.end) - 1);
-        return (field.block_ptr[beg_blk] & bit_mask) == bit_mask;
+        const auto mask = beg_mask & end_mask;
+        return (field.block_ptr[beg_blk] & mask) == mask;
     }
 
     // Mask out and explicitly check beg and end blocks
-    if ((field.block_ptr[beg_blk] & (~(detail::bit_pattern(range.beg) - 1))) != (~(detail::bit_pattern(range.beg) - 1))) return false;
-    if ((field.block_ptr[end_blk] & (detail::bit_pattern(range.end) - 1)) != detail::bit_pattern(range.end) - 1) return false;
+    if ((field.block_ptr[beg_blk] & beg_mask) != beg_mask) return false;
+    if ((field.block_ptr[end_blk] & end_mask) != end_mask) return false;
 
     const i64 size = end_blk - beg_blk - 1;
     if (size > 0) {
