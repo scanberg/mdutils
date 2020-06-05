@@ -271,12 +271,14 @@ struct DynamicArray : Array<T> {
         return this->back();
     }
 
-    T& allocate_back() noexcept {
+    T& allocate_back(i64 num_items = 1) noexcept {
+        ASSERT(num_items > 0);
         if (this->count == m_capacity) {
-            reserve(grow_capacity(this->count + 1));
+            reserve(grow_capacity(this->count + num_items));
         }
-        this->count++;
-        return this->back();
+        T& item = *(this->ptr + this->count);
+        this->count += num_items;
+        return item;
     }
 
     void pop_back() noexcept {
