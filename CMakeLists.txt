@@ -26,6 +26,7 @@ target_include_directories(mdutils
 	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/src
 		${CMAKE_CURRENT_SOURCE_DIR}/ext/glm
+		${CMAKE_CURRENT_SOURCE_DIR}/ext/mattiasgustavsson
 )
 
 set(RESOURCE_DIR "${PROJECT_SOURCE_DIR}/")
