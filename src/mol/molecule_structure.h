@@ -5,12 +5,12 @@
 #include <core/string_utils.h>
 #include <mol/element.h>
 
-using Label     = StringBuffer<8>;
 using AtomIdx   = i32;
 using ResIdx    = i32;
 using ChainIdx  = i32;
 using SegIdx    = i32;
 using BondIdx   = i32;
+using AtomFlags = u8;
 
 using AtomRange = Range<AtomIdx>;
 using ResRange  = Range<ResIdx>;
@@ -21,7 +21,7 @@ using HydrogenBondAcceptor = AtomIdx;
 
 constexpr ChainIdx INVALID_CHAIN_IDX = -1;
 
-enum class SecondaryStructure : u8 { Undefined, Coil, Helix, Sheet };
+enum class SecondaryStructure : u32 { Undefined = 0, Coil = 0x000000FF, Helix = 0x0000FF00, Sheet = 0x00FF0000 };
 
 struct Bond {
     AtomIdx idx[2] = {0, 0};
@@ -57,9 +57,10 @@ struct MoleculeStructure {
 
         // Non aligned data
         Element* element = nullptr;
-        Label* label = nullptr;
+        const char** name = nullptr;
         ResIdx* res_idx = nullptr;
         ChainIdx* chain_idx = nullptr;
+        uint8_t* flags = nullptr;
         //SeqIdx* seq_idx = nullptr;
     } atom;
 
@@ -72,7 +73,7 @@ struct MoleculeStructure {
     struct {
         i64 count = 0;
         ResIdx* id = nullptr;
-        Label* name = nullptr;
+        const char** name = nullptr;
         AtomRange* atom_range = nullptr;
 
         struct {
@@ -93,7 +94,7 @@ struct MoleculeStructure {
     // Chains represent connected residues (through covalent bonds) and are usually defined as a single character starting from 'A'
     struct {
         i64 count = 0;
-        Label* id = nullptr;
+        const char** id = nullptr;
         AtomRange* atom_range = nullptr;
         ResRange* residue_range = nullptr;
     } chain;
@@ -125,6 +126,11 @@ struct MoleculeStructure {
         } acceptor;
     } hydrogen_bond;
 
+    struct {
+        // This is for storing interned strings
+        void* strpool = nullptr;
+    } internal;
+
     operator bool() const { return atom.count > 0; }
 };
 
@@ -134,28 +140,24 @@ inline vec3 get_atom_position(const MoleculeStructure& mol, AtomIdx i) {
     return { mol.atom.position.x[i], mol.atom.position.y[i], mol.atom.position.z[i] };
 }
 
-inline Array<float>         get_atom_positions_x(MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.count}; }
-inline Array<const float>   get_atom_positions_x(const MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.count}; }
+inline Array<float>       get_atom_positions_x(MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.count}; }
+inline Array<const float> get_atom_positions_x(const MoleculeStructure& mol) { return {mol.atom.position.x, mol.atom.count}; }
 
-inline Array<float>         get_atom_positions_y(MoleculeStructure& mol) { return {mol.atom.position.y, mol.atom.count}; }
-inline Array<const float>   get_atom_positions_y(const MoleculeStructure& mol) { return {mol.atom.position.y, mol.atom.count}; }
+inline Array<float>       get_atom_positions_y(MoleculeStructure& mol) { return {mol.atom.position.y, mol.atom.count}; }
+inline Array<const float> get_atom_positions_y(const MoleculeStructure& mol) { return {mol.atom.position.y, mol.atom.count}; }
 
-inline Array<float>         get_atom_positions_z(MoleculeStructure& mol) { return {mol.atom.position.z, mol.atom.count}; }
-inline Array<const float>   get_atom_positions_z(const MoleculeStructure& mol) { return {mol.atom.position.z, mol.atom.count}; }
+inline Array<float>       get_atom_positions_z(MoleculeStructure& mol) { return {mol.atom.position.z, mol.atom.count}; }
+inline Array<const float> get_atom_positions_z(const MoleculeStructure& mol) { return {mol.atom.position.z, mol.atom.count}; }
 
 inline Array<float> get_radii(MoleculeStructure& mol) { return Array<float>(mol.atom.radius, mol.atom.count); }
 inline Array<Element> get_elements(MoleculeStructure& mol) { return Array<Element>(mol.atom.element, mol.atom.count); }
 inline Array<const Element> get_elements(const MoleculeStructure& mol) { return Array<const Element>(mol.atom.element, mol.atom.count); }
-inline Array<Label> get_labels(MoleculeStructure& mol) { return Array<Label>(mol.atom.label, mol.atom.count); }
-inline Array<const Label> get_labels(const MoleculeStructure& mol) { return Array<const Label>(mol.atom.label, mol.atom.count); }
+inline Array<const char*> get_names(MoleculeStructure& mol) { return Array<const char*>(mol.atom.name, mol.atom.count); }
+inline Array<const char*> get_names(const MoleculeStructure& mol) { return Array<const char*>(mol.atom.name, mol.atom.count); }
 inline Array<ResIdx> get_residue_indices(MoleculeStructure& mol) { return Array<ResIdx>(mol.atom.res_idx, mol.atom.count); }
 inline Array<const ResIdx> get_residue_indices(const MoleculeStructure& mol) { return Array<const ResIdx>(mol.atom.res_idx, mol.atom.count); }
 
-inline Array<Label> get_residue_names(MoleculeStructure& mol) {
-    return {mol.residue.name, mol.residue.count};
-}
-
-inline Array<const Label> get_residue_names(const MoleculeStructure& mol) {
+inline Array<const char*> get_residue_names(const MoleculeStructure& mol) {
     return {mol.residue.name, mol.residue.count};
 }
 
@@ -262,18 +264,18 @@ inline const Array<BackboneSequence> get_backbone_sequences(const MoleculeStruct
 struct AtomDescriptor {
     float x, y, z;
     ResIdx residue_index;
-    Label label;
+    CStringView name;
     Element element;
 };
 
 struct ResidueDescriptor {
-    Label name;
+    CStringView name;
     AtomRange atom_range;
     ResIdx id;
 };
 
 struct ChainDescriptor {
-    Label id;
+    CStringView id;
     ResRange residue_range;
 };
 

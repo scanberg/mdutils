@@ -30,8 +30,6 @@ inline CStringView extract_next_model(CStringView& pdb_string) {
     return {};
 }
 
-inline void extract_label(Label* label, CStringView line) { *label = trim(line.substr(12, 4)); }
-
 inline void extract_position(float* x, float* y, float* z, CStringView line) {
     // SLOW 🐢
     // sscanf(line.substr(30).ptr, "%8f%8f%8f", &pos.x, &pos.y, &pos.z);
@@ -152,7 +150,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
             // New Chain
             if (current_chain_id != chain_id && chain_id != ' ') {
                 ChainDescriptor& chain = chains.allocate_back();
-                chain.id = chain_id;
+                chain.id = line.substr(21, 1);
                 chain.residue_range = {(ResIdx)residues.size(), (ResIdx)residues.size()};
                 current_chain_id = chain_id;
             }
@@ -172,7 +170,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
 
             AtomDescriptor& atom = atoms.allocate_back();
             extract_position(&atom.x, &atom.y, &atom.z, line);
-            extract_label(&atom.label, line);
+            atom.name = trim(line.substr(12, 4));
             extract_element(&atom.element, line);
             atom.residue_index = (ResIdx)residues.size() - 1;
 
@@ -240,7 +238,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView pdb_string) {
     memcpy(mol->atom.radius, radii.data(), num_atoms * sizeof(float));
     memcpy(mol->atom.mass, masses.data(), num_atoms * sizeof(float));
     memcpy(mol->atom.element, elements.data(), elements.size_in_bytes());
-    memcpy(mol->atom.label, labels.data(), labels.size_in_bytes());
+    memcpy(mol->atom.name, labels.data(), labels.size_in_bytes());
     memcpy(mol->atom.res_idx, residue_indices.data(), residue_indices.size_in_bytes());
 
     memcpy(mol->residues.data(), residues.data(), residues.size_in_bytes());

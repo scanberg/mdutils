@@ -1004,25 +1004,14 @@ void compute_atom_mass(float out_mass[], const Element in_element[], i64 count) 
     }
 }
 
-bool is_amino_acid(const Label& res_label) { return get_amino_acid_from_string(res_label) != AminoAcid::Unknown; }
+bool is_amino_acid(CStringView res_name) { return get_amino_acid_from_string(res_name) != AminoAcid::Unknown; }
 
 static constexpr CStringView dna_residues[12] = {"DA", "DA3", "DA5", "DC", "DC3", "DC5", "DG", "DG3", "DG5", "DT", "DT3", "DT5"};
-bool is_dna(const Label& res_label) {
+bool is_dna(CStringView res_label) {
     for (auto dna_res : dna_residues) {
         if (compare(res_label, dna_res)) return true;
     }
     return false;
-}
-
-DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol) {
-    DynamicArray<Label> types = {};
-    Label cur_lbl = {};
-    for (const auto& name : get_residue_names(mol)) {
-        if (name != cur_lbl) {
-            types.push_back(name);
-        }
-    }
-    return types;
 }
 
 DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name) {
@@ -1041,8 +1030,8 @@ bool atom_ranges_match(const MoleculeStructure& mol, AtomRange range_a, AtomRang
 
     const auto ele_a = get_elements(mol).subarray(range_a);
     const auto ele_b = get_elements(mol).subarray(range_b);
-    const auto lbl_a = get_labels(mol).subarray(range_a);
-    const auto lbl_b = get_labels(mol).subarray(range_b);
+    const auto lbl_a = get_names(mol).subarray(range_a);
+    const auto lbl_b = get_names(mol).subarray(range_b);
     int a_i = range_a.beg;
     int b_i = range_b.beg;
     while (a_i != range_a.end && b_i != range_b.end) {
@@ -1056,7 +1045,7 @@ DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol,
     DynamicArray<AtomRange> matches = {};
 
     const auto ele = get_elements(mol);
-    const auto lbl = get_labels(mol);
+    const auto lbl = get_names(mol);
 
     const auto ele_ref = ele.subarray(ref);
     const auto lbl_ref = lbl.subarray(ref);
@@ -1093,8 +1082,8 @@ bool structure_match(const MoleculeStructure& mol, Bitfield ref_mask, int ref_of
             if (element != ref_element) return false;
 
             // const auto& ref_label = lbl[mask_offset + i];
-            // const auto& label = lbl[structure_offset + i];
-            // if (compare(label, ref_label) == false) return false;
+            // const auto& name = lbl[structure_offset + i];
+            // if (compare(name, ref_label) == false) return false;
 
             // if (compare(mol.residues[res_idx[mask_offset + i]].name, mol.residues[res_idx[mask_offset + i]].name) == false) return false;
             // if (mol.residues[res_idx[mask_offset + i]].id != mol.residues[res_idx[mask_offset + i]].id) return false;
@@ -1106,7 +1095,7 @@ bool structure_match(const MoleculeStructure& mol, Bitfield ref_mask, int ref_of
 
 DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfield mask, int offset) {
     const auto ele = get_elements(mol);
-    const auto lbl = get_labels(mol);
+    const auto lbl = get_names(mol);
 
     Bitfield used_atoms;
     bitfield::init(&used_atoms, mol.atom.count);

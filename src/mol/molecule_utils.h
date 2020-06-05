@@ -96,10 +96,9 @@ void compute_backbone_angles(BackboneAngle out_angle[], const soa_vec3 in_pos, c
 void compute_atom_radius(float out_radii[], const Element in_element[], i64 count);
 void compute_atom_mass(float out_mass[], const Element in_element[], i64 count);
 
-bool is_amino_acid(const Label& residue_label);
-bool is_dna(const Label& residue_label);
+bool is_amino_acid(CStringView residue_label);
+bool is_dna(CStringView residue_label);
 
-DynamicArray<Label> get_unique_residue_types(const MoleculeStructure& mol);
 DynamicArray<ResIdx> get_residues_by_name(const MoleculeStructure& mol, CStringView name);
 
 DynamicArray<AtomRange> find_equivalent_structures(const MoleculeStructure& mol, AtomRange ref);

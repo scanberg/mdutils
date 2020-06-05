@@ -4,8 +4,13 @@
 #include <mol/hydrogen_bond.h>
 #include <mol/element_utils.h>
 
+#define STRPOOL_IMPLEMENTATION
+#include <strpool.h>
+
 // 64-byte alignment for 512-bit vectorization (AVX512 and beyond!)
+
 #define ALIGNMENT 64
+
 
 // Computes covalent bonds between a set of atoms with given positions and elements.
 // The approach is inspired by the technique used in NGL (https://github.com/arose/ngl)
@@ -81,12 +86,39 @@ static DynamicArray<Bond> compute_covalent_bonds(MoleculeStructure& mol) {
 }
 
 template <i64 N>
-static bool match(const Label& lbl, const char (&cstr)[N]) {
+static bool match(const char* name, const char (&cstr)[N]) {
     for (i64 i = 0; i < N; i++) {
-        if (to_lower(lbl[i]) != to_lower(cstr[i])) return false;
+        if (to_lower(name[i]) != to_lower(cstr[i])) return false;
     }
     return true;
 }
+
+/*
+static bool is_protein(const MoleculeStructure& mol, ResIdx idx) {
+    if (mol.residue.atom_range[idx].ext() < 4) return false;
+    uint32_t bits = 0;
+
+                                                        // find atoms
+    for (i32 i = mol.residue.atom_range[idx].beg; i < mol.residue.atom_range[idx].end; i++) {
+        const char* name = mol.atom.name[i];
+        if (seg.n_idx  == -1 && match(name, "N"))  seg.n_idx  = i;
+        if (seg.ca_idx == -1 && match(name, "CA")) seg.ca_idx = i;
+        if (seg.c_idx  == -1 && match(name, "C"))  seg.c_idx  = i;
+        if (seg.o_idx  == -1 && match(name, "O"))  seg.o_idx  = i;
+    }
+
+    // Could not match "O"
+    if (seg.o_idx == -1 && seg.c_idx) {
+        // Pick last atom containing O after C atom
+        for (i32 i = seg.c_idx + 1; i < mol.residue.atom_range[ri].end; i++) {
+            const char* name = mol.atom.name[i];
+            if (name[0] == 'o' || name[0] == 'O') {
+                seg.o_idx = i;
+            }
+        }
+    }
+}
+*/
 
 static i64 compute_backbones(BackboneAtoms* out_bb_atoms, const MoleculeStructure& mol) {
     i64 num_bb_atoms = 0;
@@ -98,19 +130,19 @@ static i64 compute_backbones(BackboneAtoms* out_bb_atoms, const MoleculeStructur
 
             // find atoms
             for (i32 i = mol.residue.atom_range[ri].beg; i < mol.residue.atom_range[ri].end; i++) {
-                const auto& lbl = mol.atom.label[i];
-                if (seg.n_idx  == -1 && match(lbl, "N"))  seg.n_idx  = i;
-                if (seg.ca_idx == -1 && match(lbl, "CA")) seg.ca_idx = i;
-                if (seg.c_idx  == -1 && match(lbl, "C"))  seg.c_idx  = i;
-                if (seg.o_idx  == -1 && match(lbl, "O"))  seg.o_idx  = i;
+                const char* name = mol.atom.name[i];
+                if (seg.n_idx  == -1 && match(name, "N"))  seg.n_idx  = i;
+                if (seg.ca_idx == -1 && match(name, "CA")) seg.ca_idx = i;
+                if (seg.c_idx  == -1 && match(name, "C"))  seg.c_idx  = i;
+                if (seg.o_idx  == -1 && match(name, "O"))  seg.o_idx  = i;
             }
 
             // Could not match "O"
             if (seg.o_idx == -1 && seg.c_idx) {
                 // Pick last atom containing O after C atom
                 for (i32 i = seg.c_idx + 1; i < mol.residue.atom_range[ri].end; i++) {
-                    const auto& lbl = mol.atom.label[i];
-                    if (lbl[0] == 'o' || lbl[0] == 'O') {
+                    const char* name = mol.atom.name[i];
+                    if (name[0] == 'o' || name[0] == 'O') {
                         seg.o_idx = i;
                     }
                 }
@@ -126,9 +158,17 @@ static i64 compute_backbones(BackboneAtoms* out_bb_atoms, const MoleculeStructur
     return num_bb_atoms;
 }
 
+inline const char* instert_pool(strpool_t* pool, CStringView str) {
+    return strpool_cstr(pool, strpool_inject(pool, str.cstr(), str.length()));
+}
+
 bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDescriptor& desc) {
     ASSERT(mol);
     free_molecule_structure(mol);
+
+    mol->internal.strpool = MALLOC(sizeof(strpool_t));
+    strpool_t* pool = (strpool_t*)mol->internal.strpool;
+    strpool_init(pool, &strpool_default_config);
 
     if (desc.num_atoms > 0) {
         // Allocate Aligned data (@NOTE: Is perhaps not necessary as trajectory data is not aligned anyways...)
@@ -144,30 +184,31 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
         mol->atom.radius = (float*)get_next_aligned_adress(mol->atom.position.z + desc.num_atoms, ALIGNMENT);
         mol->atom.mass = (float*)get_next_aligned_adress(mol->atom.radius + desc.num_atoms, ALIGNMENT);
 
-        const i64 other_size = desc.num_atoms * (sizeof(Element) + sizeof(Label) + sizeof(ResIdx) + sizeof(ChainIdx));
+        const i64 other_size = desc.num_atoms * (sizeof(Element) + sizeof(const char*) + sizeof(ResIdx) + sizeof(ChainIdx) + sizeof(AtomFlags));
         void* other_mem = MALLOC(other_size);
         if (!other_mem) return false;
         memset(other_mem, 0, other_size);
 
         mol->atom.element = (Element*)other_mem;
-        mol->atom.label = (Label*)(mol->atom.element + mol->atom.count);
-        mol->atom.res_idx = (ResIdx*)(mol->atom.label + mol->atom.count);
+        mol->atom.name = (const char**)(mol->atom.element + mol->atom.count);
+        mol->atom.res_idx = (ResIdx*)(mol->atom.name + mol->atom.count);
         mol->atom.chain_idx = (ChainIdx*)(mol->atom.res_idx + mol->atom.count);
+        mol->atom.flags = (AtomFlags*)(mol->atom.chain_idx + mol->atom.count);
 
         if (desc.atoms) {
-            for (i32 i = 0; i < desc.num_atoms; i++) {
+            for (int i = 0; i < desc.num_atoms; i++) {
                 mol->atom.position.x[i] = desc.atoms[i].x;
                 mol->atom.position.y[i] = desc.atoms[i].y;
                 mol->atom.position.z[i] = desc.atoms[i].z;
 
                 mol->atom.element[i] = desc.atoms[i].element;
                 if (mol->atom.element[i] == Element::Unknown) {
-                    mol->atom.element[i] = get_element_from_string(desc.atoms[i].label);
+                    mol->atom.element[i] = get_element_from_string(desc.atoms[i].name);
                 }
 
                 mol->atom.radius[i] = element::vdw_radius(mol->atom.element[i]);
                 mol->atom.mass[i] = element::atomic_mass(mol->atom.element[i]);
-                mol->atom.label[i] = desc.atoms[i].label;
+                mol->atom.name[i] = instert_pool(pool, desc.atoms[i].name);
                 mol->atom.res_idx[i] = desc.atoms[i].residue_index;
                 mol->atom.chain_idx[i] = INVALID_CHAIN_IDX;
             }
@@ -175,21 +216,21 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
     }
 
     if (desc.num_residues > 0) {
-        const i64 mem_size = desc.num_residues * (sizeof(ResIdx) + sizeof(Label) + sizeof(AtomRange) + 2 * sizeof(BondRange));
+        const i64 mem_size = desc.num_residues * (sizeof(ResIdx) + sizeof(const char*) + sizeof(AtomRange) + 2 * sizeof(BondRange));
         void* mem = MALLOC(mem_size);
         if (!mem) return false;
         memset(mem, 0, mem_size);
 
         mol->residue.count = desc.num_residues;
         mol->residue.id = (ResIdx*)mem;
-        mol->residue.name = (Label*)(mol->residue.id + desc.num_residues);
+        mol->residue.name = (const char**)(mol->residue.id + desc.num_residues);
         mol->residue.atom_range = (AtomRange*)(mol->residue.name + desc.num_residues);
         mol->residue.bond.complete = (BondRange*)(mol->residue.atom_range + desc.num_residues);
         mol->residue.bond.intra = (BondRange*)(mol->residue.bond.complete + desc.num_residues);
         if (desc.residues) {
             for (i32 i = 0; i < desc.num_residues; i++) {
                 mol->residue.id[i] = desc.residues[i].id;
-                mol->residue.name[i] = desc.residues[i].name;
+                mol->residue.name[i] = instert_pool(pool, desc.residues[i].name);
                 mol->residue.atom_range[i] = desc.residues[i].atom_range;
                 // bond
             }
@@ -205,22 +246,22 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
     }
 
     if (desc.num_chains > 0) {
-        const i64 mem_size = desc.num_chains * (sizeof(Label) + sizeof(AtomRange) + sizeof(ResRange));
+        const i64 mem_size = desc.num_chains * (sizeof(const char*) + sizeof(AtomRange) + sizeof(ResRange));
         void* mem = MALLOC(mem_size);
         memset(mem, 0, mem_size);
 
         mol->chain.count = desc.num_chains;
-        mol->chain.id = (Label*)mem;
+        mol->chain.id = (const char**)mem;
         mol->chain.atom_range = (AtomRange*)(mol->chain.id + mol->chain.count);
         mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + mol->chain.count);
         if (desc.chains) {
             for (i32 i = 0; i < desc.num_chains; i++) {
-                mol->chain.id[i] = desc.chains[i].id;
+                mol->chain.id[i] = instert_pool(pool, desc.chains[i].id);
                 mol->chain.residue_range[i] = desc.chains[i].residue_range;
             }
         }
     } else if (desc.num_residues > 0 && desc.residues) {
-        // Generate artificial chains for every connected sequence of residues, ignore single residues e.g ext() == 1
+        // Generate artificial chains for every connected sequence of protein residues, ignore single residues e.g ext() == 1
         DynamicArray<ResRange> seq;
         ResRange range{0, 1};
         for (i64 i = 0; i < mol->residue.count - 1; i++) {
@@ -238,26 +279,19 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
             seq.push_back(range);
         }
 
-        const i64 mem_size = seq.size() * (sizeof(Label) + sizeof(AtomRange) + sizeof(ResRange));
+        const i64 mem_size = seq.size() * (sizeof(const char*) + sizeof(AtomRange) + sizeof(ResRange));
         void* mem = MALLOC(mem_size);
 
         mol->chain.count = seq.size();
-        mol->chain.id = (Label*)mem;
+        mol->chain.id = (const char**)mem;
         mol->chain.atom_range = (AtomRange*)(mol->chain.id + mol->chain.count);
         mol->chain.residue_range = (ResRange*)(mol->chain.atom_range + mol->chain.count);
 
-        memset(mol->chain.id, 0, seq.size() * sizeof(Label));
-        if (seq.size() < ('Z' - 'A')) {
-            for (i64 i = 0; i < seq.size(); i++) {
-                mol->chain.id[i] = 'A' + (char)i;
-                mol->chain.residue_range[i] = seq[i];
-            }
-        }
-        else {
-            for (i64 i = 0; i < seq.size(); i++) {
-                snprintf(mol->chain.id[i].buffer, Label::MaxSize, "C%i", (int)i);
-                mol->chain.residue_range[i] = seq[i];
-            }
+        memset(mol->chain.id, 0, seq.size() * sizeof(const char*));
+        const char* id_arr[] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
+        for (i64 i = 0; i < seq.size(); i++) {
+            mol->chain.id[i] = instert_pool(pool, {id_arr[i % ARRAY_SIZE(id_arr)], 1});
+            mol->chain.residue_range[i] = seq[i];
         }
     }
 
@@ -274,7 +308,7 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
         }
     }
 
-    {
+    if (mol->chain.count > 0) {
         const i64 mem_size = mol->residue.count * (sizeof(BackboneAtoms) + sizeof(BackboneAngle) + sizeof(SecondaryStructure));
         void* mem = MALLOC(mem_size);
         memset(mem, 0, mem_size);
@@ -329,6 +363,10 @@ void free_molecule_structure(MoleculeStructure* mol) {
     if (mol->covalent_bond.bond) FREE(mol->covalent_bond.bond);
     if (mol->residue.id) FREE(mol->residue.id);
     if (mol->residue.backbone.atoms) FREE(mol->residue.backbone.atoms);
+    if (mol->internal.strpool) {
+        strpool_term((strpool_t*)mol->internal.strpool);
+        FREE(mol->internal.strpool);
+    }
     //if (mol->backbone.sequence.segment_range) FREE(mol->backbone.sequence.segment_range);
 
     *mol = {};

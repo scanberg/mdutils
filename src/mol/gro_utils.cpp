@@ -39,15 +39,6 @@ inline LineFormat get_format(CStringView line) {
     return fmt;
 }
 
-inline void extract_residue_data(Label* name, int* id, CStringView line) {
-    *name = trim(line.substr(5, 5));
-    *id = to_int(line.substr(0, 5));
-}
-
-inline void extract_atom_label(Label* label, CStringView line) {
-    *label = trim(line.substr(10, 5));
-}
-
 inline void extract_position_data(float* x, float* y, float* z, CStringView line, int width) {
     *x = str_to_float(line.substr(20 + 0 * width, width)) * 10.0f; // nm -> Å
     *y = str_to_float(line.substr(20 + 1 * width, width)) * 10.0f;
@@ -87,8 +78,8 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
         line = extract_line(gro_string);
         
         AtomDescriptor& atom = atoms.allocate_back();
-        extract_atom_label(&atom.label, line);
         extract_position_data(&atom.x, &atom.y, &atom.z, line, format.pos_width);
+        atom.name = trim(line.substr(10, 5));
         
         int res_id = to_int(line.substr(0, 5));
         if (cur_res != res_id) { 

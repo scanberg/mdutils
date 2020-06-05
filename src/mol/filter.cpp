@@ -273,7 +273,7 @@ void initialize() {
         if (args.size() == 0) return false;
         for (i64 i = 0; i < ctx.mol.atom.count; i++) {
             for (const auto& arg : args) {
-                if (compare(ctx.mol.atom.label[i], arg)) {
+                if (compare(ctx.mol.atom.name[i], arg)) {
                     bitfield::set_bit(mask, i);
                     break;
                 }
@@ -306,7 +306,7 @@ void initialize() {
     context->filter_commands.push_back({"aminoacid", filter_amino_acid});
     context->filter_commands.push_back({"backbone", [](Bitfield mask, const FilterContext& ctx, Array<const CStringView>) {
                                             for (i64 i = 0; i < ctx.mol.atom.count; i++) {
-                                                if (compare_n(ctx.mol.atom.label[i], "CA", 2)) {
+                                                if (compare_n(ctx.mol.atom.name[i], "CA", 2)) {
                                                     bitfield::set_bit(mask, i);
                                                 }
                                             }
