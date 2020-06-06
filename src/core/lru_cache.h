@@ -114,7 +114,7 @@ struct LRU_Cache_4 {
 		if ((ref_matrix & 0x00F0) == 0) return 1;
 		if ((ref_matrix & 0x0F00) == 0) return 2;
 		if ((ref_matrix & 0xF000) == 0) return 3;
-		ASSERT(false, "Corrupted ref matrix!");
+		ASSERT(false && "Corrupted ref matrix!");
 		return -1;
 	}
 
