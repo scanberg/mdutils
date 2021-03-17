@@ -93,33 +93,6 @@ static bool match(const char* name, const char (&cstr)[N]) {
     return true;
 }
 
-/*
-static bool is_protein(const MoleculeStructure& mol, ResIdx idx) {
-    if (mol.residue.atom_range[idx].ext() < 4) return false;
-    uint32_t bits = 0;
-
-                                                        // find atoms
-    for (i32 i = mol.residue.atom_range[idx].beg; i < mol.residue.atom_range[idx].end; i++) {
-        const char* name = mol.atom.name[i];
-        if (seg.n_idx  == -1 && match(name, "N"))  seg.n_idx  = i;
-        if (seg.ca_idx == -1 && match(name, "CA")) seg.ca_idx = i;
-        if (seg.c_idx  == -1 && match(name, "C"))  seg.c_idx  = i;
-        if (seg.o_idx  == -1 && match(name, "O"))  seg.o_idx  = i;
-    }
-
-    // Could not match "O"
-    if (seg.o_idx == -1 && seg.c_idx) {
-        // Pick last atom containing O after C atom
-        for (i32 i = seg.c_idx + 1; i < mol.residue.atom_range[ri].end; i++) {
-            const char* name = mol.atom.name[i];
-            if (name[0] == 'o' || name[0] == 'O') {
-                seg.o_idx = i;
-            }
-        }
-    }
-}
-*/
-
 static i64 compute_backbones(BackboneAtoms* out_bb_atoms, const MoleculeStructure& mol) {
     i64 num_bb_atoms = 0;
 
@@ -371,3 +344,4 @@ void free_molecule_structure(MoleculeStructure* mol) {
 
     *mol = {};
 }
+

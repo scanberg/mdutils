@@ -61,18 +61,6 @@ inline void extract_element(Element* element, CStringView line) {
         // @NOTE: Try optional atom element field, ignore case
         elem = get_element_from_string(line.substr(76, 2), true);
     }
-
-    if (elem == Element::Unknown) {
-        // @NOTE: Try to deduce from atom id
-        const CStringView atom_id = line.substr(12, 4);
-        const CStringView res_name = line.substr(17, 3);
-        if (compare_n(atom_id, "CA", 2) && get_amino_acid_from_string(res_name) == AminoAcid::Unknown) {
-            // @NOTE: Ambigous case where CA is probably calcium if not part of an amino acid
-            elem = Element::Ca;
-        } else {
-            elem = get_element_from_string(atom_id);
-        }
-    }
     *element = elem;
 }
 
@@ -449,6 +437,7 @@ bool read_trajectory_simulation_box(mat3* sim_box, CStringView filename) {
     if (file) {
         constexpr i64 buf_size = MEGABYTES(1);
         char* buf = (char*)TMP_MALLOC(buf_size);
+        defer { TMP_FREE(buf); };
         ASSERT(buf);
         const i64 bytes_read = fread(buf, 1, buf_size, file);
         CStringView line = find_pattern_in_string({buf, bytes_read}, "CRYST1");

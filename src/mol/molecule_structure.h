@@ -61,7 +61,6 @@ struct MoleculeStructure {
         ResIdx* res_idx = nullptr;
         ChainIdx* chain_idx = nullptr;
         uint8_t* flags = nullptr;
-        //SeqIdx* seq_idx = nullptr;
     } atom;
 
     struct {
@@ -98,22 +97,6 @@ struct MoleculeStructure {
         AtomRange* atom_range = nullptr;
         ResRange* residue_range = nullptr;
     } chain;
-
-    /*
-    struct {
-        struct {
-            i64 count = 0;
-            //BackboneAtoms* segment = nullptr;
-            BackboneAngle* angle = nullptr;
-            //SecondaryStructure* secondary_structure = nullptr;
-        } segment;
-
-        struct {
-            i64 count = 0;
-            SegRange* segment_range = nullptr;
-        } sequence;
-    } backbone;
-    */
 
     struct {
         struct {

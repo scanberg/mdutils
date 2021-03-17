@@ -4,8 +4,8 @@
 #include <mol/molecule_trajectory.h>
 
 struct FrameBytes {
-    u64 offset : 40;
-    u64 extent : 24;
+    u64 offset : 40; // max: ~1.1TB
+    u64 extent : 24; // max: 16MB
 };
 
 constexpr u64 INVALID_UID = 0;

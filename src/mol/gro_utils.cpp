@@ -1,17 +1,14 @@
 #include "gro_utils.h"
 #include <core/string_utils.h>
 #include <core/log.h>
-#include <mol/element.h>
-#include <mol/element_utils.h>
 #include <mol/molecule_utils.h>
-#include <mol/hydrogen_bond.h>
 
 #include <stdio.h>
 
 namespace gro {
 
 struct LineFormat {
-    int pos_width = -1;
+    int pos_width = 0;
 };
 
 bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
@@ -25,7 +22,7 @@ bool load_molecule_from_file(MoleculeStructure* mol, CStringView filename) {
 }
 
 inline LineFormat get_format(CStringView line) {
-    LineFormat fmt{};
+    LineFormat format = {0};
 
     // First float starts at offset 20, count
     if (line.length() > 20) {
@@ -33,10 +30,10 @@ inline LineFormat get_format(CStringView line) {
         while (c != line.end() && *c != '\n' && *c == ' ') c++;
         while (c != line.end() && *c != '\n' && *c != ' ') c++;
         if (c != line.end()) {
-            fmt.pos_width = (int)(c - (&line[20]));
+            format.pos_width = (int)(c - (&line[20]));
         }
     }
-    return fmt;
+    return format;
 }
 
 inline void extract_position_data(float* x, float* y, float* z, CStringView line, int width) {
@@ -62,7 +59,7 @@ bool load_molecule_from_string(MoleculeStructure* mol, CStringView gro_string) {
     }
 
     const LineFormat format = get_format(peek_line(gro_string));
-    if (format.pos_width == -1) {
+    if (format.pos_width == 0) {
         LOG_ERROR("Could not identify internal line format of gro file!");
         return false;
     }
