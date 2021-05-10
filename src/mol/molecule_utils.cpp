@@ -1129,7 +1129,7 @@ DynamicArray<int> find_equivalent_structures(const MoleculeStructure& mol, Bitfi
 #endif
 
     DynamicArray<int> offsets = {};
-    for (int i = 0; i < mol.atom.count - mask.size(); ++i) {
+    for (int i = 0; i <= mol.atom.count - mask.size(); ++i) {
         if (used_atoms[i]) continue;
 
         if (structure_match(mol, mask, offset, i, used_atoms)) {
