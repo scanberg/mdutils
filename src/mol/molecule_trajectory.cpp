@@ -1,7 +1,7 @@
 #include "molecule_trajectory.h"
 #include <core/log.h>
-#include <core/hash.h>
-#include <mol/trajectory_utils.h>
+//#include <core/hash.h>
+//#include <mol/trajectory_utils.h>
 
 #define ALIGNMENT 64
 

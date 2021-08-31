@@ -2,6 +2,8 @@
 
 #include <core/platform.h>
 #include <atomic>
+#include <mutex>
+#include <semaphore>
 
 using std::atomic_int32_t;
 using std::atomic_uint32_t;
@@ -16,6 +18,10 @@ using std::atomic_fetch_and;
 using std::atomic_fetch_or;
 using std::atomic_fetch_xor;
 using std::atomic_exchange;
+
+using std::mutex;
+
+using std::counting_semaphore;
 
 /*
 #if PLATFORM_WINDOWS

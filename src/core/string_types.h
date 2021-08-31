@@ -73,6 +73,13 @@ struct StringBuffer {
         buffer[len] = '\0';
     }
 
+    constexpr StringBuffer(const char* cstr, int64_t len) noexcept {
+        ASSERT(len > 0);
+        len = len < MaxSize - 1 ? len : MaxSize - 1;
+        helper::cexpr_copy(buffer, cstr, len);
+        buffer[len] = '\0';
+    }
+
     constexpr StringBuffer(char c) noexcept {
         buffer[0] = c;
         buffer[1] = '\0';
@@ -192,7 +199,7 @@ struct CStringView : Array<const char> {
     template <i64 Length>
     constexpr CStringView(const char (&cstr)[Length]) noexcept {
         ptr = cstr;
-        count = Length - 1;
+        count = helper::cexpr_strnlen(cstr, Length - 1);
         ASSERT(count >= 0);
     }
 

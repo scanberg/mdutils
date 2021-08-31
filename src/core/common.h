@@ -30,9 +30,9 @@ inline bool _assert(const char* file, const char* func, int line) { _assert(file
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
-#define KILOBYTES(x) (x << 10)
-#define MEGABYTES(x) (KILOBYTES(x) << 10)
-#define GIGABYTES(x) (MEGABYTES(x) << 10)
+#define KILOBYTES(x) (x << 10LL)
+#define MEGABYTES(x) (KILOBYTES(x) << 10LL)
+#define GIGABYTES(x) (MEGABYTES(x) << 10LL)
 
 #define BIT(bit) (1U << bit)
 #define SET_BIT(field, bit) (field |= (1U << bit))

@@ -219,7 +219,7 @@ constexpr bool any_bit_set(const Bitfield field) {
         return (field.block_ptr[beg_blk_idx] & mask) != 0;
     }
 
-    for (u64 i = 0; i < end_blk_idx - 1; i++) {
+    for (u64 i = 0; i < end_blk_idx; i++) {
         if (field.block_ptr[i] != 0) return true;
     }
     if ((field.block_ptr[end_blk_idx] & (detail::bit_pattern(field.bit_count) - 1)) != 0) return true;
@@ -235,7 +235,7 @@ constexpr bool all_bits_set(const Bitfield field) {
         return (field.block_ptr[beg_blk] & end_mask) == end_mask;
     }
 
-    for (u64 i = 0; i < end_blk - 1; i++) {
+    for (u64 i = 0; i < end_blk; i++) {
         if (~field.block_ptr[i] != 0) return false;
     }
     return (field.block_ptr[end_blk] & end_mask) == end_mask;

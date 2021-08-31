@@ -118,7 +118,7 @@ struct LRU_Cache_4 {
 		return -1;
 	}
 
-	void set_lru_idx(int i) {
+	void mark_lru_idx(int i) {
 		ref_matrix = ref_matrix | (0xF << (4 * i));
 		ref_matrix = ref_matrix & ~(0x1111 << i);
 	}
@@ -133,7 +133,7 @@ struct LRU_Cache_4 {
 	Type* get(Key key) {
 		int idx = find(key);
 		if (idx != -1) {
-			set_lru_idx(idx);
+			mark_lru_idx(idx);
 			return &data[idx];
 		}
 		return nullptr;
@@ -142,7 +142,7 @@ struct LRU_Cache_4 {
 	void put(Key key, const Type& item) {
 		ASSERT(find(key) == -1);
 		int idx = get_lru_idx();
-		set_lru_idx(idx);
+		mark_lru_idx(idx);
 		keys[idx] = key;
 		data[idx] = item;
 	}
@@ -150,7 +150,7 @@ struct LRU_Cache_4 {
 	Type* reserve(Key key) {
 		ASSERT(find(key) == -1);
 		int idx = get_lru_idx();
-		set_lru_idx(idx);
+		mark_lru_idx(idx);
 		keys[idx] = key;
 		return &data[idx];
 	}
@@ -168,10 +168,12 @@ struct LRU_Cache_8 {
 	}
 
 	int get_lru_idx() {
-		return find_first_zero_byte(ref_matrix);
+		int result = (int)find_first_zero_byte(ref_matrix);
+		ASSERT(result < 8);
+		return result;
 	}
 
-	void set_lru_idx(int i) {
+	void mark_lru_idx(int i) {
 		ref_matrix = ref_matrix | (0xFFLLU << (8 * i));
 		ref_matrix = ref_matrix & ~(0x0101010101010101LLU << i);
 	}
@@ -186,24 +188,24 @@ struct LRU_Cache_8 {
 	Type* get(Key key) {
 		int idx = find(key);
 		if (idx != -1) {
-			set_lru_idx(idx);
+			mark_lru_idx(idx);
 			return &data[idx];
 		}
 		return nullptr;
 	}
 
-	void put(Key key, const Type& item) {
+	void set(Key key, const Type val) {
 		ASSERT(find(key) == -1);
 		int idx = get_lru_idx();
-		set_lru_idx(idx);
+		mark_lru_idx(idx);
 		keys[idx] = key;
-		data[idx] = item;
+		data[idx] = val;
 	}
 
 	Type* reserve(Key key) {
 		ASSERT(find(key) == -1);
 		int idx = get_lru_idx();
-		set_lru_idx(idx);
+		mark_lru_idx(idx);
 		keys[idx] = key;
 		return &data[idx];
 	}

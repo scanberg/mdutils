@@ -10,9 +10,9 @@
 #include <mol/element_utils.h>
 #include <mol/aminoacid.h>
 #include <mol/aminoacid_utils.h>
-#include <mol/trajectory_utils.h>
+//#include <mol/trajectory_utils.h>
 
-#include <svd3/svd3.h>
+//#include <svd3/svd3.h>
 #include <ctype.h>
 
 inline SIMD_TYPE_F apply_pbc(const SIMD_TYPE_F x, const SIMD_TYPE_F box_ext) {
@@ -644,6 +644,7 @@ mat3 compute_covariance_matrix(const soa_vec3 in_pos, const float mass[], i64 co
     return A / mass_sum;
 }
 
+/*
 #define ARGS(M) M[0][0], M[1][0], M[2][0], M[0][1], M[1][1], M[2][1], M[0][2], M[1][2], M[2][2]
 EigenFrame compute_eigen_frame(const soa_vec3 in_pos, const float in_mass[], i64 count) {
     const vec3 com = compute_com(in_pos, count);
@@ -678,6 +679,7 @@ EigenFrame compute_eigen_frame(const soa_vec3 in_pos, const float in_mass[], i64
     return ef;
 }
 #undef ARGS
+*/
 
 void recenter_trajectory(MoleculeDynamic* dynamic, AtomRange range) {
     ASSERT(dynamic);

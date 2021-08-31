@@ -1,7 +1,7 @@
 #include "molecule_structure.h"
 #include <core/spatial_hash.h>
 #include <mol/molecule_utils.h>
-#include <mol/hydrogen_bond.h>
+//#include <mol/hydrogen_bond.h>
 #include <mol/element_utils.h>
 
 #define STRPOOL_IMPLEMENTATION
@@ -312,7 +312,7 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
             }
         }
     }
-
+/*
     {
         auto acc = hydrogen_bond::compute_acceptors(mol->atom.element, mol->atom.count);
         auto don = hydrogen_bond::compute_donors(*mol);
@@ -325,7 +325,7 @@ bool init_molecule_structure(MoleculeStructure* mol, const MoleculeStructureDesc
         mol->hydrogen_bond.acceptor.data = (HydrogenBondAcceptor*)(mol->hydrogen_bond.donor.data + don.size());
         memcpy(mol->hydrogen_bond.acceptor.data, acc.data(), acc.size_in_bytes());
     }
-
+    */
     return true;
 }
 
@@ -340,7 +340,6 @@ void free_molecule_structure(MoleculeStructure* mol) {
         strpool_term((strpool_t*)mol->internal.strpool);
         FREE(mol->internal.strpool);
     }
-    //if (mol->backbone.sequence.segment_range) FREE(mol->backbone.sequence.segment_range);
 
     *mol = {};
 }
